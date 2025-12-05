@@ -4,7 +4,7 @@
         water: Some((0.0, 0.0, 0.5)),
     )),
     terrain: (
-        surface_material: "water",
+        surface_material: "stone",
         subsurface_material: "stone",
     ),
 )

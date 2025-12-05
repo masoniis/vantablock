@@ -6,6 +6,8 @@ use crate::simulation_world::terrain::generators::shaping::{
 };
 use noise::{NoiseFn, Simplex};
 
+pub const REALISTIC_SEA_LEVEL: f64 = 64.0;
+
 /// Generates volumetric 3D terrain using Climate-driven Density Functions.
 #[derive(Debug, Clone)]
 pub struct RealisticShaper {
@@ -21,9 +23,9 @@ impl RealisticShaper {
         Self {
             noise: Simplex::new(1234),
             frequency: 0.015,
-            floor_y: -64,
-            ceiling_y: 320,
-            sea_level: 64.0,
+            floor_y: 0,
+            ceiling_y: 256,
+            sea_level: REALISTIC_SEA_LEVEL,
         }
     }
 

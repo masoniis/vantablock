@@ -14,14 +14,12 @@ use noise::{Fbm, MultiFractal, NoiseFn, OpenSimplex};
 
 /// The number of octaves used in the noise functions.
 const CLIMATE_NOISE_OCTAVES: usize = 2;
-/// The scale applied to world coordinates when sampling the noise functions.
-const NOISE_SCALE: f64 = 0.01;
 
 /// Helper function to create a standard FBM noise function
 fn create_noise_fn(seed: u32, octaves: usize) -> Fbm<OpenSimplex> {
     Fbm::new(seed)
         .set_octaves(octaves)
-        .set_frequency(0.01)
+        .set_frequency(0.0033)
         .set_lacunarity(2.0)
         .set_persistence(0.5)
 }
@@ -54,16 +52,16 @@ impl ClimateNoiseGenerator {
     /// Calculates all 5 climate values for a single world-space block coordinate.
     #[instrument(skip_all)]
     pub fn get_climate_at(&self, world_x: i32, world_z: i32) -> ClimateData {
-        let sample_2d = [world_x as f64 * NOISE_SCALE, world_z as f64 * NOISE_SCALE];
+        let sample_2d = [world_x as f64, world_z as f64];
 
         // BIOME-ONLY parameters
-        let temperature = ((self.temperature_noise.get(sample_2d) + 1.0) * 0.5) as f32;
-        let precipitation = ((self.precipitation_noise.get(sample_2d) + 1.0) * 0.5) as f32;
+        let temperature = self.temperature_noise.get(sample_2d) as f32;
+        let precipitation = self.precipitation_noise.get(sample_2d) as f32;
 
         // BIOME + TERRAIN-GEN parameters
-        let continentalness = ((self.continental_noise.get(sample_2d) + 1.0) * 0.5) as f32;
-        let erosion = ((self.erosion_noise.get(sample_2d) + 1.0) * 0.5) as f32;
-        let weirdness = ((self.weirdness_noise.get(sample_2d) + 1.0) * 0.5) as f32;
+        let continentalness = self.continental_noise.get(sample_2d) as f32;
+        let erosion = self.erosion_noise.get(sample_2d) as f32;
+        let weirdness = self.weirdness_noise.get(sample_2d) as f32;
 
         ClimateData {
             temperature,
@@ -83,7 +81,7 @@ impl ClimateNoiseGenerator {
     ) {
         for (i, point) in coords.iter().enumerate() {
             let raw = noise_fn.get(*point);
-            target_buffer[i] = ((raw + 1.0) * 0.5) as f32;
+            target_buffer[i] = raw as f32;
         }
     }
 
@@ -99,11 +97,11 @@ impl ClimateNoiseGenerator {
 
         // calculate coordinates
         let mut coords = vec![[0.0; 2]; area];
-        for z in 0..size {
-            for x in 0..size {
-                let idx = z * size + x;
-                let wx = (base_x + x as i32) as f64 * NOISE_SCALE;
-                let wz = (base_z + z as i32) as f64 * NOISE_SCALE;
+        for x in 0..size {
+            for z in 0..size {
+                let idx = x * size + z;
+                let wx = (base_x + x as i32) as f64;
+                let wz = (base_z + z as i32) as f64;
                 coords[idx] = [wx, wz];
             }
         }

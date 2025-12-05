@@ -1,3 +1,4 @@
+use super::realistic_shaper::REALISTIC_SEA_LEVEL;
 use crate::prelude::*;
 use crate::simulation_world::terrain::climate::ClimateMapComponent;
 use crate::simulation_world::{
@@ -19,7 +20,7 @@ pub struct SinwaveShaper {
 impl SinwaveShaper {
     pub fn new() -> Self {
         Self {
-            base_height: 32, // average world height
+            base_height: REALISTIC_SEA_LEVEL as i32, // average world height
             amplitude: 12.0,
             frequency: 0.04,
         }

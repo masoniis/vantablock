@@ -26,6 +26,8 @@ impl Plugin for ShowcasePlugin {
                         || action_state.just_happened(SimulationAction::Showcase1)
                         || action_state.just_happened(SimulationAction::Showcase2)
                         || action_state.just_happened(SimulationAction::Showcase3)
+                        || action_state.just_happened(SimulationAction::Showcase4)
+                        || action_state.just_happened(SimulationAction::Showcase5)
                 }),
             );
     }

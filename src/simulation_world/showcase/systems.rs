@@ -21,7 +21,7 @@ const SHOWCASES: &[Showcase] = &[
         // basic flat area for introduction
         generator_idx: 0,
         time_of_day: 0.25, // showcase sun shining from left
-        position: Vec3::new(0.0, 36.5, 0.0),
+        position: Vec3::new(0.0, 68.5, 0.0),
         yaw: 85.0,
         pitch: -12.0,
     },
@@ -29,24 +29,40 @@ const SHOWCASES: &[Showcase] = &[
         // sinwave with vertex waving and shadows
         generator_idx: 1,
         time_of_day: 0.3, // showcase sun shining from left
-        position: Vec3::new(-661.0, 36.5, 175.0),
+        position: Vec3::new(-661.0, 68.5, 175.0),
         yaw: 85.0,
         pitch: -12.0,
     },
     Showcase {
         // realistic terrain gen with horizon
-        generator_idx: 2,
-        time_of_day: 0.74, // showcase sunset and sky shaders in a more realistic terrain
-        position: Vec3::new(1017.0, 46.2, 993.0),
-        yaw: -189.0,
+        generator_idx: 2,  // realistic terrain
+        time_of_day: 0.73, // sunset
+        position: Vec3::new(939.0, 71.2, 1218.0),
+        yaw: -169.0,
         pitch: -3.0,
     },
     Showcase {
-        // sinwave
-        generator_idx: 4,
-        time_of_day: 0.25, // showcase 3d simplex noise to feature 3d terrain
-        position: Vec3::new(2010.0, 75.0, 1990.0),
-        yaw: -45.0,
+        // showcase 3d simplex noise to feature 3d terrain
+        generator_idx: 4, // 3d simplex
+        time_of_day: 0.25,
+        position: Vec3::new(1425.0, 73.0, 1984.0),
+        yaw: 48.0,
+        pitch: 7.0,
+    },
+    Showcase {
+        // cool bump thing
+        generator_idx: 3,
+        time_of_day: 0.223,
+        position: Vec3::new(3693.0, 140.0, 507.0),
+        yaw: 0.0,
+        pitch: -3.0,
+    },
+    Showcase {
+        // cool mountain hole thing
+        generator_idx: 3,
+        time_of_day: 0.25,
+        position: Vec3::new(37252.0, 138.0, -2488.0),
+        yaw: -147.0,
         pitch: -3.0,
     },
 ];
@@ -65,6 +81,10 @@ pub fn apply_showcase_system(
         2
     } else if action_state.just_happened(SimulationAction::Showcase3) {
         3
+    } else if action_state.just_happened(SimulationAction::Showcase4) {
+        4
+    } else if action_state.just_happened(SimulationAction::Showcase5) {
+        5
     } else if action_state.just_happened(SimulationAction::Showcase0) {
         0
     } else {

@@ -5,7 +5,7 @@
 	)),
 
 	terrain: (
-		surface_material: "water",
+		surface_material: "sand",
 		subsurface_material: "dirt",
 	),
 )

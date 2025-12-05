@@ -7,11 +7,13 @@ Easiest way to navigate for grading is the simple **showcase keybinds**, which a
 1. Numkey 1: showcases water bobbing, shadows visible, and sinwave terrain gen
 2. Numkey 2: showcases a more realistic terrain, sunset transition happening
 3. Numkey 3: showcases more powerful 3D terrain capabilities (proving that terrain is not a mere heightmap) with 3D simplex noise!
+4. Numkey 4: showcases a wider terrain with clearer biomes
+5. Numkey 5: showcases a cool hole in a mountain (nothing else in particular)
 
 ### Important usage warnings/notes
 
 1. UI is EXPENSIVE and may cause lag so be weary of that.
-2. Shadows have very low render distance of 32 voxels (didn't have time for cascaded shadow maps) and also have some other small issues.
+2. Shadows have very low render distance of 32 voxels (have not implemented cascaded shadow maps)
 
 ### Cool things I'm proud of (things to pay attention to)
 
@@ -35,9 +37,8 @@ Easiest way to navigate for grading is the simple **showcase keybinds**, which a
 ### AI usage
 
 1. AI wrote the texture converter in [tools/texture_processor](./tools/texture_processor.rs) (though some adjustments and fixes were made) to add tints to existing pngs and generate a water clear texture.
-2. AI was very useful for debugging/fixing some indexing errors regarding ambient occlusion and shader winding order regarding consts seen in the shader code and mesher.
-3. AI helped with determinance of some thresholds regarding biomes that are typical of other voxel engines (see [multinoise_biomes.rs](./src/simulation_world/terrain/generators/biome/multinoise_biomes.rs)) though I didn't have enough time to fully incorporate biomes in the terrain painter so we don't really see biomes anyway.
-4. AI helped with writing the makefile to (hopefully) work on ubuntu since I don't have access to a ubuntu machine.
+2. AI helped with determinance of some thresholds regarding biomes that are typical of other voxel engines, and while it was a good baseline, I definitely need to tune the thresholds.
+3. AI helped with writing the makefile to work fully on ubuntu without root access since I don't have access to a ubuntu machine.
 
 ### Time spent
 
@@ -73,6 +74,8 @@ To run, `cargo` can be used like any standard Rust project:
 | `1`           | Jump to scene showcase 1 (water bobbing, shadow showing, sinwave gen)                |
 | `2`           | Jump to scene showcase 2 (realistic gen, sunset transition happening)                |
 | `3`           | Jump to scene showcase 3 (showcase of 3D gen capabilities, 3D simplex area)          |
+| `4`           | Jump to scene showcase 4 (showcase of a wider terrain with clearer biomes)           |
+| `5`           | Jump to scene showcase 5 (showcase of a cool hole in a mountain)                     |
 | `Left Shift`  | Move faster                                                                          |
 | `Mouse Left`  | Break targeted voxel                                                                 |
 | `Mouse right` | Place voxel against targeted face                                                    |

@@ -5,6 +5,8 @@ use crate::simulation_world::{
     terrain::generators::shaping::{ChunkUniformity, ShapeResultBuilder, TerrainShaper},
 };
 
+use super::realistic_shaper::REALISTIC_SEA_LEVEL;
+
 #[derive(Debug, Clone)]
 pub struct SuperflatShaper {
     land_height: i32,
@@ -12,7 +14,9 @@ pub struct SuperflatShaper {
 
 impl SuperflatShaper {
     pub fn new() -> Self {
-        Self { land_height: 32 }
+        Self {
+            land_height: REALISTIC_SEA_LEVEL as i32,
+        }
     }
 }
 

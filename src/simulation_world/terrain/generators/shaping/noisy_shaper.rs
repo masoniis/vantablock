@@ -1,3 +1,4 @@
+use super::realistic_shaper::REALISTIC_SEA_LEVEL;
 use crate::prelude::*;
 use crate::simulation_world::chunk::CHUNK_SIDE_LENGTH;
 use crate::simulation_world::terrain::climate::ClimateMapComponent;
@@ -23,7 +24,7 @@ impl NoisyShaper {
 
         Self {
             noise,
-            base_height: 32,
+            base_height: REALISTIC_SEA_LEVEL as i32,
             amplitude: 24.0,
         }
     }

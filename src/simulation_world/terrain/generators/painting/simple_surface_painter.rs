@@ -2,6 +2,7 @@ use crate::prelude::*;
 use crate::simulation_world::biome::BiomeRegistryResource;
 use crate::simulation_world::block::BlockRegistryResource;
 use crate::simulation_world::terrain::generators::painting::{PaintResultBuilder, TerrainPainter};
+use crate::simulation_world::terrain::shaping::realistic_shaper::REALISTIC_SEA_LEVEL;
 use crate::simulation_world::terrain::BiomeMapComponent;
 
 #[derive(Debug, Clone)]
@@ -13,78 +14,75 @@ impl SimpleSurfacePainter {
     }
 }
 
-const SEA_LEVEL: i32 = 32;
-
 impl TerrainPainter for SimpleSurfacePainter {
     #[instrument(skip_all)]
     fn paint_terrain_chunk(
         &self,
         mut painter: PaintResultBuilder,
-        _biome_map: &BiomeMapComponent,
+        biome_map: &BiomeMapComponent,
         block_registry: &BlockRegistryResource,
-        _biome_registry: &BiomeRegistryResource,
+        biome_registry: &BiomeRegistryResource,
     ) -> PaintResultBuilder {
-        let air_id = block_registry
-            .get_block_id_by_name("air")
-            .expect("Painter couldn't get air");
-        let water_id = block_registry
-            .get_block_id_by_name("water")
-            .expect("Painter couldn't get water");
-        let grass_id = block_registry
-            .get_block_id_by_name("grass")
-            .expect("Painter couldn't get grass");
+        let air_id = block_registry.get_block_id_by_name("air").unwrap();
+        let water_id = block_registry.get_block_id_by_name("water").unwrap();
+        let stone_id = block_registry.get_block_id_by_name("stone").unwrap();
 
         let size = painter.size();
-        let base_world_pos = painter.chunk_coord.as_world_pos();
-        let base_y = base_world_pos.y;
-        let chunk_top_y = base_y + size as i32;
+        let base_y = painter.chunk_coord.as_world_pos().y;
 
-        // early exists and optimization
-        if let Some(uniform_id) = painter.is_uniform() {
-            if uniform_id == air_id {
-                if base_y >= SEA_LEVEL {
-                    return painter;
-                } else if chunk_top_y < SEA_LEVEL {
-                    // pure air below sea then fill with water
-                    painter.edit_arbitrary(|writer| {
-                        writer.fill(water_id);
-                    });
-                    return painter;
-                }
-            }
-            // skip full solids
-            // TODO: technically a bug if the chunk is uniform but still located at
-            // the surface. This is a bit rare and i'm currently lazy to address it
-            if uniform_id != air_id {
-                return painter;
-            }
-        }
-
-        // chunk is mixed
         painter.edit_arbitrary(|writer| {
             for x in 0..size {
                 for z in 0..size {
-                    for y in 0..size {
-                        let world_y = base_y + y as i32;
-                        let current_block_id = writer.get_block(x, y, z);
+                    // iterate backwards to find first surface block
+                    for y in (0..size).rev() {
+                        if writer.get_block(x, y, z) != air_id {
+                            let world_y = base_y + y as i32;
 
-                        // water fill
-                        if current_block_id == air_id {
-                            if world_y < SEA_LEVEL {
-                                writer.set_block(x, y, z, water_id);
-                            }
-                            continue;
-                        }
+                            // biome data for column
+                            let biome_id = biome_map.get_data_unchecked(x, y, z);
+                            let biome_def = biome_registry.get(biome_id);
 
-                        // grass paint (top block never gets checked though, part of the todo above)
-                        if y < size - 1 {
-                            let block_above_id = writer.get_block(x, y + 1, z);
+                            let surface_id = block_registry
+                                .get_block_id_by_name(&biome_def.terrain.surface_material)
+                                .unwrap_or(stone_id);
+                            let subsurface_id = block_registry
+                                .get_block_id_by_name(&biome_def.terrain.subsurface_material)
+                                .unwrap_or(stone_id);
 
-                            if block_above_id == air_id {
-                                if world_y >= SEA_LEVEL {
-                                    writer.set_block(x, y, z, grass_id);
+                            let actual_surface_id = if world_y < REALISTIC_SEA_LEVEL as i32 {
+                                subsurface_id
+                            } else {
+                                surface_id
+                            };
+
+                            // apply surface and subsurface blocks (but dont do water,
+                            // since that relies on just being filled below sea level)
+                            if actual_surface_id != water_id {
+                                writer.set_block(x, y, z, actual_surface_id);
+                                for i in 1..=3 {
+                                    if y >= i {
+                                        let sy = y - i;
+                                        if writer.get_block(x, sy, z) != air_id {
+                                            writer.set_block(x, sy, z, subsurface_id);
+                                        }
+                                    }
                                 }
                             }
+
+                            break;
+                        }
+                    }
+
+                    // water replaces air below sea level
+                    for y in 0..size {
+                        let world_y = base_y + y as i32;
+                        if world_y < REALISTIC_SEA_LEVEL as i32 {
+                            if writer.get_block(x, y, z) == air_id {
+                                writer.set_block(x, y, z, water_id);
+                            }
+                        } else {
+                            // above sea level, we can stop checking water
+                            break;
                         }
                     }
                 }
