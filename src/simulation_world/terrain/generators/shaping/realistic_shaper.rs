@@ -91,10 +91,23 @@ impl TerrainShaper for RealisticShaper {
                 )
             };
 
-            let noise_amplitude = Self::map_range(climate.erosion as f64, -1.0, 1.0, 1.5, 0.1);
-            let weirdness_factor = climate.weirdness as f64 * 0.2;
-
+            // density is positive (solid) if this voxel's world height is below the target height
+            //
+            // The division by 40 is arbitrary, but the more we divide by, the more impact the noise
+            // function has. The less we divide by, the more impact target height has. Should probably
+            // make this a static/config constant eventually.
             let mut density = (target_height - world.y as f64) / 40.0;
+
+            // noise amplitude is based on erosion, if there is "less erosion" (negative), then our amplitude
+            // has a higher value because this terrain has been eroded less. If it has been eroded more (1),
+            // then the terrain has a lower amplitude as it has been chiseled/eroded away more.
+            let noise_amplitude = Self::map_range(climate.erosion as f64, -1.0, 1.0, 1.5, 0.1);
+
+            // weirdness factor shifts the noise function up or down.
+            // - positive weirdness adds density: creating thicker terrain or closing caves.
+            // - negative weirdness removes density: creating thinner terrain or opening caves.
+            // essentially it acts as a volume bias
+            let weirdness_factor = climate.weirdness as f64 * 0.2;
 
             let noise_sample = self.noise.get([
                 world.x as f64 * self.frequency,
@@ -102,6 +115,7 @@ impl TerrainShaper for RealisticShaper {
                 world.z as f64 * self.frequency,
             ]);
 
+            // mix the noise in to density
             density += (noise_sample + weirdness_factor) * noise_amplitude;
 
             density > 0.0
