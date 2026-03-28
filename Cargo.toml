@@ -1,8 +1,8 @@
 [package]
-name = "b"
+name = "boxel"
 version = "0.0.1"
 edition = "2021"
-default-run = "b"
+default-run = "boxel"
 
 [lib]
 path = "src/lib.rs"
@@ -15,16 +15,11 @@ path = "src/main.rs"
 name = "generation_benchmarks"
 harness = false
 
-
-[features]
-tracy = ["dep:tracy-client", "dep:tracing-tracy"]
-final_release = ["tracing/release_max_level_error"]
-
-# standard release: fastish, but compiles quicker than dist and keeps logging/debugging
+# standard release: fastish, but compiles quicker than distribution and keeps logging/debugging
 [profile.release]
 opt-level = 3
 lto = "thin"
-debug = true
+debug = 1     # 1 gives line tables, 2 is full debug info
 strip = false
 
 # distribution release: cargo build --profile distribution --features final_release
@@ -35,8 +30,10 @@ codegen-units = 1
 panic = "abort"
 strip = true
 debug = false
-# debug = 1            # 1 gives line tables, 2 is full debug info
-# strip = false        # ensure strip is false if debugging
+
+[features]
+tracy = ["dep:tracy-client", "dep:tracing-tracy"]
+final_release = ["tracing/release_max_level_error"]
 
 [build-dependencies]
 wesl = "0.2.0" # shader compliation from WESL to WGSL

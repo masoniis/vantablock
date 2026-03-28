@@ -1,8 +1,8 @@
 # macos
 .DS_Store
 
-# project specific
+# tooling
 .direnv
 
-# Added by cargo
+# project specific
 /target
