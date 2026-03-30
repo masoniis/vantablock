@@ -1,10 +1,11 @@
 [package]
-name = "boxel"
+name = "b"
 version = "0.0.1"
 edition = "2021"
-default-run = "boxel"
+default-run = "b"
 
 [lib]
+name = "b"
 path = "src/lib.rs"
 
 [[bin]]
@@ -71,12 +72,12 @@ tracing-tracy = { version = "=0.11.4", optional = true }
 # ------------------------
 
 ## rendering
-wgpu = "26.0.1"                                        # gpu interfacing
+wgpu = "27.0.1"                                        # gpu interfacing
 winit = { version = "0.30.12", features = ["rwh_06"] } # OS window manage
-
 ## ui
-taffy = "0.9.1"                                                                                                 # ui layout
-glyphon = { git = "https://github.com/grovesNL/glyphon.git", rev = "724ab57edbd6c59ba219cd99cf89925d056392db" } # text vectorization/prep
+taffy = "0.9.1" # ui layout
+# glyphon commit pinned to wgpu 27
+glyphon = { git = "https://github.com/grovesNL/glyphon.git", rev = "9dd937623314eac1cc0863465fd359eef3270d66" } # text vectorization/prep
 
 ## shaders
 wesl = "0.2.0" # preprocessor
@@ -91,8 +92,17 @@ offset-allocator = "0.2.0"                                                   # g
 #         simulation logic
 # --------------------------------
 
-## core ecs library
+## core bevy engine
 bevy_ecs = { version = "0.17.2", default-features = false }
+# bevy = { version = "0.18.1", default-features = false, features = [
+#   "default_app",      # ECS, main app, time, logging
+#   "default_platform", # OS windowing and device input
+#   "3d_api",           # 3d stuff
+#   "ui_api",           # ui stuff
+#   "bevy_render",      # render graph
+#   "bevy_asset",       # asset management
+#   "bevy_state",       # state machine
+# ] }
 
 ## for multi-threaded tasks
 rayon = "1.11.0"       # multi threaded pooling

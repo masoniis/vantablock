@@ -89,7 +89,7 @@ impl ApplicationHandler for App {
                 event_loop
                     .create_window(
                         Window::default_attributes()
-                            .with_title("🅱️ - Mason Bott")
+                            .with_title("🅱️oxel")
                             .with_inner_size(LogicalSize::new(1280, 720)),
                     )
                     .unwrap(),

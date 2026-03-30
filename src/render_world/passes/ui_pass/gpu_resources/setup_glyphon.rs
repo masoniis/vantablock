@@ -34,8 +34,8 @@ pub fn setup_glyphon_resources(
     let font_system = FontSystem::new_with_fonts(vec![source]);
 
     let cache = SwashCache::new();
-    let viewport_cache = Cache::new(&device);
-    let mut viewport = Viewport::new(&device, &viewport_cache);
+    let viewport_cache = Cache::new(&device.0);
+    let mut viewport = Viewport::new(&device.0, &viewport_cache);
     viewport.update(
         &queue.0,
         glyphon::Resolution {
@@ -43,7 +43,7 @@ pub fn setup_glyphon_resources(
             height: config.0.height,
         },
     );
-    let mut atlas = TextAtlas::new(&device, &queue, &viewport_cache, config.format);
+    let mut atlas = TextAtlas::new(&device.0, &queue.0, &viewport_cache, config.0.format);
     let renderer = TextRenderer::new(
         &mut atlas,
         &device.0,
