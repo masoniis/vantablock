@@ -10,7 +10,6 @@ run *args:
 
 # runs via max-optimization release profile
 alias run-fast := release
-alias run-release := release
 release *args:
 	cargo run --profile distribution --features final_release
 
@@ -34,6 +33,9 @@ fix *args:
 
 texture:
 	cargo run --bin texture_processor
+
+package:
+	cargo packager --profile distribution
 
 # INFO: ---------------------
 #         small utils

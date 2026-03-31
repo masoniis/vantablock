@@ -7,8 +7,11 @@ default-run = "b"
 [package.metadata.packager]
 product-name = "Boxel"
 identifier = "com.masoniis.boxel"
-resources = ["assets/**/*", "readme.md"]
-formats = ["app", "dmg", "nsis", "msi", "deb", "appimage"]
+resources = ["assets", "readme.md"]
+before-packaging-command = "cargo build --profile distribution --features final_release"
+binaries = [
+    { path = "b", main = true }
+]
 
 [lib]
 name = "b"

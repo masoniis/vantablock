@@ -71,10 +71,18 @@ jobs:
         run: cargo install cargo-packager --locked
 
       - name: Build and Package
-        run: cargo packager --profile distribution --features final_release
+        run: cargo packager --profile distribution
 
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.release-please.outputs.tag_name }}
-          files: target/packager/**/*
+          files: |
+            target/distribution/*.dmg
+            target/distribution/*.app
+            target/distribution/*.exe
+            target/distribution/*.msi
+            target/distribution/*.deb
+            target/distribution/*.AppImage
+            target/distribution/*.zip
+            target/distribution/*.tar.gz
