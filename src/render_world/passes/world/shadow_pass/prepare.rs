@@ -9,8 +9,8 @@ use crate::{
     },
     simulation_world::player::CAMERA_NEAR_PLANE,
 };
-use bevy::math::Vec4Swizzles;
 use bevy::ecs::prelude::*;
+use bevy::math::Vec4Swizzles;
 
 /// The max distance at which shadows render
 const SHADOW_DISTANCE: f32 = 64.0;

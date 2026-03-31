@@ -1,5 +1,5 @@
-use bevy::math::DVec2;
 use bevy::ecs::prelude::Message;
+use bevy::math::DVec2;
 
 #[derive(Message, Debug, Clone)]
 pub struct MouseMoveMessage {
