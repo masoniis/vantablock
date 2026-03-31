@@ -79,7 +79,7 @@ jobs:
           tag_name: ${{ needs.release-please.outputs.tag_name }}
           files: |
             target/distribution/**/*.dmg
+            target/distribution/**/*.exe
             target/distribution/**/*.msi
-            target/distribution/**/*.nsis.zip
             target/distribution/**/*.deb
             target/distribution/**/*.AppImage
