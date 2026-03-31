@@ -268,7 +268,7 @@ impl ChunkStorageManager {
         }
 
         // allocate faces (variable in size)
-        let size_bytes = (faces.len() * std::mem::size_of::<PackedFace>()) as u32;
+        let size_bytes = std::mem::size_of_val(faces) as u32;
 
         // check if allocation offset is outside physical address space and resize if necessary
         let geometry_allocation = self.geometry_allocator.allocate(size_bytes)?;

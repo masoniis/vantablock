@@ -10,8 +10,8 @@ pub struct ClimateBufferPool {
     pub weirdness: Vec<f32>,
 }
 
-impl ClimateBufferPool {
-    pub fn new() -> Self {
+impl Default for ClimateBufferPool {
+    fn default() -> Self {
         let cap = CHUNK_SIDE_LENGTH * CHUNK_SIDE_LENGTH;
         Self {
             temperature: vec![0.0; cap],
@@ -20,6 +20,12 @@ impl ClimateBufferPool {
             erosion: vec![0.0; cap],
             weirdness: vec![0.0; cap],
         }
+    }
+}
+
+impl ClimateBufferPool {
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Resizes buffers if needed (e.g. LOD change) without re-allocating if capacity allows.

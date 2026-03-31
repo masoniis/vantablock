@@ -17,13 +17,19 @@ pub struct SinwaveShaper {
     frequency: f32,
 }
 
-impl SinwaveShaper {
-    pub fn new() -> Self {
+impl Default for SinwaveShaper {
+    fn default() -> Self {
         Self {
             base_height: REALISTIC_SEA_LEVEL as i32, // average world height
             amplitude: 12.0,
             frequency: 0.04,
         }
+    }
+}
+
+impl SinwaveShaper {
+    pub fn new() -> Self {
+        Self::default()
     }
 }
 

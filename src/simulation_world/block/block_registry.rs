@@ -40,7 +40,7 @@ impl BlockRegistryResource {
     /// Will have undefined behavior if the block ID is not within bounds.
     #[inline(always)]
     pub fn get_render_data(&self, id: BlockId) -> &BlockRenderData {
-        unsafe { &self.render_data.get_unchecked(id as usize) }
+        unsafe { self.render_data.get_unchecked(id as usize) }
     }
 
     /// Gets the description/metadata for a given block ID.
@@ -48,7 +48,7 @@ impl BlockRegistryResource {
     /// Will have undefined behavior if the block ID is not within bounds.
     #[inline(always)]
     pub fn get_description(&self, id: BlockId) -> &BlockDescription {
-        unsafe { &self.descriptions.get_unchecked(id as usize) }
+        unsafe { self.descriptions.get_unchecked(id as usize) }
     }
 
     /// Gets the numeric ID for a given block name.
@@ -79,6 +79,7 @@ impl BlockRegistryResource {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn register_block(
     name: String,
     render: BlockRenderData<String>,
@@ -116,7 +117,7 @@ fn register_block(
             descriptions_vec[idx] = desc;
             texture_lut_vec[idx] = texture_array;
             name_to_id.insert(name.to_lowercase(), target_id);
-            return target_id;
+            target_id
         } else {
             panic!(
                 "Critical: Attempted to force block '{}' to ID {} but registry length is {}",
@@ -131,7 +132,7 @@ fn register_block(
         descriptions_vec.push(desc);
         texture_lut_vec.push(texture_array);
         name_to_id.insert(name.to_lowercase(), id);
-        return id;
+        id
     }
 }
 
@@ -234,7 +235,7 @@ impl FromWorld for BlockRegistryResource {
                 let path = entry.path();
 
                 // ignore non-ron files
-                if path.is_file() && path.extension().map_or(false, |s| s == "ron") {
+                if path.is_file() && path.extension().is_some_and(|s| s == "ron") {
                     let name = match path.file_stem().and_then(|s| s.to_str()) {
                         Some(name_str) => name_str.to_string(),
                         None => {

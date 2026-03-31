@@ -19,8 +19,8 @@ pub struct SimplexShaper {
     ceiling_y: i32,
 }
 
-impl SimplexShaper {
-    pub fn new() -> Self {
+impl Default for SimplexShaper {
+    fn default() -> Self {
         Self {
             noise: Simplex::new(1234),
             frequency: 0.02,
@@ -28,6 +28,12 @@ impl SimplexShaper {
             floor_y: 0,
             ceiling_y: 256,
         }
+    }
+}
+
+impl SimplexShaper {
+    pub fn new() -> Self {
+        Self::default()
     }
 }
 

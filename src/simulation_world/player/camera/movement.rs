@@ -72,12 +72,7 @@ pub fn camera_movement_system(
     cam.yaw += xoffset;
     cam.pitch -= yoffset;
 
-    if cam.pitch > 89.0 {
-        cam.pitch = 89.0;
-    }
-    if cam.pitch < -89.0 {
-        cam.pitch = -89.0;
-    }
+    cam.pitch = cam.pitch.clamp(-89.0, 89.0);
 
     // update internal vectors
     let yaw_radians = cam.yaw.to_radians();
@@ -97,12 +92,7 @@ pub fn camera_movement_system(
 
     if yoffset_scroll != 0.0 {
         cam.zoom -= yoffset_scroll;
-        if cam.zoom < 1.0 {
-            cam.zoom = 1.0;
-        }
-        if cam.zoom > 45.0 {
-            cam.zoom = 45.0;
-        }
+        cam.zoom = cam.zoom.clamp(1.0, 45.0);
         zoom_changed = true;
     }
 

@@ -34,6 +34,7 @@ pub struct EnvironmentData {
 }
 
 impl EnvironmentData {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         main_light_direction: [f32; 3],
         time: f32,

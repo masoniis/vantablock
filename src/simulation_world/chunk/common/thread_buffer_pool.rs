@@ -6,7 +6,7 @@ use std::cell::RefCell;
 pub const TOTAL_BUFFER_SIZE: usize = PADDED_SIZE * PADDED_SIZE * PADDED_SIZE;
 
 thread_local! {
-    pub static BLOCKID_BUFFER_POOL: RefCell<Vec<Vec<BlockId>>> = RefCell::new(Vec::new());
+    pub static BLOCKID_BUFFER_POOL: RefCell<Vec<Vec<BlockId>>> = const { RefCell::new(Vec::new()) };
 }
 
 /// Get a buffer from the thread buffer pool

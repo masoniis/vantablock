@@ -10,6 +10,6 @@ pub struct ActiveBiomeGenerator(pub Arc<dyn BiomeGenerator + Send + Sync>);
 
 impl Default for ActiveBiomeGenerator {
     fn default() -> Self {
-        Self(Arc::new(MultiNoiseBiomeGenerator::default()))
+        Self(Arc::new(MultiNoiseBiomeGenerator))
     }
 }

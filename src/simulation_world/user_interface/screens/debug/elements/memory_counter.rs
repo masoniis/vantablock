@@ -31,7 +31,7 @@ impl SystemInfoResource {
 
         let process_memory_bytes = self.sys.process(self.pid).map_or(0, |p| p.memory());
 
-        return format!("{:.2} MB", process_memory_bytes as f32 / 1024.0 / 1024.0);
+        format!("{:.2} MB", process_memory_bytes as f32 / 1024.0 / 1024.0)
     }
 }
 
@@ -46,7 +46,6 @@ pub fn update_memory_counter_screen_text(
 ) {
     if let Ok(mut ui_text) = query.single_mut() {
         ui_text.content = system_info.refresh_and_get_memory_string();
-        return;
     } else {
         warn!("Failed to get single UiText with CameraXyzTextMarker");
     }

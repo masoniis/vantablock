@@ -51,42 +51,37 @@ pub fn manage_distance_based_chunk_loading_targets_system(
     for (coord, state) in chunk_manager.chunk_states.iter_mut() {
         // if chunk is within render distance and has data, ensure it is meshed
         if desired_mesh_chunks.contains(coord) {
-            match state {
-                ChunkState::DataReady { entity } => {
-                    debug!(target:"chunk_meshing", "Promoting chunk {:?} to NeedsMeshing", coord);
-                    commands
-                        .entity(*entity)
-                        .insert((WantsMeshing, CheckForMeshing));
-                    *state = ChunkState::WantsMeshing { entity: *entity };
-                }
-                _ => {}
+            if let ChunkState::DataReady { entity } = state {
+                debug!(target:"chunk_meshing", "Promoting chunk {:?} to NeedsMeshing", coord);
+                commands
+                    .entity(*entity)
+                    .insert((WantsMeshing, CheckForMeshing));
+                *state = ChunkState::WantsMeshing { entity: *entity };
             }
+        } else if desired_load_chunks.contains(coord) {
+            // chunk is outside render distance but still within load distance.
+            // we want to demesh it but keep any other data it has.
+            coords_to_demesh.push(*coord);
         } else {
-            if desired_load_chunks.contains(coord) {
-                // chunk is outside render distance but still within load distance.
-                // we want to demesh it but keep any other data it has.
-                coords_to_demesh.push(*coord);
-            } else {
-                // chunk is outside load distance, unload it completely
-                match state {
-                    ChunkState::NeedsGenerating { entity, .. }
-                    | ChunkState::Generating { entity }
-                    | ChunkState::DataReady { entity }
-                    | ChunkState::WantsMeshing { entity }
-                    | ChunkState::Meshing { entity }
-                    | ChunkState::Loaded {
-                        entity: Some(entity),
-                    } => {
-                        debug!(target:"chunk_loading", "Unloading chunk at {:?} (Entity: {:?})", coord, entity);
-                        commands.entity(*entity).despawn();
-                    }
-                    ChunkState::Loaded { entity: None } => {
-                        // already unloaded, nothing to despawn
-                        debug!(target:"chunk_loading", "Marking chunk at {:?} as unloaded (was already unloaded)", coord);
-                    }
+            // chunk is outside load distance, unload it completely
+            match state {
+                ChunkState::NeedsGenerating { entity, .. }
+                | ChunkState::Generating { entity }
+                | ChunkState::DataReady { entity }
+                | ChunkState::WantsMeshing { entity }
+                | ChunkState::Meshing { entity }
+                | ChunkState::Loaded {
+                    entity: Some(entity),
+                } => {
+                    debug!(target:"chunk_loading", "Unloading chunk at {:?} (Entity: {:?})", coord, entity);
+                    commands.entity(*entity).despawn();
                 }
-                coords_to_remove.push(*coord);
+                ChunkState::Loaded { entity: None } => {
+                    // already unloaded, nothing to despawn
+                    debug!(target:"chunk_loading", "Marking chunk at {:?} as unloaded (was already unloaded)", coord);
+                }
             }
+            coords_to_remove.push(*coord);
         }
     }
 

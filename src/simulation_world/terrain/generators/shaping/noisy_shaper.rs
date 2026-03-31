@@ -14,8 +14,8 @@ pub struct NoisyShaper {
     amplitude: f64,
 }
 
-impl NoisyShaper {
-    pub fn new() -> Self {
+impl Default for NoisyShaper {
+    fn default() -> Self {
         let mut noise = Fbm::new(1234);
         noise = noise.set_frequency(0.01);
         noise = noise.set_octaves(5);
@@ -27,6 +27,12 @@ impl NoisyShaper {
             base_height: REALISTIC_SEA_LEVEL as i32,
             amplitude: 24.0,
         }
+    }
+}
+
+impl NoisyShaper {
+    pub fn new() -> Self {
+        Self::default()
     }
 }
 

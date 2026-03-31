@@ -1,3 +1,4 @@
+#[allow(clippy::module_inception)]
 pub mod graphics_context;
 pub mod reconfigure_surface;
 pub mod resources;

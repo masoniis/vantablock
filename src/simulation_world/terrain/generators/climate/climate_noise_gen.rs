@@ -1,83 +1,43 @@
 use super::climate_buffer_pool::CLIMATE_BUFFERS;
-use crate::{
-    prelude::*,
-    simulation_world::{
-        chunk::{ChunkCoord, ChunkLod},
-        terrain::{
-            climate::{ClimateData, ClimateMapComponent},
-            ClimateGenerator,
-        },
+use crate::simulation_world::{
+    chunk::{ChunkCoord, ChunkLod},
+    terrain::{
+        climate::{ClimateData, ClimateMapComponent},
+        ClimateGenerator,
     },
 };
-use bevy::ecs::resource::Resource;
-use noise::{Fbm, MultiFractal, NoiseFn, OpenSimplex};
+use bevy::ecs::prelude::Resource;
+use noise::MultiFractal;
 
-/// The number of octaves used in the noise functions.
-const CLIMATE_NOISE_OCTAVES: usize = 2;
-
-/// Helper function to create a standard FBM noise function
-fn create_noise_fn(seed: u32, octaves: usize) -> Fbm<OpenSimplex> {
-    Fbm::new(seed)
-        .set_octaves(octaves)
-        .set_frequency(0.0033)
-        .set_lacunarity(2.0)
-        .set_persistence(0.5)
-}
-
-#[derive(Resource, Clone)]
+#[derive(Resource)]
 pub struct ClimateNoiseGenerator {
-    // BIOME-ONLY parameters
-    temperature_noise: Fbm<OpenSimplex>,
-    precipitation_noise: Fbm<OpenSimplex>,
-
-    // BIOME + TERRAIN-GEN parameters
-    continental_noise: Fbm<OpenSimplex>,
-    erosion_noise: Fbm<OpenSimplex>,
-    weirdness_noise: Fbm<OpenSimplex>,
+    temperature_noise: noise::Fbm<noise::OpenSimplex>,
+    precipitation_noise: noise::Fbm<noise::OpenSimplex>,
+    continental_noise: noise::Fbm<noise::OpenSimplex>,
+    erosion_noise: noise::Fbm<noise::OpenSimplex>,
+    weirdness_noise: noise::Fbm<noise::OpenSimplex>,
 }
 
 impl ClimateNoiseGenerator {
-    #[instrument(skip_all)]
     pub fn new(seed: u32) -> Self {
+        use noise::{Fbm, OpenSimplex};
+
+        // TODO: Tune noise parameters
         Self {
-            temperature_noise: create_noise_fn(seed, CLIMATE_NOISE_OCTAVES),
-            precipitation_noise: create_noise_fn(seed.wrapping_add(1), CLIMATE_NOISE_OCTAVES),
-
-            continental_noise: create_noise_fn(seed.wrapping_add(2), CLIMATE_NOISE_OCTAVES),
-            weirdness_noise: create_noise_fn(seed.wrapping_add(3), CLIMATE_NOISE_OCTAVES),
-            erosion_noise: create_noise_fn(seed.wrapping_add(4), CLIMATE_NOISE_OCTAVES),
+            temperature_noise: Fbm::<OpenSimplex>::new(seed).set_frequency(0.005),
+            precipitation_noise: Fbm::<OpenSimplex>::new(seed + 1).set_frequency(0.005),
+            continental_noise: Fbm::<OpenSimplex>::new(seed + 2).set_frequency(0.003),
+            erosion_noise: Fbm::<OpenSimplex>::new(seed + 3).set_frequency(0.004),
+            weirdness_noise: Fbm::<OpenSimplex>::new(seed + 4).set_frequency(0.01),
         }
     }
 
-    /// Calculates all 5 climate values for a single world-space block coordinate.
-    #[instrument(skip_all)]
-    pub fn get_climate_at(&self, world_x: i32, world_z: i32) -> ClimateData {
-        let sample_2d = [world_x as f64, world_z as f64];
-
-        // BIOME-ONLY parameters
-        let temperature = self.temperature_noise.get(sample_2d) as f32;
-        let precipitation = self.precipitation_noise.get(sample_2d) as f32;
-
-        // BIOME + TERRAIN-GEN parameters
-        let continentalness = self.continental_noise.get(sample_2d) as f32;
-        let erosion = self.erosion_noise.get(sample_2d) as f32;
-        let weirdness = self.weirdness_noise.get(sample_2d) as f32;
-
-        ClimateData {
-            temperature,
-            precipitation,
-            continentalness,
-            erosion,
-            weirdness,
-        }
-    }
-
-    /// Calculates all 5 climate values in a batch for a whole buffer efficiently.
+    /// Fills a specific float buffer with values from a noise function
     fn generate_single_map(
         &self,
         coords: &[[f64; 2]],
         target_buffer: &mut [f32],
-        noise_fn: &Fbm<OpenSimplex>,
+        noise_fn: &impl noise::NoiseFn<f64, 2>,
     ) {
         for (i, point) in coords.iter().enumerate() {
             let raw = noise_fn.get(*point);
@@ -137,12 +97,12 @@ impl ClimateGenerator for ClimateNoiseGenerator {
         let size = climate_map.size();
         let base_pos = chunk_coord.as_world_pos();
 
-        CLIMATE_BUFFERS.with(|cell| {
-            let mut buffers = cell.borrow_mut();
+        CLIMATE_BUFFERS.with(|pool| {
+            let mut buffers = pool.borrow_mut();
             buffers.prepare(size);
 
             // fill all buffers
-            self.orchestrate_fill(&mut *buffers, base_pos.x, base_pos.z, size);
+            self.orchestrate_fill(&mut buffers, base_pos.x, base_pos.z, size);
 
             let mut writer = climate_map.get_data_writer();
             let area = size * size;

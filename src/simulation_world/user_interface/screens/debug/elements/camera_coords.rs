@@ -19,7 +19,6 @@ pub fn update_camera_chunk_coord_screen_text(
     if let Ok((_, chunk_chord)) = camera_query.get(active_camera.0) {
         if let Ok(mut ui_text) = query.single_mut() {
             ui_text.content = chunk_chord.to_string();
-            return;
         } else {
             warn!("Failed to get single UiText with CameraChunkCoordTextMarker");
         }

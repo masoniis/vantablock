@@ -29,7 +29,7 @@ pub fn master_finalize_loading_system<T: State>(
             );
 
             // Set the next state within our own world.
-            next_state.val = Some(on_complete.destination.clone());
+            next_state.val = Some(on_complete.destination);
 
             // Clean up the temporary resources for the next loading operation.
             commands.remove_resource::<OnLoadComplete<T>>();

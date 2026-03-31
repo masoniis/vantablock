@@ -12,11 +12,17 @@ pub struct SuperflatShaper {
     land_height: i32,
 }
 
-impl SuperflatShaper {
-    pub fn new() -> Self {
+impl Default for SuperflatShaper {
+    fn default() -> Self {
         Self {
             land_height: REALISTIC_SEA_LEVEL as i32,
         }
+    }
+}
+
+impl SuperflatShaper {
+    pub fn new() -> Self {
+        Self::default()
     }
 }
 

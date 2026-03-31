@@ -215,6 +215,6 @@ impl ChunkStateManager {
     /// Determines if a coord is in bounds
     pub fn is_in_bounds(coord: IVec3) -> bool {
         let pos_y = coord.y;
-        return (pos_y >= WORLD_MIN_Y_CHUNK) && (pos_y <= WORLD_MAX_Y_CHUNK);
+        (WORLD_MIN_Y_CHUNK..=WORLD_MAX_Y_CHUNK).contains(&pos_y)
     }
 }

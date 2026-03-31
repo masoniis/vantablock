@@ -20,5 +20,5 @@ pub fn simulation_world_resource_changed<T: Resource>(
         );
     }
 
-    return is_changed;
+    is_changed
 }

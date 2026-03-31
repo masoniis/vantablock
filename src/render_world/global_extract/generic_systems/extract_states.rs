@@ -27,6 +27,6 @@ pub fn extract_state_system<T: State>(
             "Render world extracted a state change: {:?} -> {:?}",
             render_world_state.val, simulation_world_state.val
         );
-        next_state.val = Some(simulation_world_state.val.clone());
+        next_state.val = Some(simulation_world_state.val);
     }
 }

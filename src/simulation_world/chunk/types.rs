@@ -229,7 +229,7 @@ impl<T: Copy + Send + Sync + 'static> ChunkVolumeData<T> {
 
         // calculate shifts
         let z_shift = size.trailing_zeros() as u8;
-        let x_shift = (z_shift * 2) as u8;
+        let x_shift = z_shift * 2;
 
         Self {
             data,
@@ -258,7 +258,7 @@ impl<T: Copy + Send + Sync + 'static> ChunkVolumeData<T> {
 
         // calculate shifts
         let z_shift = size.trailing_zeros() as u8;
-        let x_shift = (z_shift * 2) as u8;
+        let x_shift = z_shift * 2;
 
         Self {
             data,
@@ -287,7 +287,7 @@ impl<T: Copy + Send + Sync + 'static> ChunkVolumeData<T> {
         }
 
         let z_shift = size.trailing_zeros() as u8;
-        let x_shift = (z_shift * 2) as u8;
+        let x_shift = z_shift * 2;
 
         Self {
             data: data.into_boxed_slice().into(),

@@ -171,7 +171,6 @@ pub fn update_camera_view_buffer_system(
         inverse_view_proj_matrix: view_proj_matrix.inverse().to_cols_array(),
         world_position: camera_info.world_position.into(),
         render_distance: (RENDER_DISTANCE * CHUNK_SIDE_LENGTH as i32) as f32,
-        ..Default::default()
     };
 
     queue.write_buffer(&view_buffer.buffer, 0, bytemuck::cast_slice(&[camera_data]));

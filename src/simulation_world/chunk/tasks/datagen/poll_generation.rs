@@ -15,8 +15,7 @@ pub fn chunk_is_in_mesh_radius(camera_chunk_pos: IVec3, chunk_coord: IVec3) -> b
     let dz = chunk_coord.z - camera_chunk_pos.z;
 
     dx.abs() <= RENDER_DISTANCE
-        && dy >= WORLD_MIN_Y_CHUNK
-        && dy <= WORLD_MAX_Y_CHUNK
+        && (WORLD_MIN_Y_CHUNK..=WORLD_MAX_Y_CHUNK).contains(&dy)
         && dz.abs() <= RENDER_DISTANCE
 }
 
@@ -88,11 +87,8 @@ pub fn poll_chunk_generation_tasks(
 
                         // ping any neighbors that may have been waiting on this chunk
                         for neighbor in chunk_manager.iter_neighbors(coord.pos) {
-                            match neighbor.state {
-                                ChunkState::WantsMeshing { .. } => {
-                                    commands.entity(neighbor.entity).insert(CheckForMeshing);
-                                }
-                                _ => {}
+                            if let ChunkState::WantsMeshing { .. } = neighbor.state {
+                                commands.entity(neighbor.entity).insert(CheckForMeshing);
                             }
                         }
                     }

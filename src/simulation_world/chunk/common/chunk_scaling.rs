@@ -9,7 +9,7 @@ pub fn upsample_chunk(
     chunk_to_upsample: &ChunkBlocksComponent,
     target_lod: ChunkLod,
 ) -> ChunkBlocksComponent {
-    let target_size = (CHUNK_SIDE_LENGTH >> *target_lod) as usize;
+    let target_size = CHUNK_SIDE_LENGTH >> *target_lod;
 
     if cfg!(debug_assertions) && *target_lod >= *chunk_to_upsample.lod() {
         panic!("upsample_chunk: target_lod must be higher detail than source lod");
@@ -52,7 +52,7 @@ pub fn downsample_chunk(
     chunk_to_downsample: &ChunkBlocksComponent,
     target_lod: ChunkLod,
 ) -> ChunkBlocksComponent {
-    let target_size = (CHUNK_SIDE_LENGTH >> *target_lod) as usize;
+    let target_size = CHUNK_SIDE_LENGTH >> *target_lod;
 
     if cfg!(debug_assertions) && *target_lod <= *chunk_to_downsample.lod() {
         panic!("downsample_chunk: target_lod must be lower detail than source lod");

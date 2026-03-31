@@ -123,11 +123,7 @@ pub fn load_biome_defs_from_disk() -> BiomeRegistryResource {
             };
             let path = entry.path();
 
-            if path.is_file()
-                && path
-                    .extension()
-                    .map_or(false, |s| s == "biome" || s == "ron")
-            {
+            if path.is_file() && path.extension().is_some_and(|s| s == "biome" || s == "ron") {
                 // name is the file stem
                 let name = match path.file_stem().and_then(|s| s.to_str()) {
                     Some(name_str) => name_str.to_string(),
@@ -141,9 +137,7 @@ pub fn load_biome_defs_from_disk() -> BiomeRegistryResource {
                 };
 
                 // skip default or _ files
-                if name == default_biome_name {
-                    continue;
-                } else if name.starts_with("_") {
+                if name == default_biome_name || name.starts_with("_") {
                     continue;
                 }
 
@@ -183,5 +177,5 @@ pub fn load_biome_defs_from_disk() -> BiomeRegistryResource {
         warn!("Only the default biome was loaded. Check 'assets/biomes/' directory for other biome files.");
     }
 
-    return registry;
+    registry
 }

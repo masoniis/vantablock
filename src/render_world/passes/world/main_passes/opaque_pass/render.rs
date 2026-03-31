@@ -114,7 +114,7 @@ impl RenderNode for OpaquePassRenderNode {
         // INFO: -----------------------------------------
         //         mesh pipeline: iterate and draw
         // -----------------------------------------------
-        render_pass.set_pipeline(&active_pipeline);
+        render_pass.set_pipeline(active_pipeline);
 
         render_pass.set_bind_group(0, &view_buffer.bind_group, &[]);
         render_pass.set_bind_group(1, &skybox_params.bind_group, &[]);

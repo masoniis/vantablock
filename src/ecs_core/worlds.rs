@@ -69,13 +69,19 @@ pub struct SimulationWorldMarker;
 pub struct RenderWorldMarker;
 
 // INFO: --------------------------------
-//         Generic ECS Primitives
+//         generic ECS primitives
 // --------------------------------------
 
 /// Generic ECS interface builder
 pub struct EcsBuilder {
     pub world: World,
     pub schedules: ScheduleBuilder,
+}
+
+impl Default for EcsBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl EcsBuilder {

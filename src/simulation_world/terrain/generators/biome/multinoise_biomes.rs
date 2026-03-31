@@ -116,42 +116,45 @@ fn resolve_biome(h: &BiomeHandles, c: &ClimateData) -> u8 {
 
     if c.temperature < -0.2 {
         // cold
-        if c.precipitation > 0.0 && c.weirdness > 0.4 {
-            return h.ice_spikes;
+        if c.weirdness > 0.6 {
+            h.ice_spikes
+        } else {
+            h.snowy_plains
         }
-        return h.snowy_plains;
     } else if c.temperature < 0.2 {
         // temperate
         if c.precipitation < -0.1 {
             // dry
-            return h.plains;
+            h.plains
         } else if c.precipitation > 0.1 {
             // wet
             if c.weirdness > 0.4 {
-                return h.swamp;
+                h.swamp
+            } else {
+                h.forest
             }
-            return h.forest;
         } else {
             // average temp
             if c.weirdness < 0.0 {
-                return h.forest;
+                h.forest
             } else {
-                return h.plains;
+                h.plains
             }
         }
     } else {
         // hot
         if c.precipitation < -0.1 {
             if c.weirdness > 0.2 {
-                return h.badlands;
+                h.badlands
+            } else {
+                h.desert
             }
-            return h.desert;
         } else if c.precipitation > 0.1 {
             // wet
-            return h.jungle;
+            h.jungle
         } else {
             // semi-dry
-            return h.savanna;
+            h.savanna
         }
     }
 }

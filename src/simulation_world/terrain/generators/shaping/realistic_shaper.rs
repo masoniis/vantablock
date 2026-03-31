@@ -18,8 +18,8 @@ pub struct RealisticShaper {
     sea_level: f64,
 }
 
-impl RealisticShaper {
-    pub fn new() -> Self {
+impl Default for RealisticShaper {
+    fn default() -> Self {
         Self {
             noise: Simplex::new(1234),
             frequency: 0.015,
@@ -27,6 +27,12 @@ impl RealisticShaper {
             ceiling_y: 256,
             sea_level: REALISTIC_SEA_LEVEL,
         }
+    }
+}
+
+impl RealisticShaper {
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Remaps a value from a source range to a target range using linear interpolation.

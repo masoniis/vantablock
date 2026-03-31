@@ -63,7 +63,7 @@ impl RenderNode for UiRenderPassNode {
             match batch {
                 UiRenderBatch::Panel(panel_batch) => {
                     if !is_panel_pipeline_set {
-                        render_pass.set_pipeline(&pipeline);
+                        render_pass.set_pipeline(pipeline);
                         render_pass.set_bind_group(0, &view_bind_group.bind_group, &[]);
                         render_pass.set_vertex_buffer(0, quad.vertex_buffer.slice(..));
                         render_pass.set_index_buffer(
@@ -89,7 +89,7 @@ impl RenderNode for UiRenderPassNode {
                     // triggers the render for the **next** text batch
                     // (batches set in the prepare_glyphon_text system)
                     text_renderer
-                        .render(&text_atlas, &glyphon_viewport, &mut render_pass)
+                        .render(text_atlas, glyphon_viewport, &mut render_pass)
                         .unwrap();
                 }
             }

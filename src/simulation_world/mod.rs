@@ -106,7 +106,7 @@ impl SimulationWorldInterface {
             .add_plugins(SharedPlugins)
             .add_plugins(ClientOnlyPlugins);
 
-        return Self::build_simulation_world(builder);
+        Self::build_simulation_world(builder)
     }
 
     fn build_simulation_world(mut builder: EcsBuilder) -> SimulationWorldInterface {
@@ -123,7 +123,7 @@ impl SimulationWorldInterface {
         initialize_simulation_world_for_extract(&mut interface.world);
         interface.world.insert_resource(SimulationWorldMarker);
 
-        return interface;
+        interface
     }
 }
 

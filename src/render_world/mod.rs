@@ -107,7 +107,7 @@ impl RenderWorldInterface {
                 .in_set(RenderSet::StateUpdate),
         );
 
-        return Self::build_render_world(builder);
+        Self::build_render_world(builder)
     }
 
     /// Builds the final state and returns the final render world interface.

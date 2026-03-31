@@ -19,6 +19,7 @@ use crossbeam::channel::unbounded;
 
 /// Queries for entities needing generation and starts a limited number per frame.
 #[instrument(skip_all)]
+#[allow(clippy::too_many_arguments)]
 pub fn start_pending_generation_tasks_system(
     // Input
     mut pending_chunks_query: Query<

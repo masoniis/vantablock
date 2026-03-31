@@ -8,6 +8,12 @@ use crate::simulation_world::terrain::BiomeMapComponent;
 #[derive(Debug, Clone)]
 pub struct SimpleSurfacePainter;
 
+impl Default for SimpleSurfacePainter {
+    fn default() -> Self {
+        Self
+    }
+}
+
 impl SimpleSurfacePainter {
     pub fn new() -> Self {
         Self

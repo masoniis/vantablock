@@ -79,18 +79,19 @@ fn get_block_at_world_pos(
 
     // only get if chunk loaded
     let chunk_state = manager.get_state(chunk_coord)?;
-    if let ChunkState::Loaded { entity } = chunk_state {
-        if let Some(actual_entity) = entity {
-            if let Ok(chunk_blocks) = chunks_query.get(actual_entity) {
-                return Some(match chunk_blocks.get_view() {
-                    ChunkView::Uniform(block_id) => block_id,
-                    ChunkView::Dense(volume_view) => volume_view.get_data(
-                        local_pos.x as usize,
-                        local_pos.y as usize,
-                        local_pos.z as usize,
-                    ),
-                });
-            }
+    if let ChunkState::Loaded {
+        entity: Some(actual_entity),
+    } = chunk_state
+    {
+        if let Ok(chunk_blocks) = chunks_query.get(actual_entity) {
+            return Some(match chunk_blocks.get_view() {
+                ChunkView::Uniform(block_id) => block_id,
+                ChunkView::Dense(volume_view) => volume_view.get_data(
+                    local_pos.x as usize,
+                    local_pos.y as usize,
+                    local_pos.z as usize,
+                ),
+            });
         }
     }
 

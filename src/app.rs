@@ -157,8 +157,8 @@ impl ApplicationHandler for App {
 
                             // extract schedule needs mutable access to the simulation world
                             run_extract_schedule(
-                                &mut sim_guard.borrow(),
-                                &mut render_guard.borrow(),
+                                sim_guard.borrow(),
+                                render_guard.borrow(),
                                 RenderSchedule::Extract,
                             );
 

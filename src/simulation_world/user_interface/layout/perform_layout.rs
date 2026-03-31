@@ -100,7 +100,7 @@ pub fn compute_and_apply_layout_system(world: &mut World) {
 
         collect_layouts_recursively(
             &ui_tree,
-            &entity_to_node,
+            entity_to_node,
             root_entity,
             Vec2::ZERO,
             &mut results,

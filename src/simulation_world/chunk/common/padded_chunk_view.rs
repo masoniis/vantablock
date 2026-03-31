@@ -134,12 +134,12 @@ impl PaddedChunk {
             };
 
             // iterate over chunk grid and fill
-            for cx in 0..3 {
-                for cy in 0..3 {
-                    for cz in 0..3 {
+            for (cx, row) in chunks.iter().enumerate().take(3) {
+                for (cy, column) in row.iter().enumerate().take(3) {
+                    for (cz, cell) in column.iter().enumerate().take(3) {
                         let offset = IVec3::new(cx as i32 - 1, cy as i32 - 1, cz as i32 - 1);
 
-                        match &chunks[cx][cy][cz] {
+                        match cell {
                             ChunkDataOption::Generated(comp) => {
                                 if comp.lod() != center_lod {
                                     // Handle LOD mismatch / resampling here if needed

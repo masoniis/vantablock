@@ -78,7 +78,7 @@ impl RenderNode for BoundingBoxNode {
                 });
 
         // do render
-        render_pass.set_pipeline(&wireframe_pipeline);
+        render_pass.set_pipeline(wireframe_pipeline);
 
         render_pass.set_bind_group(0, &view_bind_group.bind_group, &[]);
         render_pass.set_bind_group(1, &enironent.bind_group, &[]);

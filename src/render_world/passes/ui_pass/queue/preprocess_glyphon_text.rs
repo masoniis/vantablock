@@ -30,6 +30,7 @@ pub fn mark_glyphon_dirty_system(
 /// This is a CPU-intensive system that should be run before the main render graph execution. It populates the
 /// internal buffers of the GlyphonRenderer, which are then used by the UiPassNode to issue the final draw commands.
 #[instrument(skip_all)]
+#[allow(clippy::too_many_arguments)]
 pub fn preprocess_glyphon_text_system(
     // Input
     device: Res<RenderDevice>,
@@ -40,7 +41,7 @@ pub fn preprocess_glyphon_text_system(
     mut font_system: ResMut<GlyphonFontSystemResource>,
     mut cache: ResMut<GlyphonCacheResource>,
     mut atlas: ResMut<GlyphonAtlasResource>,
-    mut viewport: ResMut<GlyphonViewportResource>,
+    viewport: ResMut<GlyphonViewportResource>,
     mut renderer: ResMut<GlyphonRendererResource>,
 
     mut is_glyphon_dirty: ResMut<IsGlyphonDirty>, // sets flag to false
@@ -131,7 +132,7 @@ pub fn preprocess_glyphon_text_system(
                     &queue,
                     &mut font_system,
                     &mut atlas,
-                    &mut viewport,
+                    &viewport,
                     text_areas,
                     &mut cache,
                 )

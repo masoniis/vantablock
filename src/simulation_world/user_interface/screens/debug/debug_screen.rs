@@ -94,20 +94,18 @@ pub fn toggle_debug_diagnostics_system(
     if let Ok(ui_entity) = query.single() {
         info!("Despawning Diagnostic UI...");
         commands.entity(ui_entity).despawn();
+    } else if let Ok((cam, chord)) = camera_query.single() {
+        spawn_diagnostic_ui(
+            &mut commands,
+            &root_node,
+            &mesh_stats,
+            cam,
+            chord,
+            &time_stats,
+            &active_gen,
+        );
     } else {
-        if let Ok((cam, chord)) = camera_query.single() {
-            spawn_diagnostic_ui(
-                &mut commands,
-                &root_node,
-                &mesh_stats,
-                cam,
-                chord,
-                &time_stats,
-                &active_gen,
-            );
-        } else {
-            error!("Cannot spawn Diagnostic UI: No camera with ChunkChord found!");
-        }
+        error!("Cannot spawn Diagnostic UI: No camera with ChunkChord found!");
     }
 }
 

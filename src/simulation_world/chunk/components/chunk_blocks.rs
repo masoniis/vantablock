@@ -114,7 +114,7 @@ impl ChunkBlocksComponent {
 
     /// Returns the side length of this chunk (e.g., 32).
     pub fn size(&self) -> usize {
-        (CHUNK_SIDE_LENGTH >> *self.lod()) as usize
+        CHUNK_SIDE_LENGTH >> *self.lod()
     }
 
     /// Gets a read-only view of the chunk data.

@@ -15,14 +15,20 @@ pub struct ChunkMetadata {
     pub contains_transparent: bool,
 }
 
-/// A struct to track metadata state during generation.
-impl ChunkMetadata {
-    pub fn new() -> Self {
+impl Default for ChunkMetadata {
+    fn default() -> Self {
         Self {
             is_uniform: true,
             uniform_block_id: None,
             contains_transparent: false,
         }
+    }
+}
+
+/// A struct to track metadata state during generation.
+impl ChunkMetadata {
+    pub fn new() -> Self {
+        Self::default()
     }
 }
 

@@ -15,6 +15,7 @@ use crate::{
     simulation_world::asset_management::{AssetStorageResource, MeshAsset},
 };
 use bevy::ecs::prelude::*;
+use std::collections::hash_map::Entry;
 
 /// A system to read all render meshes and initialize GPU buffers if they don't have one yet.
 #[instrument(skip_all)]
@@ -31,9 +32,10 @@ pub fn prepare_opaque_meshes_system(
 ) {
     for (render_mesh, transform) in meshes_to_prepare.iter() {
         let handle = render_mesh.mesh_handle;
+        let handle_id = handle.id();
 
         // if the GPU mesh for this handle doesn't exist yet, create it.
-        if gpu_mesh_storage.meshes.get(&handle.id()).is_none() {
+        if let Entry::Vacant(entry) = gpu_mesh_storage.meshes.entry(handle_id) {
             // get the asset data
             if let Some(mesh_asset) = cpu_mesh_assets.get(handle) {
                 // create the GPU buffer
@@ -49,17 +51,15 @@ pub fn prepare_opaque_meshes_system(
                     debug!(
                         target : "gpu_mesh_prepared",
                         "Prepared opaque GPU mesh for handle ID {}",
-                        handle.id()
+                        handle_id
                     );
 
-                    gpu_mesh_storage
-                        .meshes
-                        .insert(handle.id(), Arc::new(gpu_mesh));
+                    entry.insert(Arc::new(gpu_mesh));
                 }
             } else {
                 warn!(
                     "Mesh asset for handle ID {} not found in AssetStorage (opaque pass).",
-                    handle.id()
+                    handle_id
                 );
             }
         }

@@ -42,8 +42,8 @@ pub fn handle_dirty_chunks_system(
 
 /// Queries for chunks needing meshing and starts a limited number of tasks per frame.
 #[instrument(skip_all)]
+#[allow(clippy::type_complexity)]
 pub fn start_pending_meshing_tasks_system(
-    // Input
     mut pending_chunks_query: Query<
         (Entity, &ChunkBlocksComponent, &ChunkCoord),
         (

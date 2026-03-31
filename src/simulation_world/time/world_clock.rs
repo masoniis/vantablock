@@ -88,13 +88,11 @@ pub fn jump_world_clock_backwards_system(
     // subtract 30 seconds, wrapping day if needed
     if let Some(new_time) = world_clock.time_of_day.checked_sub(jump_dist) {
         world_clock.time_of_day = new_time;
+    } else if world_clock.total_days > 0 {
+        world_clock.total_days -= 1;
+        let underflow_by = jump_dist - world_clock.time_of_day;
+        world_clock.time_of_day = world_clock.day_duration - underflow_by;
     } else {
-        if world_clock.total_days > 0 {
-            world_clock.total_days -= 1;
-            let underflow_by = jump_dist - world_clock.time_of_day;
-            world_clock.time_of_day = world_clock.day_duration - underflow_by;
-        } else {
-            world_clock.time_of_day = Duration::ZERO;
-        }
+        world_clock.time_of_day = Duration::ZERO;
     }
 }

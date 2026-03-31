@@ -1,12 +1,5 @@
 use std::sync::{Arc, Condvar, Mutex};
 
-/// A synchronization primitive to coordinate simulation and render threads
-/// using a Mutex and a Condvar.
-#[derive(Debug, Clone)]
-pub struct FrameSync {
-    inner: Arc<Inner>,
-}
-
 #[derive(Debug)]
 pub struct Inner {
     // A mutex to protect the shared state from concurrent access.
@@ -20,6 +13,19 @@ pub struct Inner {
 enum FrameState {
     Simulating, // it's the simulation thread's turn.
     Rendering,  // it's the render thread's turn.
+}
+
+/// A synchronization primitive to coordinate simulation and render threads
+/// using a Mutex and a Condvar.
+#[derive(Debug, Clone)]
+pub struct FrameSync {
+    inner: Arc<Inner>,
+}
+
+impl Default for FrameSync {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl FrameSync {

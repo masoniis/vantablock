@@ -20,7 +20,7 @@ pub fn apply_state_transition_system<T: State>(world: &mut World) {
             return; // `NextState` resource exists, but no state is pending.
         };
 
-        let old_state = world.resource::<CurrentState<T>>().val.clone();
+        let old_state = world.resource::<CurrentState<T>>().val;
 
         // if the states are the same return none, otherwise return the transition
         if old_state == new_state {
@@ -54,7 +54,7 @@ pub fn apply_state_transition_system<T: State>(world: &mut World) {
 
         // update the CurrentState resource with the new state.
         let mut current_state_res = world.resource_mut::<CurrentState<T>>();
-        current_state_res.val = new_state.clone();
+        current_state_res.val = new_state;
 
         // run the OnEnter schedule for the new state.
         if let Err(e) = world.try_run_schedule(OnEnter(new_state)) {

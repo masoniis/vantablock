@@ -48,4 +48,9 @@ impl TextureRegistryResource {
     pub fn len(&self) -> usize {
         self.name_to_id.len()
     }
+
+    /// Returns true if the registry contains no textures.
+    pub fn is_empty(&self) -> bool {
+        self.name_to_id.is_empty()
+    }
 }
