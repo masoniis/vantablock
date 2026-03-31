@@ -3,7 +3,7 @@ use crate::{
     simulation_world::biome::biome_definition::{load_biome_from_str, BiomeDefinition},
 };
 use bevy::ecs::prelude::*;
-use std::{collections::HashMap, fs, path::Path, sync::Arc};
+use std::{collections::HashMap, fs, sync::Arc};
 
 pub type BiomeId = u8;
 
@@ -75,7 +75,7 @@ pub fn load_biome_defs_from_disk() -> BiomeRegistryResource {
 
     let mut biome_definitions: Vec<BiomeDefinition> = Vec::new();
     let mut name_to_id: HashMap<String, BiomeId> = HashMap::new();
-    let biome_dir = Path::new("assets/biomes");
+    let biome_dir = get_resource_path("assets/biomes");
 
     // helper closure for local registration (identical to block loading)
     let mut register = |name: String, definition: BiomeDefinition| -> BiomeId {
@@ -111,7 +111,7 @@ pub fn load_biome_defs_from_disk() -> BiomeRegistryResource {
 
     // now parse the rest of the biomes
     if biome_dir.is_dir() {
-        for entry in fs::read_dir(biome_dir).unwrap_or_else(|e| {
+        for entry in fs::read_dir(&biome_dir).unwrap_or_else(|e| {
             panic!("Failed to read biome directory {:?}: {}", biome_dir, e);
         }) {
             let entry = match entry {

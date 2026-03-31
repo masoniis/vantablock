@@ -23,11 +23,11 @@ bench *args:
 check *args:
 	cargo check {{args}}
 
-clean *args:
-	cargo clean {{args}}
-
 clippy *args:
 	cargo clippy {{args}}
+
+clean *args:
+	cargo clean {{args}}
 
 fix *args:
 	cargo fix --allow-dirty
@@ -41,6 +41,11 @@ texture:
 
 fmt:
 	nix fmt
+
+ready *args:
+	nix fmt
+	cargo clippy -- -D warnings
+	cargo test {{args}}
 
 # INFO: ---------------------------
 #         advanced commands

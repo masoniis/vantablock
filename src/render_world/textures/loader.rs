@@ -8,7 +8,7 @@ use crate::{
 };
 use bevy::ecs::prelude::Resource;
 use image::RgbaImage;
-use std::{collections::HashMap, path::Path};
+use std::collections::HashMap;
 
 /// A temporary staging resource holding CPU pixel data passed from the main app loop.
 #[derive(Resource)]
@@ -55,7 +55,8 @@ pub fn load_voxel_texture_assets(
 fn load_images_from_disk(
     texture_pack: &str,
 ) -> Result<(Vec<RgbaImage>, HashMap<String, TextureId>), TextureLoadError> {
-    let path = Path::new("assets/textures").join(texture_pack);
+    let base_path = get_resource_path("assets/textures");
+    let path = base_path.join(texture_pack);
     let glob_path = path.join("*.png");
 
     let mut images = Vec::new();

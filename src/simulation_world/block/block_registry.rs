@@ -7,7 +7,6 @@ use crate::{
 };
 use bevy::ecs::prelude::*;
 use std::collections::HashMap;
-use std::path::Path;
 use std::{fs, sync::Arc};
 
 pub type BlockId = u8;
@@ -149,7 +148,7 @@ impl FromWorld for BlockRegistryResource {
         let mut texture_lut_vec: Vec<[TextureId; 6]> = Vec::new();
         let mut name_to_id: HashMap<String, BlockId> = HashMap::new();
 
-        let block_dir = Path::new("assets/blocks");
+        let block_dir = get_resource_path("assets/blocks");
 
         // INFO: ---------------------------------------
         //          manual air block registration (ID 0)
@@ -220,7 +219,7 @@ impl FromWorld for BlockRegistryResource {
         let mut stone_was_loaded = false;
 
         if block_dir.is_dir() {
-            let entries = fs::read_dir(block_dir).unwrap_or_else(|e| {
+            let entries = fs::read_dir(&block_dir).unwrap_or_else(|e| {
                 panic!("Failed to read block directory {:?}: {}", block_dir, e);
             });
 
