@@ -19,4 +19,6 @@
       "*.wesl"
     ];
   };
+
+  settings.global.excludes = [ "CHANGELOG.md" ];
 }
