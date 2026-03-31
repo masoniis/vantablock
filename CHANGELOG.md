@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/masoniis/boxel/compare/b-v0.3.0...b-v0.3.1) (2026-03-31)
+
+
+### Bug Fixes 🐛
+
+* packaged release provides an icon on all platforms fixing build errors ([78a3982](https://github.com/masoniis/boxel/commit/78a398219797d6ee974272fd8106722a67f38d92))
+
 ## [0.3.0](https://github.com/masoniis/boxel/compare/b-v0.2.0...b-v0.3.0) (2026-03-31)
 
 
