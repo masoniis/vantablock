@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/masoniis/boxel/compare/b-v0.1.0...b-v0.1.1) (2026-03-31)
+
+
+### Maintenance 😔
+
+* remove render world load tracking ([574efb3](https://github.com/masoniis/boxel/commit/574efb37e78c3558bcb2f4219fe19110f2ac8c68))
+
 ## [0.1.0](https://github.com/masoniis/boxel/compare/b-v0.0.1...b-v0.1.0) (2026-03-31)
 
 
