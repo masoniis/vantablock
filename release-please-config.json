@@ -14,7 +14,7 @@
       "section": "Performance Improvements 🧠",
       "hidden": false
     },
-    { "type": "chore", "section": "Maintenance 😔", "hidden": false },
+    { "type": "chore", "section": "Maintenance 😔", "hidden": true },
     { "type": "ci", "section": "Continuous Integration 🕳️", "hidden": true },
     { "type": "docs", "section": "Documentation 📜", "hidden": false },
     {
@@ -23,6 +23,6 @@
       "hidden": true
     },
     { "type": "style", "section": "Style & Formatting 🪮", "hidden": true },
-    { "type": "test", "section": "Tests 🚨", "hidden": false }
+    { "type": "test", "section": "Tests 🚨", "hidden": true }
   ]
 }
