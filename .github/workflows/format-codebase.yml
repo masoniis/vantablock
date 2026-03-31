@@ -26,6 +26,8 @@ jobs:
       # installs deps and makes nix available to runner path
       - name: Add nix flake profile
         uses: masoniis/b/.github/actions/add-nix-flake-profile@main
+        with:
+          flake-profile: formatting
 
       - name: Run formatter
         run: nix fmt
