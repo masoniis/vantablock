@@ -76,6 +76,7 @@ jobs:
           mkdir build
           cp target/distribution/b build/
           cp -r assets build/
+          cp config.ron readme.md build/
           cd build
           tar -czf ../${{ matrix.asset_name }} *
 
@@ -85,6 +86,8 @@ jobs:
           mkdir build
           copy target\distribution\b.exe build\
           xcopy /E /I assets build\assets
+          copy config.ron build\
+          copy readme.md build\
           cd build
           powershell Compress-Archive -Path * -DestinationPath ..\${{ matrix.asset_name }}
 
