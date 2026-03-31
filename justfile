@@ -49,6 +49,9 @@ ready *args:
 	cargo clippy -- -D warnings
 	cargo test {{args}}
 
+sign:
+	xattr -cr /Applications/Boxel.app
+
 # INFO: ---------------------------
 #         advanced commands
 # ---------------------------------
