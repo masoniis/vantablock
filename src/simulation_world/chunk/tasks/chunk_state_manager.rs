@@ -1,5 +1,5 @@
-use bevy_ecs::prelude::*;
 use bevy::math::IVec3;
+use bevy_ecs::prelude::*;
 use std::collections::HashMap;
 
 use crate::simulation_world::chunk::{WORLD_MAX_Y_CHUNK, WORLD_MIN_Y_CHUNK};

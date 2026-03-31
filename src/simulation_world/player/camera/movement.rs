@@ -8,8 +8,8 @@ use crate::{
     simulation_world::player::{ActiveCamera, CameraComponent},
     simulation_world::time::FrameClock,
 };
-use bevy_ecs::prelude::*;
 use bevy::math::{Mat4, Vec3};
+use bevy_ecs::prelude::*;
 use tracing::{instrument, warn};
 
 /// The distance the near plane is set to for the camera frustum.

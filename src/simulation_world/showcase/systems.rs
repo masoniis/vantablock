@@ -4,8 +4,8 @@ use crate::simulation_world::{
     terrain::{ActiveTerrainGenerator, TerrainGeneratorLibrary},
     time::{world_clock::SECONDS_IN_A_DAY, WorldClockResource},
 };
-use bevy_ecs::prelude::*;
 use bevy::math::Vec3;
+use bevy_ecs::prelude::*;
 use std::time::Duration;
 
 struct Showcase {

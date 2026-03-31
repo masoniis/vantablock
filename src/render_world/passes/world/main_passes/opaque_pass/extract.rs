@@ -9,8 +9,8 @@ use crate::{
         input::systems::toggle_opaque_wireframe::OpaqueWireframeMode,
     },
 };
-use bevy_ecs::prelude::*;
 use bevy::math::Mat4;
+use bevy_ecs::prelude::*;
 
 // INFO: --------------------------------
 //         RenderWorld components

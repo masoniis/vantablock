@@ -1,5 +1,5 @@
-use bevy_ecs::component::Component;
 use bevy::math::{Mat4, Vec3};
+use bevy_ecs::component::Component;
 
 /// A component that holds camera data for an entity
 #[derive(Component)]
