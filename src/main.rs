@@ -9,7 +9,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Logger attached...");
     info!("Running app...");
 
-    if let Err(e) = app::App::create_and_run() {
+    if let Err(e) = app::BoxelApp::create_and_run() {
         error!("App error: {}", e);
     } else {
         info!("App runner finished without errors!");
