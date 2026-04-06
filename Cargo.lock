@@ -1959,7 +1959,7 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 
 [[package]]
 name = "client"
-version = "0.0.0"
+version = "0.0.1"
 dependencies = [
  "bevy",
  "bytemuck",
@@ -4966,7 +4966,7 @@ dependencies = [
 
 [[package]]
 name = "server"
-version = "0.0.0"
+version = "0.0.1"
 dependencies = [
  "bevy",
  "shared",
@@ -4996,7 +4996,7 @@ dependencies = [
 
 [[package]]
 name = "shared"
-version = "0.0.0"
+version = "0.0.1"
 dependencies = [
  "bevy",
  "bytemuck",
@@ -5659,7 +5659,7 @@ checksum = "ebc1c04c71510c7f702b52b7c350734c9ff1295c464a03335b00bb84fc54f853"
 
 [[package]]
 name = "utils"
-version = "0.0.0"
+version = "0.0.1"
 dependencies = [
  "bevy",
  "directories",
