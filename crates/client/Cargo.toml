@@ -9,7 +9,7 @@ product-name = "Vantablock"
 identifier = "com.masoniis.vantablock"
 resources = ["../../assets", "../../readme.md"]
 icons = ["../../assets/icon.png"]
-before-packaging-command = "cargo build --profile distribution --features final_release"
+before-packaging-command = "cargo build -p client --profile distribution --features final_release"
 binaries = [{ path = "client", main = true }]
 
 [lib]

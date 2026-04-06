@@ -71,7 +71,7 @@ jobs:
         run: cargo install cargo-packager --locked
 
       - name: Build and Package
-        run: cargo packager --profile distribution
+        run: cargo packager -p client --profile distribution
 
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
