@@ -7,9 +7,8 @@ default-run = "client"
 [package.metadata.packager]
 product-name = "Vantablock"
 identifier = "com.masoniis.vantablock"
-resources = ["../../assets/shared", "../../assets/client", "../../readme.md"]
+resources = ["../../assets", "../../readme.md"]
 icons = ["../../assets/client/icon.png"]
-before-packaging-command = "cargo build -p client --profile distribution --features final_release"
 binaries = [{ path = "client", main = true }]
 
 [lib]
@@ -29,10 +28,14 @@ tracy = ["dep:tracy-client", "dep:tracing-tracy"]
 final_release = ["tracing/release_max_level_error"]
 
 [build-dependencies]
-wesl = { workspace = true }
+wesl = { workspace = true } # shader compliation from WESL to WGSL
 
 [dev-dependencies]
 criterion = { workspace = true }
+
+# INFO: --------------------------
+#         util bin scripts
+# --------------------------------
 
 [[bin]]
 name = "texture_processor"
@@ -41,24 +44,44 @@ path = "tools/texture_processor.rs"
 [dependencies]
 utils = { path = "../utils" }
 shared = { path = "../shared" }
+
+# INFO: --------------------------------
+#         logging/error handling
+# --------------------------------------
+
 time = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 tracy-client = { workspace = true, optional = true }
 tracing-tracy = { workspace = true, optional = true }
-wesl = { workspace = true }
+
+# INFO: ------------------
+#         graphics
+# ------------------------
+
+wesl = { workspace = true }             # preprocessor
 image = { workspace = true }
-bytemuck = { workspace = true }
-offset-allocator = { workspace = true }
+bytemuck = { workspace = true }         # gpu friendly data
+offset-allocator = { workspace = true } # gpu buffer allocation
+
+# INFO: --------------------------
+#         simulation logic
+# --------------------------------
+
 bevy = { workspace = true }
-rayon = { workspace = true }
-futures-lite = { workspace = true }
+rayon = { workspace = true }        # multi threaded pooling
+futures-lite = { workspace = true } # future utils
+
+# INFO: ---------------
+#         utils
+# ---------------------
+
 sysinfo = { workspace = true }
 derive_more = { workspace = true }
-serde = { workspace = true }
-rand = { workspace = true }
-ron = { workspace = true }
-noise = { workspace = true }
-crossbeam = { workspace = true }
-glob = { workspace = true }
-directories = { workspace = true }
+serde = { workspace = true }       # serializing
+rand = { workspace = true }        # rng
+ron = { workspace = true }         # parsing RON files
+noise = { workspace = true }       # gen random noise
+crossbeam = { workspace = true }   # thread comms
+glob = { workspace = true }        # reading dirs
+directories = { workspace = true } # platform-specific dirs

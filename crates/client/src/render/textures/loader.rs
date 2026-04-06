@@ -17,9 +17,9 @@ pub struct VoxelTextureProcessor {
 }
 
 impl VoxelTextureProcessor {
-    pub fn new(texture_pack: &str) -> Self {
+    pub fn new(assets_dir: PathBuf, texture_pack: &str) -> Self {
         Self {
-            base_path: PathBuf::from("assets/client/textures"),
+            base_path: assets_dir.join("client/textures"),
             texture_pack: texture_pack.to_string(),
         }
     }

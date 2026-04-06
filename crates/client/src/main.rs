@@ -27,7 +27,7 @@ fn main() {
                 ..default()
             })
             .set(AssetPlugin {
-                file_path: "assets".to_string(),
+                file_path: persistent_paths.assets_dir.to_string_lossy().to_string(),
                 ..default()
             })
             .disable::<LogPlugin>(),

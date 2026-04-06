@@ -1,46 +1,29 @@
 [workspace]
+members = ["crates/shared", "crates/client", "crates/server", "crates/utils"]
 resolver = "2"
-members = [
-    "crates/shared",
-    "crates/client",
-    "crates/server",
-    "crates/utils",
-]
 
 [workspace.package]
-version = "0.4.0"
+version = "0.0.0"
 edition = "2024"
 
-[workspace.dependencies]
-time = { version = "0.3.43", features = ["formatting", "macros"] }
-tracing = { version = "0.1.41", features = ["release_max_level_warn"] }
-tracing-subscriber = { version = "0.3.20", features = ["time", "local-time", "env-filter"] }
-tracy-client = "=0.18.0"
-tracing-tracy = "=0.11.4"
-wesl = "0.2.0"
-image = { version = "0.25.6", default-features = false, features = ["png"] }
-bytemuck = { version = "1.13", features = ["derive"] }
-offset-allocator = "0.2.0"
-bevy = { version = "0.18.1", default-features = false, features = ["default_app", "default_platform", "3d_bevy_render", "ui_api", "bevy_render", "bevy_asset", "bevy_state"] }
-rayon = "1.11.0"
-futures-lite = "2.6.1"
-sysinfo = { version = "0.37.2", default-features = false, features = ["system"] }
-derive_more = { version = "2.0.1", features = ["deref", "deref_mut"] }
-serde = { version = "1.0.228", features = ["derive"] }
-rand = "0.9.2"
-ron = "0.11.0"
-noise = { version = "0.9.0", default-features = false }
-crossbeam = "0.8.4"
-glob = "0.3.3"
-directories = "6.0"
-criterion = { version = "0.5", features = ["html_reports"] }
+# INFO: --------------------------
+#         release profiles
+# --------------------------------
 
+# dev: fast compile with logs, slow runtime
+[profile.dev]
+opt-level = 0
+debug = true
+
+# standard: fastish, but compiles quicker than distribution and keeps logging/debugging
 [profile.release]
 opt-level = 3
 lto = "thin"
 debug = 1
 strip = false
 
+# distribution: fast, super slow compile, limited logging and debugging
+# used via `cargo build --profile distribution --features final_release`
 [profile.distribution]
 inherits = "release"
 lto = "fat"
@@ -48,3 +31,61 @@ codegen-units = 1
 panic = "abort"
 strip = true
 debug = false
+
+[workspace.dependencies]
+
+# INFO: --------------------------------
+#         logging/error handling
+# --------------------------------------
+
+time = { version = "0.3.43", features = ["formatting", "macros"] }
+tracing = { version = "0.1.41", features = ["release_max_level_warn"] }
+tracing-subscriber = { version = "0.3.20", features = [
+  "time",
+  "local-time",
+  "env-filter",
+] }
+tracy-client = "=0.18.0"
+tracing-tracy = "=0.11.4"
+
+# INFO: ------------------
+#         graphics
+# ------------------------
+
+wesl = "0.2.0"                                                               # shader compliation from WESL to WGSL
+image = { version = "0.25.6", default-features = false, features = ["png"] }
+bytemuck = { version = "1.13", features = ["derive"] }                       # gpu friendly data
+offset-allocator = "0.2.0"                                                   # gpu buffer allocation
+
+# INFO: --------------------------
+#         simulation logic
+# --------------------------------
+
+bevy = { version = "0.18.1", default-features = false, features = [
+  "default_app",
+  "default_platform",
+  "3d_bevy_render",
+  "ui_api",
+  "bevy_render",
+  "bevy_asset",
+  "bevy_state",
+] }
+rayon = "1.11.0" # multi threaded pooling
+futures-lite = "2.6.1" # future utils
+
+# INFO: ---------------
+#         utils
+# ---------------------
+
+sysinfo = { version = "0.37.2", default-features = false, features = [
+  "system",
+] }
+derive_more = { version = "2.0.1", features = ["deref", "deref_mut"] }
+serde = { version = "1.0.228", features = ["derive"] } # serializing
+rand = "0.9.2" # rng
+ron = "0.11.0" # parsing RON files
+noise = { version = "0.9.0", default-features = false } # gen random noise
+crossbeam = "0.8.4" # thread comms
+glob = "0.3.3" # reading dirs
+directories = "6.0" # platform-specific dirs
+criterion = { version = "0.5", features = ["html_reports"] }

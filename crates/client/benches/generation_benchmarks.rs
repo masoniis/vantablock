@@ -35,9 +35,12 @@ fn bench_chunk_generation(c: &mut Criterion) {
 
     let mut world = World::new();
     world.insert_resource(
-        VoxelTextureProcessor::new(&client_settings.texture_pack)
-            .create_registry()
-            .unwrap(),
+        VoxelTextureProcessor::new(
+            persistent_paths.assets_dir.clone(),
+            &client_settings.texture_pack,
+        )
+        .create_registry()
+        .unwrap(),
     );
     world.insert_resource(persistent_paths.clone());
 
@@ -132,9 +135,12 @@ fn bench_chunk_meshing(c: &mut Criterion) {
 
     let mut world = World::new();
     world.insert_resource(
-        VoxelTextureProcessor::new(&client_settings.texture_pack)
-            .create_registry()
-            .unwrap(),
+        VoxelTextureProcessor::new(
+            persistent_paths.assets_dir.clone(),
+            &client_settings.texture_pack,
+        )
+        .create_registry()
+        .unwrap(),
     );
     world.insert_resource(persistent_paths.clone());
     world.init_resource::<BlockRegistryResource>();

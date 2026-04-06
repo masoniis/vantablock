@@ -20,6 +20,7 @@ use shared::simulation::{
     terrain::TerrainGenerationPlugin, time::TimeControlPlugin,
 };
 use shared::{FixedUpdateSet, RenderPrepSet};
+use utils::PersistentPaths;
 
 pub struct SimulationPlugin;
 
@@ -44,12 +45,15 @@ impl Plugin for SimulationPlugin {
 fn initialize_simulation_registries_system(world: &mut World) {
     info!("Initializing simulation registries (textures, blocks)...");
     let client_settings = world.resource::<ClientSettings>().clone();
+    let persistent_paths = world.resource::<PersistentPaths>();
 
     // Load textures (CPU-side registry + the stitched texture array image)
-    let (texture_array_image, texture_registry) =
-        VoxelTextureProcessor::new(&client_settings.texture_pack)
-            .load_and_stitch()
-            .unwrap();
+    let (texture_array_image, texture_registry) = VoxelTextureProcessor::new(
+        persistent_paths.assets_dir.clone(),
+        &client_settings.texture_pack,
+    )
+    .load_and_stitch()
+    .unwrap();
 
     // Add the image to Bevy's native Assets<Image>
     let mut image_assets = world.resource_mut::<Assets<Image>>();
