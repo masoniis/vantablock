@@ -37,6 +37,17 @@ impl ChunkState {
             ChunkState::Loaded { entity } => entity,
         }
     }
+
+    /// Returns true if the chunk has been generated (at least DataReady).
+    pub fn is_generated(&self) -> bool {
+        match *self {
+            ChunkState::DataReady { .. }
+            | ChunkState::WantsMeshing { .. }
+            | ChunkState::Meshing { .. }
+            | ChunkState::Loaded { .. } => true,
+            _ => false,
+        }
+    }
 }
 
 /// Offsets to find the 26 direct neighbors of a chunk.

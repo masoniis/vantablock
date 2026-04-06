@@ -80,25 +80,31 @@ pub fn start_pending_meshing_tasks_system(
         //         ensure neighbors have been generated
         // ----------------------------------------------------
 
-        let get_neighbor = |offset: IVec3| -> Option<ChunkDataOption> {
+        enum NeighborStatus {
+            Ready(ChunkDataOption),
+            WaitingForGeneration,
+            WaitingForDeferredCommands,
+        }
+
+        let get_neighbor = |offset: IVec3| -> NeighborStatus {
             let neighbor_coord = chunk_coord.pos + offset;
 
             if !ChunkStateManager::is_in_bounds(neighbor_coord) {
-                return Some(ChunkDataOption::OutOfBounds);
+                return NeighborStatus::Ready(ChunkDataOption::OutOfBounds);
             }
 
             match chunk_manager.get_state(neighbor_coord) {
-                Some(ChunkState::Loaded { entity: None }) => Some(ChunkDataOption::Empty),
-                Some(ChunkState::Loaded {
-                    entity: Some(entity),
-                })
-                | Some(ChunkState::DataReady { entity })
-                | Some(ChunkState::WantsMeshing { entity })
-                | Some(ChunkState::Meshing { entity }) => all_generated_chunks
-                    .get(entity)
-                    .ok()
-                    .map(|blocks| ChunkDataOption::Generated(blocks.clone())),
-                _ => None, // neighbor not generated
+                Some(ChunkState::Loaded { entity: None }) => {
+                    NeighborStatus::Ready(ChunkDataOption::Empty)
+                }
+                Some(state) if state.is_generated() => {
+                    let entity = state.entity().expect("Expected entity for generated chunk");
+                    match all_generated_chunks.get(entity) {
+                        Ok(blocks) => NeighborStatus::Ready(ChunkDataOption::Generated(blocks.clone())),
+                        Err(_) => NeighborStatus::WaitingForDeferredCommands,
+                    }
+                }
+                _ => NeighborStatus::WaitingForGeneration,
             }
         };
 
@@ -114,10 +120,16 @@ pub fn start_pending_meshing_tasks_system(
 
         for chunk_offset in NEIGHBOR_OFFSETS {
             let neighbor_data = match get_neighbor(chunk_offset) {
-                Some(data) => data,
-                None => {
+                NeighborStatus::Ready(data) => data,
+                NeighborStatus::WaitingForGeneration => {
+                    // abort for now, we will be pinged once it finishes generating
                     commands.entity(entity).remove::<CheckForMeshing>();
-                    continue 'chunk_loop; // abort as neighbor not generated
+                    continue 'chunk_loop;
+                }
+                NeighborStatus::WaitingForDeferredCommands => {
+                    // neighbors ARE ready, but their components aren't visible yet.
+                    // DO NOT remove CheckForMeshing so we try again next frame!
+                    continue 'chunk_loop;
                 }
             };
 
