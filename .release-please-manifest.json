@@ -1,6 +1,0 @@
-{
-  "crates/client": "0.4.0",
-  "crates/server": "0.4.0",
-  "crates/shared": "0.4.0",
-  "crates/utils": "0.4.0"
-}
