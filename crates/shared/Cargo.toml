@@ -1,0 +1,18 @@
+[package]
+name = "shared"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+utils = { path = "../utils" }
+bevy = { workspace = true }
+serde = { workspace = true }
+derive_more = { workspace = true }
+noise = { workspace = true }
+crossbeam = { workspace = true }
+rayon = { workspace = true }
+rand = { workspace = true }
+tracing = { workspace = true }
+ron = { workspace = true }
+futures-lite = { workspace = true }
+bytemuck = { workspace = true }

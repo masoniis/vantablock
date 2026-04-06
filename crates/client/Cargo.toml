@@ -1,0 +1,64 @@
+[package]
+name = "client"
+version.workspace = true
+edition.workspace = true
+default-run = "client"
+
+[package.metadata.packager]
+product-name = "Vantablock"
+identifier = "com.masoniis.vantablock"
+resources = ["../../assets", "../../readme.md"]
+icons = ["../../assets/icon.png"]
+before-packaging-command = "cargo build --profile distribution --features final_release"
+binaries = [{ path = "client", main = true }]
+
+[lib]
+name = "client"
+path = "src/lib.rs"
+
+[[bin]]
+name = "client"
+path = "src/main.rs"
+
+[[bench]]
+name = "generation_benchmarks"
+harness = false
+
+[features]
+tracy = ["dep:tracy-client", "dep:tracing-tracy"]
+final_release = ["tracing/release_max_level_error"]
+
+[build-dependencies]
+wesl = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+
+[[bin]]
+name = "texture_processor"
+path = "tools/texture_processor.rs"
+
+[dependencies]
+utils = { path = "../utils" }
+shared = { path = "../shared" }
+time = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracy-client = { workspace = true, optional = true }
+tracing-tracy = { workspace = true, optional = true }
+wesl = { workspace = true }
+image = { workspace = true }
+bytemuck = { workspace = true }
+offset-allocator = { workspace = true }
+bevy = { workspace = true }
+rayon = { workspace = true }
+futures-lite = { workspace = true }
+sysinfo = { workspace = true }
+derive_more = { workspace = true }
+serde = { workspace = true }
+rand = { workspace = true }
+ron = { workspace = true }
+noise = { workspace = true }
+crossbeam = { workspace = true }
+glob = { workspace = true }
+directories = { workspace = true }

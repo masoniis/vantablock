@@ -1,0 +1,103 @@
+pub mod global_extract;
+pub mod passes;
+pub mod scheduling;
+pub mod textures;
+pub mod types;
+
+// INFO: --------------------------------
+//         render world interface
+// --------------------------------------
+
+use crate::prelude::*;
+use crate::render::global_extract::{
+    ExtractedSun, MeshesToUploadQueue, RenderMeshStorageResource, RenderTimeResource,
+    SimulationExtractionPlugin,
+};
+use crate::render::passes::main_passes::bounding_box_pass::extract::WireframeToggleState;
+use crate::render::passes::main_passes::opaque_pass::startup::OpaqueRenderMode;
+use crate::render::passes::{RenderGraphEdgesPlugin, WorldRenderPassesPlugin};
+use crate::render::textures::BlockTextureArray;
+use bevy::app::{App, Plugin, SubApp};
+use bevy::asset::AssetApp;
+use bevy::prelude::{Add, Commands, On};
+use bevy::render::ExtractSchedule;
+use bevy::render::RenderApp;
+use bevy::render::extract_resource::ExtractResourcePlugin;
+use bevy::render::sync_world::SyncToRenderWorld;
+use shared::simulation::asset_management::mesh_asset::VoxelChunkMeshAsset;
+use shared::simulation::block::TargetedBlock;
+use shared::simulation::chunk::{OpaqueMeshComponent, TransparentMeshComponent};
+
+use crate::render::passes::main_passes::opaque_pass::extract::extract_opaque_meshes;
+use crate::render::passes::main_passes::transparent_pass::extract::extract_transparent_meshes;
+
+/// Plugin responsible for attaching our custom render logic to Bevy's native RenderApp
+pub struct VantablockRenderPlugin;
+
+impl Plugin for VantablockRenderPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_plugins(passes::shader_registry::VantablockShaderPlugin);
+
+        app.init_asset::<VoxelChunkMeshAsset>();
+
+        // register extraction plugins on the main app
+        app.add_plugins((
+            // resources
+            ExtractResourcePlugin::<ExtractedSun>::default(),
+            ExtractResourcePlugin::<RenderTimeResource>::default(),
+            ExtractResourcePlugin::<OpaqueRenderMode>::default(),
+            ExtractResourcePlugin::<TargetedBlock>::default(),
+        ));
+
+        app.add_plugins((
+            ExtractResourcePlugin::<WireframeToggleState>::default(),
+            ExtractResourcePlugin::<BlockTextureArray>::default(),
+        ));
+
+        // INFO: ----------------------------------------------------------------
+        //         Main World Synchronization
+        // ----------------------------------------------------------------------
+
+        // Register observers to mark mesh entities for synchronization to the render world
+        app.add_observer(
+            |add: On<Add, OpaqueMeshComponent>, mut commands: Commands| {
+                commands.entity(add.entity).insert(SyncToRenderWorld);
+            },
+        );
+
+        app.add_observer(
+            |add: On<Add, TransparentMeshComponent>, mut commands: Commands| {
+                commands.entity(add.entity).insert(SyncToRenderWorld);
+            },
+        );
+
+        let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
+            error!("RenderApp not found! Ensure DefaultPlugins are added before this plugin.");
+            return;
+        };
+
+        // manual component extraction MUST be added to the render app
+        render_app.add_systems(
+            ExtractSchedule,
+            (extract_opaque_meshes, extract_transparent_meshes),
+        );
+
+        pre_setup_render_sub_app(render_app);
+    }
+}
+
+/// Configures a sub-app with its base configuration, before graphics context is ready.
+pub fn pre_setup_render_sub_app(sub_app: &mut SubApp) {
+    // Resources for rendering
+    sub_app
+        .init_resource::<RenderTimeResource>()
+        .init_resource::<RenderMeshStorageResource>()
+        .init_resource::<MeshesToUploadQueue>();
+
+    // Specifically implemented plugins (These run strictly in the Render World)
+    sub_app.add_plugins((
+        WorldRenderPassesPlugin,
+        SimulationExtractionPlugin,
+        RenderGraphEdgesPlugin,
+    ));
+}

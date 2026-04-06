@@ -1,0 +1,12 @@
+[package]
+name = "server"
+version.workspace = true
+edition.workspace = true
+default-run = "server"
+
+[dependencies]
+shared = { path = "../shared" }
+utils = { path = "../utils" }
+bevy = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }

@@ -1,21 +1,29 @@
-default: run
+default: client
 
 # INFO: -----------------------------
 #         basic cargo aliases
 # -----------------------------------
 
-# runs via debug profile
+# runs the client via debug profile
 run *args:
-	cargo run {{args}}
+	cargo run -p client {{args}}
 
-# runs via max-optimization release profile
+# runs the client via debug profile
+client *args:
+	cargo run -p client {{args}}
+
+# runs the server via debug profile
+server *args:
+	cargo run -p server {{args}}
+
+# runs the client via max-optimization release profile
 alias run-fast := release
 release *args:
-	cargo run --profile distribution --features final_release
+	cargo run -p client --profile distribution --features client/final_release {{args}}
 
 # runs benchmarks and opens html report once finished
 bench *args:
-	cargo bench {{args}}
+	cargo bench -p client {{args}}
 	echo "Opening Criterion report..."
 	open target/criterion/report/index.html
 
@@ -32,10 +40,10 @@ fix *args:
 	cargo fix --allow-dirty
 
 texture:
-	cargo run --bin texture_processor
+	cargo run -p client --bin texture_processor
 
 package:
-	cargo packager --profile distribution
+	cargo packager -p client --profile distribution
 
 # INFO: ---------------------
 #         small utils
@@ -59,7 +67,7 @@ sign:
 # Shows the ASM associated with a rust file.
 # requires https://crates.io/crates/cargo-show-asm
 asm path:
-    cargo asm --bin vantablock --color {{path}}
+    cargo asm -p client --color {{path}}
 
 trace *args:
 	#!/usr/bin/env bash
@@ -73,13 +81,13 @@ trace *args:
 			tracy &
 	fi
 
-	cargo run --features tracy {{args}}
+	cargo run -p client --features client/tracy {{args}}
 
 debug_bevy *args:
-  cargo run --features bevy/trace,bevy/track_location,bevy/debug
+  cargo run -p client --features bevy/trace,bevy/track_location,bevy/debug {{args}}
 
 debug_wgpu *args:
-	RUST_LOG=wgpu=trace cargo run {{args}}
+	RUST_LOG=wgpu=trace cargo run -p client {{args}}
 
 debug *args:
 	#!/usr/bin/env bash
@@ -87,7 +95,7 @@ debug *args:
 	set -- {{args}}
 	if [ "$#" -eq 0 ]; then
 		echo -e "\033[1;33mNo debug targets specified. Available targets are:\033[0m"
-		rg --no-heading -o --replace '$f:$1' 'target\s*:\s*"([^"]+)"' src/ \
+		rg --no-heading -o --replace '$f:$1' 'target\s*:\s*"([^"]+)"' crates/client/src/ \
 			| awk -F: '{print $NF}' \
 			| sort \
 			| uniq -c \
@@ -106,4 +114,4 @@ debug *args:
 	export RUST_LOG="${log_targets%,},vantablock=info"
 
 	echo -e "\033[1;32mRunning with RUST_LOG=\033[0m$RUST_LOG"
-	cargo run
+	cargo run -p client
