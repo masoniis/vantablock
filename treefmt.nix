@@ -20,5 +20,5 @@
     ];
   };
 
-  settings.global.excludes = [ "CHANGELOG.md" ];
+  settings.global.excludes = [ "**/CHANGELOG.md" ];
 }
