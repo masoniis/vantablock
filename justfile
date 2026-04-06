@@ -25,9 +25,9 @@ release *args:
 
 alias run-fast := release
 
-# INFO: -----------------------------
-#          Development & Linting
-# -----------------------------------
+# INFO: -------------------------------
+#         development & linting
+# -------------------------------------
 
 # runs cargo check across the workspace
 check *args:
@@ -45,9 +45,13 @@ fix:
 fmt:
     nix fmt
 
-# INFO: -----------------------------
-#          Testing & Validation
-# -----------------------------------
+# cleans ephemeral dirs
+clean:
+	rm -rf target/
+
+# INFO: ------------------------------
+#         testing & validation
+# ------------------------------------
 
 # runs all workspace tests
 test *args:
@@ -70,13 +74,14 @@ ready *args:
     cargo clippy -- -D warnings
     cargo test {{args}}
 
-# INFO: -----------------------------
-#          Build & Assets
-# -----------------------------------
+# INFO: ------------------------
+#         build & assets
+# ------------------------------
 
 # packages the client for distribution
-package:
-    cargo packager -p {{client}} --profile distribution
+package profile="distribution":
+    cargo build -p client --profile {{profile}} --features final_release
+    cargo packager -p client --profile {{profile}}
 
 # runs the texture processor utility
 texture:
@@ -87,7 +92,7 @@ sign:
     xattr -cr /Applications/Vantablock.app
 
 # INFO: -----------------------------
-#          Profiling & Tracing
+#         profiling & tracing
 # -----------------------------------
 
 # Shows the ASM associated with a rust file.

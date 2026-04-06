@@ -1,0 +1,54 @@
+[workspace]
+changelog_path = "./CHANGELOG.md"
+pr_labels = ["autorelease"]
+publish = false                   # don't publish to crates.io
+git_tag_enable = false            # default no tag for workspace crates
+git_release_enable = false        # default no release for workspace crates
+release = false                   # disable release for workspace creates
+
+# client package is the main release entrypoint
+[[package]]
+name = "client"
+git_release_enable = true
+git_tag_enable = true
+release = true
+git_release_name = "Vanta🅱️lock v{{ version }}" # release with game name since single-release
+git_tag_name = "v{{ version }}"                 # tag with only version since single-release
+
+[changelog]
+# template for the changelog body
+# https://release-plz.dev/docs/extra/single-changelog
+body = """
+## `{{ package }}` - [{{ version }}]{%- if release_link -%}({{ release_link }}){% endif %} - {{ timestamp | date(format="%Y-%m-%d") }}
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | upper_first }}
+{% for commit in commits %}
+{%- if commit.scope -%}
+- *({{commit.scope}})* {% if commit.breaking %}[**breaking**] {% endif %}{{ commit.message }}{%- if commit.links %} ({% for link in commit.links %}[{{link.text}}]({{link.href}}) {% endfor -%}){% endif %}
+{% else -%}
+- {% if commit.breaking %}[**breaking**] {% endif %}{{ commit.message }}
+{% endif -%}
+{% endfor -%}
+{% endfor -%}
+"""
+# remove the leading and trailing whitespace from the templates
+trim = true
+
+# regex for parsing and grouping commits
+commit_parsers = [
+  { message = "^feat", group = "Features 🚀" },
+  { message = "^fix", group = "Bug Fixes 🐛" },
+  { message = "^perf", group = "Performance Improvements 🧠" },
+  { message = "^docs", group = "Documentation 📜" },
+  { message = "^chore", skip = true },
+  { message = "^ci", skip = true },
+  { message = "^refactor", skip = true },
+  { message = "^style", skip = true },
+  { message = "^test", skip = true },
+]
+# protect breaking changes from being skipped due to matching a skipping commit_parser
+protect_breaking_commits = false
+# glob pattern for matching git tags
+tag_pattern = "v[0-9]*"
+# sort the commits inside sections by message
+sort_commits = "oldest"
