@@ -5,6 +5,9 @@ project := "vantablock"
 client  := "client"
 server  := "server"
 
+# where to place wsl windows builds
+wsl_target := "C:/temp/vantablock-build"
+
 default: run
 
 # INFO: -------------------------
@@ -22,6 +25,11 @@ server *args:
 # runs the client via max-optimization release profile
 release *args:
     cargo run -p {{client}} --profile distribution --features {{client}}/final_release {{args}}
+
+# compiles and runs the client natively on Windows from within WSL
+wsl *args:
+    WSL_PATH=$(wslpath -w .)
+    powershell.exe -Command "if (!(Test-Path '{{wsl_target}}')) { New-Item -ItemType Directory -Force -Path '{{wsl_target}}' }; cd '$WSL_PATH'; \$env:CARGO_TARGET_DIR='{{wsl_target}}'; cargo run -p {{client}} {{args}}"
 
 alias run-fast := release
 
