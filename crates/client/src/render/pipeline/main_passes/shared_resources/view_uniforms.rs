@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use crate::render::global_extract::resources::RenderCameraResource;
+use crate::render::data::RenderCameraResource;
 use crate::render::pipeline::shadow_pass::gpu_resources::{
     ShadowDepthTextureResource, ShadowViewBuffer,
 };

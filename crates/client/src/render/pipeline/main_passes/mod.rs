@@ -15,7 +15,7 @@ pub use shared_resources::{
 // ---------------------------------
 
 use crate::render::{
-    global_extract::RenderCameraResource,
+    data::RenderCameraResource,
     pipeline::main_passes::{
         bounding_box_pass::WireframeRenderPassPlugin,
         opaque_pass::OpaqueRenderPassPlugin,

@@ -1,4 +1,4 @@
-pub mod global_extract;
+pub mod data;
 pub mod pipeline;
 pub mod scheduling;
 pub mod texture;
@@ -9,7 +9,7 @@ pub mod types;
 // --------------------------------------
 
 use crate::prelude::*;
-use crate::render::global_extract::{
+use crate::render::data::{
     ExtractedSun, MeshesToUploadQueue, RenderMeshStorageResource, RenderTimeResource,
     SimulationExtractionPlugin,
 };

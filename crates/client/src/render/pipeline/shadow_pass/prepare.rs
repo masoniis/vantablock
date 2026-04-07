@@ -1,9 +1,9 @@
 use crate::prelude::*;
-use crate::render::global_extract::ExtractedSun;
+use crate::render::data::ExtractedSun;
 use crate::render::pipeline::shadow_pass::gpu_resources::SHADOW_MAP_RESOLUTION;
 use crate::{
     render::{
-        global_extract::RenderCameraResource,
+        data::RenderCameraResource,
         pipeline::shadow_pass::gpu_resources::{ShadowViewBuffer, ShadowViewData},
     },
     simulation::player::CAMERA_NEAR_PLANE,

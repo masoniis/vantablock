@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use crate::render::pipeline::gpu_resources::world_uniforms::ChunkStorageManager;
 use crate::render::{
-    global_extract::RenderMeshStorageResource,
+    data::RenderMeshStorageResource,
     pipeline::main_passes::opaque_pass::{
         extract::OpaqueRenderMeshComponent, queue::Opaque3dRenderPhase,
     },

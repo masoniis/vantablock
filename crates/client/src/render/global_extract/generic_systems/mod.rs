@@ -1,3 +1,0 @@
-pub mod extract_modified_chunk_meshes;
-
-pub use extract_modified_chunk_meshes::extract_modified_chunk_meshes;

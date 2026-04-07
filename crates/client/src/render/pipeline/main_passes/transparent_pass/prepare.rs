@@ -3,7 +3,7 @@ use crate::render::pipeline::gpu_resources::world_uniforms::{
 };
 use crate::{
     prelude::*,
-    render::global_extract::resources::{MeshesToUploadQueue, RenderMeshStorageResource},
+    render::data::{MeshesToUploadQueue, RenderMeshStorageResource},
 };
 use bevy::ecs::prelude::*;
 use bevy::render::renderer::{RenderDevice, RenderQueue};

@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use crate::render::global_extract::resources::MeshesToUploadQueue;
+use crate::render::data::MeshesToUploadQueue;
 use bevy::asset::{AssetEvent, Assets};
 use bevy::ecs::prelude::{MessageReader, Query, Res, ResMut};
 use bevy::render::Extract;
@@ -12,10 +12,12 @@ use shared::simulation::chunk::{
 /// and queues them for GPU upload in the render world.
 #[instrument(skip_all)]
 pub fn extract_modified_chunk_meshes(
+    // in
     mut events: Extract<MessageReader<AssetEvent<VoxelChunkMeshAsset>>>,
     assets: Extract<Res<Assets<VoxelChunkMeshAsset>>>,
     opaque_meshes: Extract<Query<(&OpaqueMeshComponent, &TransformComponent)>>,
     transparent_meshes: Extract<Query<(&TransparentMeshComponent, &TransformComponent)>>,
+    // out
     mut upload_queue: ResMut<MeshesToUploadQueue>,
 ) {
     // 1. Build a lookup of AssetId -> WorldPos for the current frame's extraction

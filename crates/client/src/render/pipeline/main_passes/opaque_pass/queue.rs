@@ -1,6 +1,6 @@
 use crate::prelude::*;
 use crate::render::{
-    global_extract::resources::RenderCameraResource,
+    data::RenderCameraResource,
     pipeline::main_passes::opaque_pass::extract::OpaqueRenderMeshComponent,
     types::RenderTransformComponent,
 };
