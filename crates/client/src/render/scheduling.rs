@@ -1,6 +1,6 @@
 use bevy::render::render_graph::RenderLabel;
 
-#[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
+#[derive(RenderLabel, Debug, Hash, PartialEq, Eq, Clone)]
 pub enum VantablockNode {
     ShadowPass,
     OpaquePass,

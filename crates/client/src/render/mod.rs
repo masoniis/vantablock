@@ -1,7 +1,7 @@
 pub mod global_extract;
-pub mod passes;
+pub mod pipeline;
 pub mod scheduling;
-pub mod textures;
+pub mod texture;
 pub mod types;
 
 // INFO: --------------------------------
@@ -13,10 +13,10 @@ use crate::render::global_extract::{
     ExtractedSun, MeshesToUploadQueue, RenderMeshStorageResource, RenderTimeResource,
     SimulationExtractionPlugin,
 };
-use crate::render::passes::main_passes::bounding_box_pass::extract::WireframeToggleState;
-use crate::render::passes::main_passes::opaque_pass::startup::OpaqueRenderMode;
-use crate::render::passes::{RenderGraphEdgesPlugin, WorldRenderPassesPlugin};
-use crate::render::textures::BlockTextureArray;
+use crate::render::pipeline::main_passes::bounding_box_pass::extract::WireframeToggleState;
+use crate::render::pipeline::main_passes::opaque_pass::startup::OpaqueRenderMode;
+use crate::render::pipeline::{RenderGraphEdgesPlugin, WorldRenderPassesPlugin};
+use crate::render::texture::BlockTextureArray;
 use bevy::app::{App, Plugin, SubApp};
 use bevy::asset::AssetApp;
 use bevy::prelude::{Add, Commands, On};
@@ -28,15 +28,15 @@ use shared::simulation::asset_management::mesh_asset::VoxelChunkMeshAsset;
 use shared::simulation::block::TargetedBlock;
 use shared::simulation::chunk::{OpaqueMeshComponent, TransparentMeshComponent};
 
-use crate::render::passes::main_passes::opaque_pass::extract::extract_opaque_meshes;
-use crate::render::passes::main_passes::transparent_pass::extract::extract_transparent_meshes;
+use crate::render::pipeline::main_passes::opaque_pass::extract::extract_opaque_meshes;
+use crate::render::pipeline::main_passes::transparent_pass::extract::extract_transparent_meshes;
 
 /// Plugin responsible for attaching our custom render logic to Bevy's native RenderApp
 pub struct VantablockRenderPlugin;
 
 impl Plugin for VantablockRenderPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(passes::shader_registry::VantablockShaderPlugin);
+        app.add_plugins(pipeline::shader_registry::VantablockShaderPlugin);
 
         app.init_asset::<VoxelChunkMeshAsset>();
 

@@ -60,7 +60,7 @@ jobs:
     needs: [release-plz-release]
     permissions:
       contents: write
-    if: ${{ needs.release-plz-release.outputs.releases_created == 'true' }}
+    if: ${{ contains(needs.release-plz-release.outputs.releases, '"package_name":"client"') }}
     strategy:
       fail-fast: false
       matrix:

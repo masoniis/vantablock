@@ -1,4 +1,4 @@
-use crate::render::passes::VoxelMesh;
+use crate::render::pipeline::VoxelMesh;
 use bevy::asset::AssetId;
 use bevy::ecs::prelude::*;
 use bevy::math::Vec3;

@@ -1,6 +1,6 @@
 use bevy::ecs::prelude::World;
 use client::prelude::*;
-use client::render::textures::VoxelTextureProcessor;
+use client::render::texture::VoxelTextureProcessor;
 use client::settings::ClientSettings;
 use criterion::{Criterion, criterion_group, criterion_main};
 use shared::simulation::{

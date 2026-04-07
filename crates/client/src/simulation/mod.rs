@@ -2,21 +2,19 @@ pub mod input;
 pub mod player;
 pub mod showcase;
 
-// INFO: -----------------------------
-//         Simulation Setup
-// -----------------------------------
+// INFO: --------------------------
+//         simulation Setup
+// --------------------------------
 
-use crate::render::textures::{BlockTextureArray, VoxelTextureProcessor};
+use crate::render::texture::{BlockTextureArray, VoxelTextureProcessor};
 use crate::settings::ClientSettings;
 use crate::simulation::{input::InputModulePlugin, player::PlayerPlugin, showcase::ShowcasePlugin};
 use bevy::app::{App, FixedUpdate, Plugin, PostUpdate, PreStartup};
 use bevy::asset::Assets;
 use bevy::prelude::{Image, IntoScheduleConfigs, World, info};
-use shared::simulation::app_lifecycle::AppLifecyclePlugin;
-use shared::simulation::asset_management::AssetManagementPlugin;
-use shared::simulation::block::BlockRegistryResource;
 use shared::simulation::{
-    biome::BiomePlugin, block::BlockPlugin, chunk::ChunkLoadingPlugin,
+    app_lifecycle::AppLifecyclePlugin, asset_management::AssetManagementPlugin, biome::BiomePlugin,
+    block::BlockPlugin, block::BlockRegistryResource, chunk::ChunkLoadingPlugin,
     terrain::TerrainGenerationPlugin, time::TimeControlPlugin,
 };
 use shared::{FixedUpdateSet, RenderPrepSet};
@@ -37,7 +35,7 @@ impl Plugin for SimulationPlugin {
         // add plugins
         app.add_plugins((SharedPlugins, ClientOnlyPlugins));
 
-        // Registry data must be initialized before anything else
+        // registry data must be initialized before anything else
         app.add_systems(PreStartup, initialize_simulation_registries_system);
     }
 }
@@ -47,7 +45,7 @@ fn initialize_simulation_registries_system(world: &mut World) {
     let client_settings = world.resource::<ClientSettings>().clone();
     let persistent_paths = world.resource::<PersistentPaths>();
 
-    // Load textures (CPU-side registry + the stitched texture array image)
+    // load textures (CPU-side registry + the stitched texture array image)
     let (texture_array_image, texture_registry) = VoxelTextureProcessor::new(
         persistent_paths.assets_dir.clone(),
         &client_settings.texture_pack,
@@ -55,25 +53,23 @@ fn initialize_simulation_registries_system(world: &mut World) {
     .load_and_stitch()
     .unwrap();
 
-    // Add the image to Bevy's native Assets<Image>
+    // add the image to Bevy's native Assets<Image>
     let mut image_assets = world.resource_mut::<Assets<Image>>();
     let texture_handle = image_assets.add(texture_array_image);
 
-    // Insert resources into world
+    // insert resources into world
     world.insert_resource(texture_registry);
     world.insert_resource(BlockTextureArray {
         handle: texture_handle,
     });
-
-    // Now initialize BlockRegistryResource
     world.init_resource::<BlockRegistryResource>();
 
     info!("Simulation registries initialized successfully.");
 }
 
-// INFO: ---------------------------------
-//         Plugin Groups (private)
-// ---------------------------------------
+// INFO: -----------------------
+//         plugin groups
+// -----------------------------
 
 /// Plugins to run on both the server and client
 struct SharedPlugins;

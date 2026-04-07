@@ -1,6 +1,6 @@
 mod wireframe_vertex;
 
-pub use crate::render::passes::VoxelMesh;
+pub use crate::render::pipeline::VoxelMesh;
 pub use shared::simulation::chunk::meshing::packed_face::PackedFace;
 pub use wireframe_vertex::WireframeVertex;
 

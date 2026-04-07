@@ -6,7 +6,7 @@ fn main() {
     // --------------------------------------------
 
     // run condition
-    println!("cargo:rerun-if-changed=src/shaders");
+    println!("cargo:rerun-if-changed=../../assets/client/shaders");
 
     let compiler = Wesl::new("../../assets/client/shaders");
 
