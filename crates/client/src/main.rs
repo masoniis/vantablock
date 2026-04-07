@@ -1,9 +1,27 @@
+use bevy::app::{App, FixedUpdate, PostUpdate, PreStartup};
+use bevy::asset::Assets;
 use bevy::log::LogPlugin;
-use bevy::{app::App, prelude::*, window::WindowResolution};
+use bevy::prelude::{
+    AssetPlugin, DefaultPlugins, Image, IntoScheduleConfigs, PluginGroup,
+    Window, WindowPlugin, World, default, info,
+};
+use bevy::window::WindowResolution;
+use client::input::InputModulePlugin;
+use client::player::PlayerPlugin;
 use client::prelude::*;
+use client::render::texture::{BlockTextureArray, VoxelTextureProcessor};
 use client::render::VantablockRenderPlugin;
-use client::simulation::SimulationPlugin;
+use client::showcase::ShowcasePlugin;
 use shared::ecs_core::LoadingTracker;
+use shared::simulation::app_lifecycle::AppLifecyclePlugin;
+use shared::simulation::asset::AssetPlugin as SimulationAssetPlugin;
+use shared::simulation::biome::BiomePlugin;
+use shared::simulation::block::BlockPlugin;
+use shared::simulation::block::BlockRegistryResource;
+use shared::simulation::chunk::ChunkLoadingPlugin;
+use shared::simulation::scheduling::{FixedUpdateSet, RenderPrepSet};
+use shared::simulation::terrain::TerrainGenerationPlugin;
+use shared::simulation::time::TimeControlPlugin;
 use utils::PersistentPaths;
 
 #[instrument(skip_all, fields(name = "main"))]
@@ -13,9 +31,10 @@ fn main() {
     // setup default bevy app
     let mut app = App::new();
 
-    // Resolve platform paths and initialize application paths
+    // resolve platform paths
     let persistent_paths = PersistentPaths::resolve();
 
+    // config of default bevy plugins
     app.add_plugins(
         DefaultPlugins
             .set(WindowPlugin {
@@ -38,11 +57,64 @@ fn main() {
     app.insert_resource(persistent_paths);
     app.insert_resource(LoadingTracker::default());
 
-    // initialize simulation and renderer
-    app.add_plugins(SimulationPlugin);
-    app.add_plugins(VantablockRenderPlugin);
+    // configure schedule sets
+    app.configure_sets(
+        FixedUpdate,
+        (FixedUpdateSet::PreUpdate, FixedUpdateSet::MainLogic).chain(),
+    );
 
-    // run the app...
+    app.configure_sets(PostUpdate, RenderPrepSet);
+
+    // initialize simulation and renderer
+    app.add_plugins((
+        // client-specific simulation
+        InputModulePlugin,
+        PlayerPlugin,
+        ShowcasePlugin,
+        // shared simulation
+        AppLifecyclePlugin,
+        SimulationAssetPlugin,
+        BiomePlugin,
+        BlockPlugin,
+        ChunkLoadingPlugin,
+        TerrainGenerationPlugin,
+        TimeControlPlugin,
+        // rendering
+        VantablockRenderPlugin,
+    ));
+
+    // registry data must be initialized before anything else
+    app.add_systems(PreStartup, initialize_simulation_registries_system);
+
     app.run();
     info!("App exited safely!");
+}
+
+/// A system that initializes the simulation registries (textures, blocks, etc.)
+/// This is critical for both rendering and simulation logic.
+fn initialize_simulation_registries_system(world: &mut World) {
+    info!("Initializing simulation registries (textures, blocks)...");
+    let client_settings = world.resource::<ClientSettings>().clone();
+    let persistent_paths = world.resource::<PersistentPaths>();
+
+    // load textures (CPU-side registry + the stitched texture array image)
+    let (texture_array_image, texture_registry) = VoxelTextureProcessor::new(
+        persistent_paths.assets_dir.clone(),
+        &client_settings.texture_pack,
+    )
+    .load_and_stitch()
+    .unwrap();
+
+    // add the image to Bevy's native Assets<Image>
+    let mut image_assets = world.resource_mut::<Assets<Image>>();
+    let texture_handle = image_assets.add(texture_array_image);
+
+    // insert resources into world
+    world.insert_resource(texture_registry);
+    world.insert_resource(BlockTextureArray {
+        handle: texture_handle,
+    });
+    world.init_resource::<BlockRegistryResource>();
+
+    info!("Simulation registries initialized successfully.");
 }

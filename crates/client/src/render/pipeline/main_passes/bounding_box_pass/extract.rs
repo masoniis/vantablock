@@ -1,4 +1,4 @@
-use crate::simulation::input::systems::toggle_chunk_borders::ChunkBoundsToggle;
+use crate::input::systems::toggle_chunk_borders::ChunkBoundsToggle;
 use bevy::ecs::resource::Resource;
 use bevy::render::extract_resource::ExtractResource;
 

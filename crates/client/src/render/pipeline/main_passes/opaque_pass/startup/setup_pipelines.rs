@@ -1,3 +1,4 @@
+use crate::input::systems::toggle_opaque_wireframe::OpaqueWireframeMode;
 use crate::render::pipeline::gpu_resources::world_uniforms::ChunkStorageBindGroupLayout;
 use crate::render::pipeline::main_passes::shared_resources::main_depth_texture::MAIN_DEPTH_FORMAT;
 use crate::render::pipeline::main_passes::shared_resources::{
@@ -7,7 +8,6 @@ use crate::render::pipeline::shader_registry::{
     OPAQUE_FRAG_SHADER_HANDLE, OPAQUE_VERT_SHADER_HANDLE, SKYBOX_FRAG_SHADER_HANDLE,
     SKYBOX_VERT_SHADER_HANDLE,
 };
-use crate::simulation::input::systems::toggle_opaque_wireframe::OpaqueWireframeMode;
 use bevy::ecs::prelude::*;
 use bevy::render::extract_resource::ExtractResource;
 use bevy::render::render_resource::*;

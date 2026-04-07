@@ -1,9 +1,9 @@
 use crate::prelude::*;
 use crate::simulation::asset::VoxelMeshAsset;
 use crate::simulation::chunk::{
-    CheckForMeshing, ChunkCoord, ChunkMeshingTaskComponent, ChunkState, ChunkStateManager,
-    OpaqueMeshComponent, TransformComponent, TransparentMeshComponent, WantsMeshing,
-    CHUNK_SIDE_LENGTH,
+    CHUNK_SIDE_LENGTH, CheckForMeshing, ChunkCoord, ChunkMeshingTaskComponent, ChunkState,
+    ChunkStateManager, OpaqueMeshComponent, TransformComponent, TransparentMeshComponent,
+    WantsMeshing,
 };
 use bevy::asset::Assets;
 use bevy::ecs::prelude::*;

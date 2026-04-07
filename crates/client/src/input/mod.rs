@@ -4,7 +4,7 @@ pub mod systems;
 //         input module plugin
 // -----------------------------------
 
-use crate::simulation::input::systems::{
+use crate::input::systems::{
     toggle_chunk_borders::ChunkBoundsToggle, toggle_chunk_borders_system, toggle_cursor_system,
     toggle_opaque_wireframe::OpaqueWireframeMode, toggle_opaque_wireframe_mode_system,
 };
