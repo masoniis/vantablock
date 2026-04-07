@@ -21,7 +21,7 @@ const MOUSE_SENSITIVITY: f32 = 0.1;
 #[instrument(skip_all)]
 #[allow(clippy::too_many_arguments)]
 pub fn camera_movement_system(
-    // Input
+    // input
     mut mouse_motion: MessageReader<MouseMotion>,
     mut mouse_wheel: MessageReader<MouseWheel>,
     mut resize_events: MessageReader<WindowResized>,
@@ -30,7 +30,7 @@ pub fn camera_movement_system(
     window_query: Query<&Window, With<PrimaryWindow>>,
     active_camera: Res<ActiveCamera>,
 
-    // Output
+    // output
     mut camera_query: Query<&mut CameraComponent>,
 ) {
     let Ok(mut cam) = camera_query.get_mut(active_camera.0) else {

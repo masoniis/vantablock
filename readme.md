@@ -45,11 +45,8 @@ Assuming rust is properly setup, `cargo` can be used like any standard Rust proj
 
 ### Common problems
 
-1. MOUSE CAN BE UNLOCKED WITH `ESCAPE`
-
-2. UI is EXPENSIVE. I recommend turning it off when you aren't actively paying attention to it.
-3. Shadows have very low render distance of 32 voxels (didn't have time for cascaded shadow maps) and also have some other small issues.
-4. Chunk generation speed is not extremely fast (swap generator type with `T`). It is easy to overwhelm it by moving fast depending on hardware.
+1. Mouse can be unlocked with `Escape`
+2. Shadows have very low render distance of 32 voxels and also have other noticable issues.
 
 ### Keybinds
 
