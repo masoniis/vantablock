@@ -3,7 +3,7 @@ use bevy::asset::Handle;
 use bevy::ecs::prelude::*;
 use bevy::render::Extract;
 use bevy::render::sync_world::RenderEntity;
-use shared::simulation::asset::VoxelChunkMeshAsset;
+use shared::simulation::asset::VoxelMeshAsset;
 use shared::simulation::chunk::{OpaqueMeshComponent, TransformComponent};
 
 // INFO: --------------------------------
@@ -13,7 +13,7 @@ use shared::simulation::chunk::{OpaqueMeshComponent, TransformComponent};
 /// A component in the render world holding the extracted mesh handle.
 #[derive(Component, Clone)]
 pub struct OpaqueRenderMeshComponent {
-    pub mesh_handle: Handle<VoxelChunkMeshAsset>,
+    pub mesh_handle: Handle<VoxelMeshAsset>,
 }
 
 // INFO: -----------------------------------

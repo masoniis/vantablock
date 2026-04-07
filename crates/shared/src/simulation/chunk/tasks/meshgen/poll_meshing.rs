@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use crate::simulation::asset::VoxelChunkMeshAsset;
+use crate::simulation::asset::VoxelMeshAsset;
 use crate::simulation::chunk::{
     CheckForMeshing, ChunkCoord, ChunkMeshingTaskComponent, ChunkState, ChunkStateManager,
     OpaqueMeshComponent, TransformComponent, TransparentMeshComponent, WantsMeshing,
@@ -22,7 +22,7 @@ pub fn poll_chunk_meshing_tasks(
     // output
     mut commands: Commands,
     mut chunk_manager: ResMut<ChunkStateManager>,
-    mut mesh_assets: ResMut<Assets<VoxelChunkMeshAsset>>,
+    mut mesh_assets: ResMut<Assets<VoxelMeshAsset>>,
 ) {
     // poll all mesh task
     for (entity, meshing_task_component, coord) in tasks_query.iter_mut() {

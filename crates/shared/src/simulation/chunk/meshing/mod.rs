@@ -9,7 +9,7 @@ pub mod packed_face;
 
 use crate::prelude::*;
 use crate::simulation::{
-    asset::VoxelChunkMeshAsset,
+    asset::VoxelMeshAsset,
     block::{
         BlockRegistryResource,
         block_registry::{AIR_BLOCK_ID, BlockId},
@@ -18,8 +18,8 @@ use crate::simulation::{
 };
 
 // convenience mesh types
-pub type OpaqueMeshData = VoxelChunkMeshAsset;
-pub type TransparentMeshData = VoxelChunkMeshAsset;
+pub type OpaqueMeshData = VoxelMeshAsset;
+pub type TransparentMeshData = VoxelMeshAsset;
 
 /// Main chunk meshing entry point: Build a mesh for a single chunk.
 #[instrument(skip_all, fields(chunk = %name))]

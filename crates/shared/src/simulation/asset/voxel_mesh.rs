@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 /// A 3D voxel-based mesh asset consisting of packed face data.
 #[derive(Asset, Reflect, Clone, Debug, PartialEq, Eq, Hash)]
-pub struct VoxelChunkMeshAsset {
+pub struct VoxelMeshAsset {
     pub name: String,
     pub faces: Arc<Vec<PackedFace>>,
 }

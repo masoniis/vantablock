@@ -24,7 +24,7 @@ use bevy::render::ExtractSchedule;
 use bevy::render::RenderApp;
 use bevy::render::extract_resource::ExtractResourcePlugin;
 use bevy::render::sync_world::SyncToRenderWorld;
-use shared::simulation::asset::VoxelChunkMeshAsset;
+use shared::simulation::asset::VoxelMeshAsset;
 use shared::simulation::block::TargetedBlock;
 use shared::simulation::chunk::{OpaqueMeshComponent, TransparentMeshComponent};
 
@@ -38,7 +38,7 @@ impl Plugin for VantablockRenderPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(pipeline::shader_registry::VantablockShaderPlugin);
 
-        app.init_asset::<VoxelChunkMeshAsset>();
+        app.init_asset::<VoxelMeshAsset>();
 
         // register extraction plugins on the main app
         app.add_plugins((

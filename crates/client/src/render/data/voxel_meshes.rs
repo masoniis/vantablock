@@ -3,19 +3,19 @@ use crate::render::data::MeshesToUploadQueue;
 use bevy::asset::{AssetEvent, Assets};
 use bevy::ecs::prelude::{Added, Changed, MessageReader, Or, Query, Res, ResMut};
 use bevy::render::Extract;
-use shared::simulation::asset::VoxelChunkMeshAsset;
+use shared::simulation::asset::VoxelMeshAsset;
 use shared::simulation::chunk::{
     OpaqueMeshComponent, TransformComponent, TransparentMeshComponent,
 };
 
-/// A system that extracts `VoxelChunkMeshAsset` modifications from the simulation world
+/// A system that extracts `VoxelMeshAsset` modifications from the simulation world
 /// and queues them for GPU upload in the render world.
 #[instrument(skip_all)]
 #[allow(clippy::type_complexity)]
-pub fn extract_modified_chunk_meshes(
+pub fn extract_modified_voxel_meshes(
     // input
-    mut events: Extract<MessageReader<AssetEvent<VoxelChunkMeshAsset>>>,
-    assets: Extract<Res<Assets<VoxelChunkMeshAsset>>>,
+    mut events: Extract<MessageReader<AssetEvent<VoxelMeshAsset>>>,
+    assets: Extract<Res<Assets<VoxelMeshAsset>>>,
     opaque_meshes: Extract<
         Query<
             (&OpaqueMeshComponent, &TransformComponent),
