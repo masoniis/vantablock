@@ -1,16 +1,16 @@
 use crate::prelude::*;
-use crate::simulation::chunk::chunk_state_manager::NEIGHBOR_OFFSETS;
-use crate::simulation::chunk::common::padded_chunk_view::{
-    ChunkDataOption, NeighborLODs, PaddedChunk,
-};
-use crate::simulation::chunk::thread_buffer_pool::{acquire_buffer, release_buffer};
-use crate::simulation::chunk::{
-    CheckForMeshing, ChunkMeshDirty, ChunkMeshingTaskComponent, ChunkState, WantsMeshing,
-    downsample_chunk, upsample_chunk,
-};
 use crate::simulation::{
     block::BlockRegistryResource,
-    chunk::{ChunkBlocksComponent, ChunkCoord, ChunkStateManager, build_chunk_mesh},
+    chunk::{
+        CheckForMeshing, ChunkBlocksComponent, ChunkCoord, ChunkMeshDirty,
+        ChunkMeshingTaskComponent, ChunkState, ChunkStateManager, WantsMeshing, build_chunk_mesh,
+        chunk_state_manager::NEIGHBOR_OFFSETS,
+        common::{
+            padded_chunk_view::{ChunkDataOption, NeighborLODs, PaddedChunk},
+            thread_buffer_pool::{acquire_buffer, release_buffer},
+        },
+        downsample_chunk, upsample_chunk,
+    },
 };
 use bevy::ecs::prelude::*;
 use crossbeam::channel::unbounded;

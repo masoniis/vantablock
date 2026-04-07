@@ -1,17 +1,18 @@
 use crate::prelude::*;
-use crate::simulation::chunk::{
-    ChunkBlocksComponent, ChunkGenerationTaskComponent, ChunkState, NeedsGenerating,
-};
-use crate::simulation::terrain::generators::{
-    biome::BiomeResultBuilder, painting::PaintResultBuilder, shaping::ShapeResultBuilder,
-};
-use crate::simulation::terrain::{BiomeMapComponent, generators::shaping::ChunkUniformity};
 use crate::simulation::{
     biome::BiomeRegistryResource,
     block::BlockRegistryResource,
-    chunk::{ChunkCoord, ChunkStateManager, components::GeneratedChunkComponentBundle},
+    chunk::{
+        ChunkBlocksComponent, ChunkCoord, ChunkGenerationTaskComponent, ChunkState,
+        ChunkStateManager, NeedsGenerating, components::GeneratedChunkComponentBundle,
+    },
     terrain::{
         ActiveBiomeGenerator, ActiveClimateGenerator, ActiveTerrainGenerator, ActiveTerrainPainter,
+        BiomeMapComponent,
+        generators::{
+            biome::BiomeResultBuilder, painting::PaintResultBuilder,
+            shaping::ChunkUniformity, shaping::ShapeResultBuilder,
+        },
     },
 };
 use bevy::ecs::prelude::*;

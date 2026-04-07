@@ -11,15 +11,18 @@ use world_clock::{jump_world_clock_backwards_system, jump_world_clock_forward_sy
 // ---------------------------
 
 use crate::ecs_core::AppState;
-use crate::simulation::input::types::simulation_action::SimulationAction;
-use crate::simulation::time::frame_clock::update_frame_clock_system;
-use crate::simulation::time::simulation_tick::{SimulationTick, run_fixed_update_schedule};
-use crate::simulation::time::world_clock::update_world_clock_system;
-use bevy::app::{App, FixedUpdate, Plugin, PreUpdate, Update};
-use bevy::ecs::prelude::*;
-use bevy::state::condition::in_state;
-
-use crate::simulation::input::resources::ActionStateResource;
+use crate::simulation::{
+    input::{resources::ActionStateResource, types::simulation_action::SimulationAction},
+    time::{
+        frame_clock::update_frame_clock_system, simulation_tick::SimulationTick,
+        simulation_tick::run_fixed_update_schedule, world_clock::update_world_clock_system,
+    },
+};
+use bevy::{
+    app::{App, FixedUpdate, Plugin, PreUpdate, Update},
+    ecs::prelude::*,
+    state::condition::in_state,
+};
 
 pub struct TimeControlPlugin;
 

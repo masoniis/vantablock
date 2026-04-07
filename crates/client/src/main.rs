@@ -1,27 +1,36 @@
-use bevy::app::{App, FixedUpdate, PostUpdate, PreStartup};
-use bevy::asset::Assets;
-use bevy::log::LogPlugin;
-use bevy::prelude::{
-    AssetPlugin, DefaultPlugins, Image, IntoScheduleConfigs, PluginGroup,
-    Window, WindowPlugin, World, default, info,
+use bevy::{
+    app::{App, FixedUpdate, PostUpdate, PreStartup},
+    asset::Assets,
+    log::LogPlugin,
+    prelude::{
+        default, info, AssetPlugin, DefaultPlugins, Image, IntoScheduleConfigs, PluginGroup,
+        Window, WindowPlugin, World,
+    },
+    window::WindowResolution,
 };
-use bevy::window::WindowResolution;
-use client::input::InputModulePlugin;
-use client::player::PlayerPlugin;
-use client::prelude::*;
-use client::render::texture::{BlockTextureArray, VoxelTextureProcessor};
-use client::render::VantablockRenderPlugin;
-use client::showcase::ShowcasePlugin;
-use shared::ecs_core::LoadingTracker;
-use shared::simulation::app_lifecycle::AppLifecyclePlugin;
-use shared::simulation::asset::AssetPlugin as SimulationAssetPlugin;
-use shared::simulation::biome::BiomePlugin;
-use shared::simulation::block::BlockPlugin;
-use shared::simulation::block::BlockRegistryResource;
-use shared::simulation::chunk::ChunkLoadingPlugin;
-use shared::simulation::scheduling::{FixedUpdateSet, RenderPrepSet};
-use shared::simulation::terrain::TerrainGenerationPlugin;
-use shared::simulation::time::TimeControlPlugin;
+use client::{
+    input::InputModulePlugin,
+    player::PlayerPlugin,
+    prelude::*,
+    render::{
+        texture::{BlockTextureArray, VoxelTextureProcessor},
+        VantablockRenderPlugin,
+    },
+    showcase::ShowcasePlugin,
+};
+use shared::{
+    ecs_core::LoadingTracker,
+    simulation::{
+        app_lifecycle::AppLifecyclePlugin,
+        asset::AssetPlugin as SimulationAssetPlugin,
+        biome::BiomePlugin,
+        block::{BlockPlugin, BlockRegistryResource},
+        chunk::ChunkLoadingPlugin,
+        scheduling::{FixedUpdateSet, RenderPrepSet},
+        terrain::TerrainGenerationPlugin,
+        time::TimeControlPlugin,
+    },
+};
 use utils::PersistentPaths;
 
 #[instrument(skip_all, fields(name = "main"))]

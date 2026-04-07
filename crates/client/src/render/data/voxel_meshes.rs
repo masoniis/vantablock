@@ -1,13 +1,16 @@
-use crate::prelude::*;
-use crate::render::types::VoxelMesh;
-use bevy::asset::{AssetEvent, AssetId, Assets};
-use bevy::ecs::prelude::{Added, Changed, MessageReader, Or, Query, Res, ResMut};
-use bevy::ecs::resource::Resource;
-use bevy::platform::collections::HashMap;
-use bevy::render::Extract;
-use shared::simulation::asset::VoxelMeshAsset;
-use shared::simulation::chunk::{
-    OpaqueMeshComponent, TransformComponent, TransparentMeshComponent,
+use crate::{prelude::*, render::types::VoxelMesh};
+use bevy::{
+    asset::{AssetEvent, AssetId, Assets},
+    ecs::{
+        prelude::{Added, Changed, MessageReader, Or, Query, Res, ResMut},
+        resource::Resource,
+    },
+    platform::collections::HashMap,
+    render::Extract,
+};
+use shared::simulation::{
+    asset::VoxelMeshAsset,
+    chunk::{OpaqueMeshComponent, TransformComponent, TransparentMeshComponent},
 };
 
 #[derive(Resource, Default)]

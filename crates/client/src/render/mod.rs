@@ -9,27 +9,35 @@ pub mod types;
 // --------------------------------------
 
 use crate::prelude::*;
-use crate::render::data::{
-    ExtractedSun, MeshesToUploadQueue, RenderMeshStorageResource, RenderTimeResource,
-    SimulationExtractionPlugin,
+use crate::render::{
+    data::{
+        ExtractedSun, MeshesToUploadQueue, RenderMeshStorageResource, RenderTimeResource,
+        SimulationExtractionPlugin,
+    },
+    pipeline::{
+        RenderGraphEdgesPlugin, WorldRenderPassesPlugin,
+        main_passes::{
+            bounding_box_pass::extract::WireframeToggleState,
+            opaque_pass::{extract::extract_opaque_meshes, startup::OpaqueRenderMode},
+            transparent_pass::extract::extract_transparent_meshes,
+        },
+    },
+    texture::BlockTextureArray,
 };
-use crate::render::pipeline::main_passes::bounding_box_pass::extract::WireframeToggleState;
-use crate::render::pipeline::main_passes::opaque_pass::startup::OpaqueRenderMode;
-use crate::render::pipeline::{RenderGraphEdgesPlugin, WorldRenderPassesPlugin};
-use crate::render::texture::BlockTextureArray;
-use bevy::app::{App, Plugin, SubApp};
-use bevy::asset::AssetApp;
-use bevy::prelude::{Add, Commands, On};
-use bevy::render::ExtractSchedule;
-use bevy::render::RenderApp;
-use bevy::render::extract_resource::ExtractResourcePlugin;
-use bevy::render::sync_world::SyncToRenderWorld;
-use shared::simulation::asset::VoxelMeshAsset;
-use shared::simulation::block::TargetedBlock;
-use shared::simulation::chunk::{OpaqueMeshComponent, TransparentMeshComponent};
-
-use crate::render::pipeline::main_passes::opaque_pass::extract::extract_opaque_meshes;
-use crate::render::pipeline::main_passes::transparent_pass::extract::extract_transparent_meshes;
+use bevy::{
+    app::{App, Plugin, SubApp},
+    asset::AssetApp,
+    prelude::{Add, Commands, On},
+    render::{
+        ExtractSchedule, RenderApp, extract_resource::ExtractResourcePlugin,
+        sync_world::SyncToRenderWorld,
+    },
+};
+use shared::simulation::{
+    asset::VoxelMeshAsset,
+    block::TargetedBlock,
+    chunk::{OpaqueMeshComponent, TransparentMeshComponent},
+};
 
 /// Plugin responsible for attaching our custom render logic to Bevy's native RenderApp
 pub struct VantablockRenderPlugin;

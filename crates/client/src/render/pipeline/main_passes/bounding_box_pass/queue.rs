@@ -1,15 +1,27 @@
-use crate::prelude::*;
-use crate::render::pipeline::main_passes::bounding_box_pass::extract::WireframeToggleState;
-use crate::render::pipeline::main_passes::bounding_box_pass::gpu_resources::object_binding::WireframeObjectBindGroupLayout;
-use crate::render::pipeline::main_passes::bounding_box_pass::gpu_resources::{
-    WireframeObjectBuffer, WireframeObjectData,
+use crate::{
+    prelude::*,
+    render::{
+        pipeline::main_passes::bounding_box_pass::{
+            extract::WireframeToggleState,
+            gpu_resources::{
+                WireframeObjectBuffer, WireframeObjectData,
+                object_binding::WireframeObjectBindGroupLayout,
+            },
+        },
+        types::RenderTransformComponent,
+    },
 };
-use crate::render::types::RenderTransformComponent;
-use bevy::ecs::prelude::*;
-use bevy::render::render_resource::{BindGroupEntry, BufferDescriptor, BufferUsages};
-use bevy::render::renderer::{RenderDevice, RenderQueue};
-use shared::simulation::block::TargetedBlock;
-use shared::simulation::chunk::consts::{CHUNK_DEPTH, CHUNK_HEIGHT, CHUNK_WIDTH};
+use bevy::{
+    ecs::prelude::*,
+    render::{
+        render_resource::{BindGroupEntry, BufferDescriptor, BufferUsages},
+        renderer::{RenderDevice, RenderQueue},
+    },
+};
+use shared::simulation::{
+    block::TargetedBlock,
+    chunk::consts::{CHUNK_DEPTH, CHUNK_HEIGHT, CHUNK_WIDTH},
+};
 
 #[instrument(skip_all)]
 pub fn queue_wireframe_system(

@@ -1,12 +1,15 @@
-use bevy::ecs::prelude::*;
-use bevy::input::mouse::{MouseMotion, MouseWheel};
-use bevy::math::{Mat4, Vec3};
-use bevy::window::{PrimaryWindow, Window, WindowResized};
-use shared::simulation::chunk::ChunkCoord;
-use shared::simulation::input::{resources::ActionStateResource, types::SimulationAction};
-use shared::simulation::player::active_camera::ActiveCamera;
-use shared::simulation::player::camera_component::CameraComponent;
-use shared::simulation::time::FrameClock;
+use bevy::{
+    ecs::prelude::*,
+    input::mouse::{MouseMotion, MouseWheel},
+    math::{Mat4, Vec3},
+    window::{PrimaryWindow, Window, WindowResized},
+};
+use shared::simulation::{
+    chunk::ChunkCoord,
+    input::{resources::ActionStateResource, types::SimulationAction},
+    player::{active_camera::ActiveCamera, camera_component::CameraComponent},
+    time::FrameClock,
+};
 use tracing::{debug, instrument, warn};
 
 /// The distance the near plane is set to for the camera frustum.

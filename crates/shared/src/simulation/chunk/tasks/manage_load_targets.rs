@@ -1,10 +1,11 @@
 use crate::prelude::*;
-use crate::simulation::chunk::{
-    CheckForMeshing, ChunkCoord, ChunkLod, ChunkState, ChunkStateManager, NeedsGenerating,
-    RENDER_DISTANCE, WantsMeshing,
+use crate::simulation::{
+    chunk::{
+        CheckForMeshing, ChunkCoord, ChunkLod, ChunkState, ChunkStateManager, LOAD_DISTANCE,
+        NeedsGenerating, RENDER_DISTANCE, WORLD_MAX_Y_CHUNK, WORLD_MIN_Y_CHUNK, WantsMeshing,
+    },
+    player::active_camera::ActiveCamera,
 };
-use crate::simulation::chunk::{LOAD_DISTANCE, WORLD_MAX_Y_CHUNK, WORLD_MIN_Y_CHUNK};
-use crate::simulation::player::active_camera::ActiveCamera;
 use bevy::ecs::prelude::*;
 use bevy::math::IVec3;
 use std::collections::HashSet;
