@@ -10,8 +10,8 @@ use crate::simulation::{
         ActiveBiomeGenerator, ActiveClimateGenerator, ActiveTerrainGenerator, ActiveTerrainPainter,
         BiomeMapComponent,
         generators::{
-            biome::BiomeResultBuilder, painting::PaintResultBuilder,
-            shaping::ChunkUniformity, shaping::ShapeResultBuilder,
+            biome::BiomeResultBuilder, painting::PaintResultBuilder, shaping::ChunkUniformity,
+            shaping::ShapeResultBuilder,
         },
     },
 };

@@ -31,42 +31,46 @@
 
         devShell =
           with pkgs;
-          mkShell (
-            {
-              buildInputs = [
-                # rust stuff
-                pkgs-unstable.tracy-glfw
-                pkgs-unstable.rust-analyzer
-                pkgs-unstable.wgsl-analyzer
-                rustup
+          mkShell {
+            buildInputs = [
+              # rust stuff
+              pkgs-unstable.tracy-glfw
+              pkgs-unstable.rust-analyzer
+              pkgs-unstable.wgsl-analyzer
+              rustup
 
-                # utils
-                just
-                ripgrep # for justfile
-                gnuplot # for benchmarks
-              ]
-              ++ (lib.optionals stdenv.isLinux [
-                libGL
-                libxkbcommon
-                wayland
-                pkg-config
-                mesa
-              ]);
+              # utils
+              just
+              ripgrep # for justfile
+              gnuplot # for benchmarks
+            ]
+            ++ (lib.optionals stdenv.isLinux [
+              libGL
+              libxkbcommon
+              wayland
+              pkg-config
+              mesa
+              udev
+              vulkan-loader
+            ]);
 
-              shellHook = ''
-                export PATH="$HOME/.cargo/bin:$PATH"
-                rustup show active-toolchain
-              '';
+            shellHook = ''
+              export PATH="$HOME/.cargo/bin:$PATH"
 
-            }
-            // (lib.optionalAttrs stdenv.isLinux {
-              LD_LIBRARY_PATH = lib.makeLibraryPath [
-                libGL
-                libxkbcommon
-                wayland
-              ];
-            })
-          );
+              ${lib.optionalString stdenv.isLinux ''
+                export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${
+                  lib.makeLibraryPath [
+                    libGL
+                    libxkbcommon
+                    wayland
+                    vulkan-loader
+                  ]
+                }"
+              ''}
+
+              rustup show active-toolchain
+            '';
+          };
 
         # INFO: -------------------------
         #         CI package sets

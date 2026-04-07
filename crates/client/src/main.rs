@@ -3,8 +3,8 @@ use bevy::{
     asset::Assets,
     log::LogPlugin,
     prelude::{
-        default, info, AssetPlugin, DefaultPlugins, Image, IntoScheduleConfigs, PluginGroup,
-        Window, WindowPlugin, World,
+        AssetPlugin, DefaultPlugins, Image, IntoScheduleConfigs, PluginGroup, Window, WindowPlugin,
+        World, default, info,
     },
     window::WindowResolution,
 };
@@ -13,8 +13,8 @@ use client::{
     player::PlayerPlugin,
     prelude::*,
     render::{
-        texture::{BlockTextureArray, VoxelTextureProcessor},
         VantablockRenderPlugin,
+        texture::{BlockTextureArray, VoxelTextureProcessor},
     },
     showcase::ShowcasePlugin,
 };
