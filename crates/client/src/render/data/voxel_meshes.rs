@@ -1,17 +1,29 @@
 use crate::prelude::*;
-use crate::render::data::MeshesToUploadQueue;
-use bevy::asset::{AssetEvent, Assets};
+use crate::render::types::VoxelMesh;
+use bevy::asset::{AssetEvent, AssetId, Assets};
 use bevy::ecs::prelude::{Added, Changed, MessageReader, Or, Query, Res, ResMut};
+use bevy::ecs::resource::Resource;
+use bevy::platform::collections::HashMap;
 use bevy::render::Extract;
 use shared::simulation::asset::VoxelMeshAsset;
 use shared::simulation::chunk::{
     OpaqueMeshComponent, TransformComponent, TransparentMeshComponent,
 };
 
+#[derive(Resource, Default)]
+pub struct RenderMeshStorageResource {
+    pub meshes: HashMap<AssetId<VoxelMeshAsset>, Arc<VoxelMesh>>,
+}
+
+#[derive(Resource, Default)]
+pub struct MeshesToUploadQueue {
+    pub queue: Vec<(AssetId<VoxelMeshAsset>, VoxelMeshAsset, Vec3)>,
+    pub removals: Vec<AssetId<VoxelMeshAsset>>,
+}
+
 /// A system that extracts `VoxelMeshAsset` modifications from the simulation world
 /// and queues them for GPU upload in the render world.
 #[instrument(skip_all)]
-#[allow(clippy::type_complexity)]
 pub fn extract_modified_voxel_meshes(
     // input
     mut events: Extract<MessageReader<AssetEvent<VoxelMeshAsset>>>,

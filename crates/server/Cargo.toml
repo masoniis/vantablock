@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 default-run = "server"
 
+[lints]
+workspace = true
+
 [dependencies]
 shared = { path = "../shared" }
 utils = { path = "../utils" }

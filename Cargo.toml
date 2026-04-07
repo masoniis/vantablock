@@ -6,6 +6,9 @@ resolver = "2"
 version = "0.0.0"
 edition = "2024"
 
+[workspace.lints.clippy]
+type_complexity = "allow"
+
 # INFO: --------------------------
 #         release profiles
 # --------------------------------

@@ -1,14 +1,18 @@
 pub mod camera;
-pub mod mesh_storage;
 pub mod sun;
 pub mod time;
 pub mod voxel_meshes;
 
-pub use camera::{RenderCameraResource, extract_active_camera_system};
-pub use mesh_storage::{MeshesToUploadQueue, RenderMeshStorageResource};
+pub use camera::{extract_active_camera_system, RenderCameraResource};
 pub use sun::ExtractedSun;
 pub use time::RenderTimeResource;
-pub use voxel_meshes::extract_modified_voxel_meshes;
+pub use voxel_meshes::{
+    extract_modified_voxel_meshes, MeshesToUploadQueue, RenderMeshStorageResource,
+};
+
+// INFO: ---------------------------
+//         plugin definition
+// ---------------------------------
 
 use bevy::app::{App, Plugin};
 use bevy::render::ExtractSchedule;

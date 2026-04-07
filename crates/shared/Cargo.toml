@@ -3,6 +3,9 @@ name = "shared"
 version.workspace = true
 edition.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 utils = { path = "../utils" }
 
@@ -23,16 +26,16 @@ bytemuck = { workspace = true } # gpu friendly data
 # --------------------------------
 
 bevy = { workspace = true }
-rayon = { workspace = true } # multi threaded pooling
+rayon = { workspace = true }        # multi threaded pooling
 futures-lite = { workspace = true } # future utils
 
 # INFO: ---------------
 #         utils
 # ---------------------
 
-serde = { workspace = true } # serializing
+serde = { workspace = true }       # serializing
 derive_more = { workspace = true }
-noise = { workspace = true } # gen random noise
-crossbeam = { workspace = true } # thread comms
-rand = { workspace = true } # rng
-ron = { workspace = true } # parsing RON files
+noise = { workspace = true }       # gen random noise
+crossbeam = { workspace = true }   # thread comms
+rand = { workspace = true }        # rng
+ron = { workspace = true }         # parsing RON files
