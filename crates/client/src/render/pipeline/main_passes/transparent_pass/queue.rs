@@ -1,8 +1,14 @@
 use crate::prelude::*;
 use crate::render::pipeline::main_passes::transparent_pass::extract::TransparentRenderMeshComponent;
+use crate::render::pipeline::main_passes::transparent_pass::startup::{
+    TransparentPipeline, TransparentPipelineKey,
+};
 use crate::render::types::RenderTransformComponent;
 use bevy::ecs::prelude::*;
-use bevy::render::view::ExtractedView;
+use bevy::render::render_resource::{
+    CachedRenderPipelineId, PipelineCache, SpecializedRenderPipelines,
+};
+use bevy::render::view::{ExtractedView, Msaa};
 
 #[derive(Debug)]
 pub struct PhaseItem {
@@ -13,6 +19,7 @@ pub struct PhaseItem {
 #[derive(Component, Default, Debug)]
 pub struct Transparent3dRenderPhase {
     pub items: Vec<PhaseItem>,
+    pub pipeline_id: Option<CachedRenderPipelineId>,
 }
 
 /// The system responsible for populating the `Transparent3dRenderPhase` component on each view.
@@ -21,23 +28,34 @@ pub struct Transparent3dRenderPhase {
 /// world and adds them to a list of draw calls for the renderer to consume.
 #[instrument(skip_all)]
 pub fn queue_and_prepare_transparent_system(
-    // Input
-    mut views_query: Query<(&ExtractedView, &mut Transparent3dRenderPhase)>,
+    // input
+    mut views_query: Query<(&ExtractedView, &Msaa, &mut Transparent3dRenderPhase)>,
     meshes_query: Query<(
         Entity,
         &TransparentRenderMeshComponent,
         &RenderTransformComponent,
     )>,
+    pipeline_cache: Res<PipelineCache>,
+    mut specialized_pipelines: ResMut<SpecializedRenderPipelines<TransparentPipeline>>,
+    transparent_pipeline: Res<TransparentPipeline>,
 ) {
-    for (view, mut transparent_phase) in views_query.iter_mut() {
+    for (view, msaa, mut transparent_phase) in views_query.iter_mut() {
         transparent_phase.items.clear();
+
+        // specialize pipeline for this view
+        let key = TransparentPipelineKey {
+            msaa_samples: msaa.samples(),
+            hdr: view.hdr,
+        };
+        transparent_phase.pipeline_id =
+            Some(specialized_pipelines.specialize(&pipeline_cache, &transparent_pipeline, key));
 
         let camera_position: Vec3 = view.world_from_view.translation();
 
         // collect sortable items for the render pass
         let mut sortable_items: Vec<PhaseItem> = Vec::with_capacity(meshes_query.iter().len());
         for (entity, _mesh, transform) in meshes_query.iter() {
-            // TODO: Bevy Frustum culling here using view.frustum or Bevy's ViewVisibility
+            // TODO: frustum culling here using view.frustum or Bevy's ViewVisibility
 
             let object_position = transform.transform.w_axis.truncate();
             let distance_from_camera = (object_position - camera_position).length_squared();
@@ -48,8 +66,7 @@ pub fn queue_and_prepare_transparent_system(
             });
         }
 
-        // Sort BACK-TO-FRONT for proper transparency blending (furthest items first).
-        // Note: b.cmp(a) ensures the largest distances are at the beginning of the list.
+        // sort BACK-TO-FRONT for proper transparency blending (furthest items first).
         sortable_items.sort_by(|a, b| b.distance.partial_cmp(&a.distance).unwrap());
 
         // populate the phase buffer in correct sorted order

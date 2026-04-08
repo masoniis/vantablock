@@ -20,7 +20,7 @@ pub fn prepare_transparent_meshes_system(
     mut gpu_mesh_storage: ResMut<RenderMeshStorageResource>,
     mut meshes_to_upload: ResMut<MeshesToUploadQueue>,
 ) {
-    // 1. Handle removals
+    // handle removals
     for id in meshes_to_upload.removals.drain(..) {
         if let Some(mesh_handle) = gpu_mesh_storage.meshes.remove(&id) {
             chunk_memory_manager.free_chunk(*mesh_handle);
@@ -28,14 +28,14 @@ pub fn prepare_transparent_meshes_system(
         }
     }
 
-    // 2. Handle uploads (Added/Modified)
+    // handle uploads (Added/Modified)
     for (id, mesh, world_pos) in meshes_to_upload.queue.drain(..) {
-        // If it already exists, free the old allocation first
+        // if it already exists, free the old allocation first
         if let Some(old_mesh_handle) = gpu_mesh_storage.meshes.remove(&id) {
             chunk_memory_manager.free_chunk(*old_mesh_handle);
         }
 
-        // Allocate and upload to global SSBO
+        // allocate and upload to global SSBO
         if let Some(voxel_mesh) = chunk_memory_manager.allocate_chunk(
             &device,
             &queue,

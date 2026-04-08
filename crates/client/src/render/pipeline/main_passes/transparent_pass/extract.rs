@@ -1,14 +1,14 @@
 use crate::render::types::RenderTransformComponent;
 use bevy::asset::Handle;
 use bevy::ecs::prelude::*;
-use bevy::render::Extract;
 use bevy::render::sync_world::RenderEntity;
+use bevy::render::Extract;
 use shared::simulation::asset::VoxelMeshAsset;
-use shared::simulation::chunk::{TransformComponent, mesh::TransparentMeshComponent};
+use shared::simulation::chunk::{mesh::TransparentMeshComponent, TransformComponent};
 
-// INFO: --------------------------------
-//         RenderWorld components
-// --------------------------------------
+// INFO: -------------------------------
+//         render app components
+// -------------------------------------
 
 /// A component in the render world holding the extracted mesh handle.
 #[derive(Component, Clone)]
@@ -17,7 +17,7 @@ pub struct TransparentRenderMeshComponent {
 }
 
 // INFO: -----------------------------------
-//         SimWorld extraction logic
+//         main app extraction logic
 // -----------------------------------------
 
 /// A system that extracts transparent meshes from the simulation world into the render world.

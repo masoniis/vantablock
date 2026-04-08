@@ -12,22 +12,25 @@ use startup::TransparentPipeline;
 // ---------------------------------
 
 use crate::{
-    VantablockNode,
     render::pipeline::main_passes::transparent_pass::{
         prepare::prepare_transparent_meshes_system, queue::queue_and_prepare_transparent_system,
     },
+    VantablockNode,
 };
-use bevy::app::{App, Plugin};
 use bevy::prelude::IntoScheduleConfigs;
-use bevy::render::render_graph::{RenderGraphExt, ViewNodeRunner};
-use bevy::render::{Render, RenderSystems};
+use bevy::{
+    app::{App, Plugin},
+    render::render_graph::{RenderGraphExt, ViewNodeRunner},
+    render::render_resource::SpecializedRenderPipelines,
+    render::{Render, RenderSystems},
+};
 
 pub struct TransparentRenderPassPlugin;
 
 impl Plugin for TransparentRenderPassPlugin {
     fn build(&self, app: &mut App) {
         // INFO: -----------------
-        //         Prepare
+        //         prepare
         // -----------------------
 
         app.add_systems(
@@ -36,7 +39,7 @@ impl Plugin for TransparentRenderPassPlugin {
         );
 
         // INFO: ---------------
-        //         Queue
+        //         queue
         // ---------------------
 
         app.add_systems(
@@ -44,9 +47,9 @@ impl Plugin for TransparentRenderPassPlugin {
             queue_and_prepare_transparent_system.in_set(RenderSystems::Queue),
         );
 
-        // INFO: -----------------------------------------
-        //         Render Graph Integration
-        // -----------------------------------------------
+        // INFO: ----------------------------------
+        //         render graph integration
+        // ----------------------------------------
 
         app.add_render_graph_node::<ViewNodeRunner<TransparentPassRenderNode>>(
             bevy::core_pipeline::core_3d::graph::Core3d,
@@ -56,9 +59,10 @@ impl Plugin for TransparentRenderPassPlugin {
 
     fn finish(&self, app: &mut App) {
         // INFO: -----------------
-        //         Startup
+        //         startup
         // -----------------------
 
         app.init_resource::<TransparentPipeline>();
+        app.init_resource::<SpecializedRenderPipelines<TransparentPipeline>>();
     }
 }

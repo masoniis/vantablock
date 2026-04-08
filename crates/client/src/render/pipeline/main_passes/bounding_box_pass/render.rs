@@ -1,7 +1,7 @@
-use super::gpu_resources::WireframeObjectBuffer;
+use super::gpu_resources::{UnitCubeMesh, WireframeObjectBuffer};
 use crate::prelude::*;
 use crate::render::pipeline::main_passes::{
-    bounding_box_pass::gpu_resources::{unit_cube_mesh::UnitCubeMesh, wireframe_pipeline::*},
+    bounding_box_pass::queue::BoundingBoxPhase,
     shared_resources::{CentralCameraViewUniform, EnvironmentUniforms},
 };
 use bevy::ecs::prelude::*;
@@ -19,28 +19,30 @@ use bevy::render::view::{ViewDepthTexture, ViewTarget};
 pub struct BoundingBoxNode;
 
 impl ViewNode for BoundingBoxNode {
-    type ViewQuery = (&'static ViewTarget, &'static ViewDepthTexture);
+    type ViewQuery = (
+        &'static ViewTarget,
+        &'static ViewDepthTexture,
+        &'static BoundingBoxPhase,
+    );
 
     #[instrument(skip_all, name = "wireframe_pass_render_node")]
     fn run(
         &self,
         _graph: &mut RenderGraphContext,
         render_context: &mut RenderContext,
-        (view_target, depth_texture): QueryItem<Self::ViewQuery>,
+        (view_target, depth_texture, phase): QueryItem<Self::ViewQuery>,
         world: &World,
     ) -> Result<(), NodeRunError> {
         // INFO: ---------------------------
         //         resource fetching
         // ---------------------------------
         let (
-            Some(pipeline_res),
             Some(wireframe_buffer),
             Some(wireframe_mesh),
             Some(view_bind_group),
             Some(environment),
             Some(pipeline_cache),
         ) = (
-            world.get_resource::<WireframePipeline>(),
             world.get_resource::<WireframeObjectBuffer>(),
             world.get_resource::<UnitCubeMesh>(),
             world.get_resource::<CentralCameraViewUniform>(),
@@ -51,7 +53,11 @@ impl ViewNode for BoundingBoxNode {
             return Ok(());
         };
 
-        let pipeline = pipeline_cache.get_render_pipeline(pipeline_res.pipeline_id);
+        let Some(pipeline_id) = phase.pipeline_id else {
+            return Ok(());
+        };
+
+        let pipeline = pipeline_cache.get_render_pipeline(pipeline_id);
         if pipeline.is_none() {
             return Ok(());
         }

@@ -11,10 +11,12 @@ pub use render::OpaquePassRenderNode;
 // ---------------------------------
 
 use crate::VantablockNode;
-use bevy::app::{App, Plugin};
-use bevy::prelude::IntoScheduleConfigs;
-use bevy::render::render_graph::{RenderGraphExt, ViewNodeRunner};
-use bevy::render::{Render, RenderSystems};
+use bevy::prelude::{App, IntoScheduleConfigs, Plugin};
+use bevy::render::{
+    render_graph::{RenderGraphExt, ViewNodeRunner},
+    render_resource::SpecializedRenderPipelines,
+    {Render, RenderSystems},
+};
 use startup::OpaquePipelines;
 
 pub struct OpaqueRenderPassPlugin;
@@ -39,9 +41,9 @@ impl Plugin for OpaqueRenderPassPlugin {
             queue::queue_opaque_system.in_set(RenderSystems::Queue),
         );
 
-        // INFO: -----------------------------------------
+        // INFO: ----------------------------------
         //         render graph integration
-        // -----------------------------------------------
+        // ----------------------------------------
 
         app.add_render_graph_node::<ViewNodeRunner<OpaquePassRenderNode>>(
             bevy::core_pipeline::core_3d::graph::Core3d,
@@ -55,5 +57,6 @@ impl Plugin for OpaqueRenderPassPlugin {
         // -----------------------
 
         app.init_resource::<OpaquePipelines>();
+        app.init_resource::<SpecializedRenderPipelines<OpaquePipelines>>();
     }
 }

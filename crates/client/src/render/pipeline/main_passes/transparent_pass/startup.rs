@@ -2,20 +2,30 @@ use super::super::shared_resources::{
     CentralCameraViewBindGroupLayout, EnvironmentBindGroupLayout, TextureArrayBindGroupLayout,
     MAIN_DEPTH_FORMAT,
 };
-use crate::render::pipeline::gpu_resources::world_uniforms::ChunkStorageBindGroupLayout;
-use crate::render::pipeline::shader_registry::{
-    TRANSPARENT_FRAG_SHADER_HANDLE, TRANSPARENT_VERT_SHADER_HANDLE,
+use crate::render::pipeline::{
+    gpu_resources::world_uniforms::ChunkStorageBindGroupLayout,
+    shader_registry::{TRANSPARENT_FRAG_SHADER_HANDLE, TRANSPARENT_VERT_SHADER_HANDLE},
 };
-use bevy::ecs::prelude::*;
-use bevy::render::render_resource::*;
+use bevy::prelude::{FromWorld, Resource, World};
+use bevy::{render::render_resource::*, render::view::ViewTarget};
 
 // INFO: -------------------
 //         resources
 // -------------------------
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct TransparentPipelineKey {
+    pub msaa_samples: u32,
+    pub hdr: bool,
+}
+
+// TODO: we should storethe actual layouts, NOT the descriptors
 #[derive(Resource)]
 pub struct TransparentPipeline {
-    pub pipeline_id: CachedRenderPipelineId,
+    pub view_layout: BindGroupLayoutDescriptor,
+    pub environment_layout: BindGroupLayoutDescriptor,
+    pub texture_layout: BindGroupLayoutDescriptor,
+    pub chunk_storage_layout: BindGroupLayoutDescriptor,
 }
 
 impl FromWorld for TransparentPipeline {
@@ -26,13 +36,32 @@ impl FromWorld for TransparentPipeline {
         let texture_layout = world.resource::<TextureArrayBindGroupLayout>();
         let chunk_storage_layout = world.resource::<ChunkStorageBindGroupLayout>();
 
-        let pipeline_descriptor = RenderPipelineDescriptor {
+        Self {
+            view_layout: view_layout.descriptor.clone(),
+            environment_layout: environment_layout.descriptor.clone(),
+            texture_layout: texture_layout.descriptor.clone(),
+            chunk_storage_layout: chunk_storage_layout.descriptor.clone(),
+        }
+    }
+}
+
+impl SpecializedRenderPipeline for TransparentPipeline {
+    type Key = TransparentPipelineKey;
+
+    fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
+        let format = if key.hdr {
+            ViewTarget::TEXTURE_FORMAT_HDR
+        } else {
+            TextureFormat::Rgba8UnormSrgb
+        };
+
+        RenderPipelineDescriptor {
             label: Some("Transparent Render Pipeline".into()),
             layout: vec![
-                view_layout.descriptor.clone(),
-                environment_layout.descriptor.clone(),
-                texture_layout.descriptor.clone(),
-                chunk_storage_layout.descriptor.clone(),
+                self.view_layout.clone(),
+                self.environment_layout.clone(),
+                self.texture_layout.clone(),
+                self.chunk_storage_layout.clone(),
             ],
             push_constant_ranges: vec![],
             vertex: VertexState {
@@ -46,7 +75,7 @@ impl FromWorld for TransparentPipeline {
                 shader_defs: vec![],
                 entry_point: Some("fs_main".into()),
                 targets: vec![Some(ColorTargetState {
-                    format: TextureFormat::Rgba8UnormSrgb,
+                    format,
                     blend: Some(BlendState::ALPHA_BLENDING),
                     write_mask: ColorWrites::ALL,
                 })],
@@ -66,15 +95,11 @@ impl FromWorld for TransparentPipeline {
                 ..Default::default()
             },
             multisample: MultisampleState {
-                count: 4,
-                ..Default::default()
+                count: key.msaa_samples,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
             },
             zero_initialize_workgroup_memory: true,
-        };
-
-        let pipeline_cache = world.resource_mut::<PipelineCache>();
-        let pipeline_id = pipeline_cache.queue_render_pipeline(pipeline_descriptor);
-
-        Self { pipeline_id }
+        }
     }
 }

@@ -4,11 +4,7 @@ use crate::render::pipeline::main_passes::shared_resources::TextureArrayUniforms
 use crate::render::{
     data::RenderMeshStorageResource,
     pipeline::main_passes::{
-        opaque_pass::{
-            extract::OpaqueRenderMeshComponent,
-            queue::Opaque3dRenderPhase,
-            startup::{OpaquePipelines, OpaqueRenderMode},
-        },
+        opaque_pass::{extract::OpaqueRenderMeshComponent, queue::Opaque3dRenderPhase},
         shared_resources::{CentralCameraViewUniform, EnvironmentUniforms},
     },
 };
@@ -47,8 +43,6 @@ impl ViewNode for OpaquePassRenderNode {
             Some(mesh_storage),
             Some(view_buffer),
             Some(material_bind_group),
-            Some(pipelines),
-            Some(render_mode),
             Some(skybox_params),
             Some(chunk_memory_manager),
             Some(pipeline_cache),
@@ -56,8 +50,6 @@ impl ViewNode for OpaquePassRenderNode {
             world.get_resource::<RenderMeshStorageResource>(),
             world.get_resource::<CentralCameraViewUniform>(),
             world.get_resource::<TextureArrayUniforms>(),
-            world.get_resource::<OpaquePipelines>(),
-            world.get_resource::<OpaqueRenderMode>(),
             world.get_resource::<EnvironmentUniforms>(),
             world.get_resource::<ChunkStorageManager>(),
             world.get_resource::<PipelineCache>(),
@@ -66,13 +58,15 @@ impl ViewNode for OpaquePassRenderNode {
             return Ok(());
         };
 
-        let skybox_pipeline = pipeline_cache.get_render_pipeline(pipelines.skybox_id);
-        let active_pipeline = match *render_mode {
-            OpaqueRenderMode::Fill => pipeline_cache.get_render_pipeline(pipelines.fill_id),
-            OpaqueRenderMode::Wireframe => {
-                pipeline_cache.get_render_pipeline(pipelines.wireframe_id)
-            }
+        let Some(skybox_pipeline_id) = phase.skybox_pipeline_id else {
+            return Ok(());
         };
+        let Some(mesh_pipeline_id) = phase.mesh_pipeline_id else {
+            return Ok(());
+        };
+
+        let skybox_pipeline = pipeline_cache.get_render_pipeline(skybox_pipeline_id);
+        let active_pipeline = pipeline_cache.get_render_pipeline(mesh_pipeline_id);
 
         if skybox_pipeline.is_none() || active_pipeline.is_none() {
             return Ok(());

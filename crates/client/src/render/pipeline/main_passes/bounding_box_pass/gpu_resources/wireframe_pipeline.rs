@@ -7,17 +7,21 @@ use crate::render::pipeline::shader_registry::{
 };
 use crate::render::types::WireframeVertex;
 use bevy::ecs::prelude::*;
-use bevy::render::render_resource::{
-    BlendState, CachedRenderPipelineId, ColorTargetState, ColorWrites, CompareFunction,
-    DepthBiasState, DepthStencilState, FragmentState, FrontFace, MultisampleState, PipelineCache,
-    PolygonMode, PrimitiveState, PrimitiveTopology, RenderPipelineDescriptor, StencilState,
-    VertexState,
-};
+use bevy::render::render_resource::*;
+use bevy::render::view::ViewTarget;
 
-/// A resource holding the pipeline for rendering debug wireframes.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct WireframePipelineKey {
+    pub msaa_samples: u32,
+    pub hdr: bool,
+}
+
+/// A resource holding the layouts and handles for debug wireframes.
 #[derive(Resource)]
 pub struct WireframePipeline {
-    pub pipeline_id: CachedRenderPipelineId,
+    pub view_layout: BindGroupLayoutDescriptor,
+    pub environment_layout: BindGroupLayoutDescriptor,
+    pub object_layout: BindGroupLayoutDescriptor,
 }
 
 impl FromWorld for WireframePipeline {
@@ -26,12 +30,30 @@ impl FromWorld for WireframePipeline {
         let environment_layout = world.resource::<EnvironmentBindGroupLayout>();
         let object_layout = world.resource::<WireframeObjectBindGroupLayout>();
 
-        let pipeline_descriptor = RenderPipelineDescriptor {
+        Self {
+            view_layout: view_layout.descriptor.clone(),
+            environment_layout: environment_layout.descriptor.clone(),
+            object_layout: object_layout.descriptor.clone(),
+        }
+    }
+}
+
+impl SpecializedRenderPipeline for WireframePipeline {
+    type Key = WireframePipelineKey;
+
+    fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
+        let format = if key.hdr {
+            ViewTarget::TEXTURE_FORMAT_HDR
+        } else {
+            TextureFormat::Rgba8UnormSrgb
+        };
+
+        RenderPipelineDescriptor {
             label: Some("Wireframe Pipeline".into()),
             layout: vec![
-                view_layout.descriptor.clone(),
-                environment_layout.descriptor.clone(),
-                object_layout.descriptor.clone(),
+                self.view_layout.clone(),
+                self.environment_layout.clone(),
+                self.object_layout.clone(),
             ],
             push_constant_ranges: vec![],
             vertex: VertexState {
@@ -45,7 +67,7 @@ impl FromWorld for WireframePipeline {
                 shader_defs: vec![],
                 entry_point: Some("fs_main".into()),
                 targets: vec![Some(ColorTargetState {
-                    format: bevy::render::render_resource::TextureFormat::Rgba8UnormSrgb,
+                    format,
                     blend: Some(BlendState::ALPHA_BLENDING),
                     write_mask: ColorWrites::ALL,
                 })],
@@ -65,16 +87,11 @@ impl FromWorld for WireframePipeline {
                 ..Default::default()
             },
             multisample: MultisampleState {
-                count: 4,
-                ..Default::default()
+                count: key.msaa_samples,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
             },
             zero_initialize_workgroup_memory: true,
-        };
-
-        let pipeline_cache = world.resource_mut::<PipelineCache>();
-
-        Self {
-            pipeline_id: pipeline_cache.queue_render_pipeline(pipeline_descriptor),
         }
     }
 }

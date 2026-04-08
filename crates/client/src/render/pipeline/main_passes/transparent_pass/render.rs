@@ -7,7 +7,6 @@ use crate::render::{
         shared_resources::{CentralCameraViewUniform, EnvironmentUniforms},
         transparent_pass::{
             extract::TransparentRenderMeshComponent, queue::Transparent3dRenderPhase,
-            startup::TransparentPipeline,
         },
     },
 };
@@ -42,12 +41,10 @@ impl ViewNode for TransparentPassRenderNode {
         // INFO: -------------------------------------
         //         collect rendering resources
         // -------------------------------------------
-
         let (
             Some(mesh_storage),
             Some(view_buffer),
             Some(material_bind_group),
-            Some(pipeline_res),
             Some(skybox_params),
             Some(chunk_memory_manager),
             Some(pipeline_cache),
@@ -55,7 +52,6 @@ impl ViewNode for TransparentPassRenderNode {
             world.get_resource::<RenderMeshStorageResource>(),
             world.get_resource::<CentralCameraViewUniform>(),
             world.get_resource::<TextureArrayUniforms>(),
-            world.get_resource::<TransparentPipeline>(),
             world.get_resource::<EnvironmentUniforms>(),
             world.get_resource::<ChunkStorageManager>(),
             world.get_resource::<PipelineCache>(),
@@ -64,25 +60,29 @@ impl ViewNode for TransparentPassRenderNode {
             return Ok(());
         };
 
-        let pipeline = pipeline_cache.get_render_pipeline(pipeline_res.pipeline_id);
-        if pipeline.is_none() {
+        let Some(pipeline_id) = phase.pipeline_id else {
+            return Ok(());
+        };
+
+        let active_pipeline = pipeline_cache.get_render_pipeline(pipeline_id);
+
+        if active_pipeline.is_none() {
             return Ok(());
         }
 
         // INFO: --------------------------------
         //         set up the render pass
         // --------------------------------------
-
         let mut render_pass =
             render_context
                 .command_encoder()
                 .begin_render_pass(&RenderPassDescriptor {
-                    label: Some("Transparent Render Pass"),
+                    label: Some("Transparent Pass"),
                     color_attachments: &[Some(view_target.get_color_attachment())],
                     depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
                         view: depth_texture.view(),
                         depth_ops: Some(Operations {
-                            load: LoadOp::Load, // Load the depth buffer
+                            load: LoadOp::Load,
                             store: StoreOp::Store,
                         }),
                         stencil_ops: None,
@@ -94,8 +94,7 @@ impl ViewNode for TransparentPassRenderNode {
         // INFO: -----------------------------------------
         //         mesh pipeline: iterate and draw
         // -----------------------------------------------
-        render_pass.set_pipeline(pipeline.unwrap());
-
+        render_pass.set_pipeline(active_pipeline.unwrap());
         render_pass.set_bind_group(0, &view_buffer.bind_group, &[]);
         render_pass.set_bind_group(1, &skybox_params.bind_group, &[]);
         render_pass.set_bind_group(2, &material_bind_group.bind_group, &[]);

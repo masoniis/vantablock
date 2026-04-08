@@ -1,10 +1,16 @@
 use crate::prelude::*;
 use crate::render::{
     pipeline::main_passes::opaque_pass::extract::OpaqueRenderMeshComponent,
+    pipeline::main_passes::opaque_pass::startup::{
+        OpaquePipelineKey, OpaquePipelines, OpaqueRenderMode,
+    },
     types::RenderTransformComponent,
 };
 use bevy::ecs::prelude::*;
-use bevy::render::view::ExtractedView;
+use bevy::render::render_resource::{
+    CachedRenderPipelineId, PipelineCache, SpecializedRenderPipelines,
+};
+use bevy::render::view::{ExtractedView, Msaa};
 
 #[derive(Debug)]
 pub struct PhaseItem {
@@ -15,6 +21,8 @@ pub struct PhaseItem {
 #[derive(Component, Default, Debug)]
 pub struct Opaque3dRenderPhase {
     pub items: Vec<PhaseItem>,
+    pub mesh_pipeline_id: Option<CachedRenderPipelineId>,
+    pub skybox_pipeline_id: Option<CachedRenderPipelineId>,
 }
 
 // A temporary struct to hold all the data we need for sorting
@@ -30,15 +38,38 @@ struct SortableOpaqueItem {
 #[instrument(skip_all)]
 pub fn queue_opaque_system(
     // input
-    mut views_query: Query<(&ExtractedView, &mut Opaque3dRenderPhase)>,
+    mut views_query: Query<(&ExtractedView, &Msaa, &mut Opaque3dRenderPhase)>,
     meshes_query: Query<(
         Entity,
         &OpaqueRenderMeshComponent,
         &RenderTransformComponent,
     )>,
+    render_mode: Res<OpaqueRenderMode>,
+    pipeline_cache: Res<PipelineCache>,
+    mut specialized_pipelines: ResMut<SpecializedRenderPipelines<OpaquePipelines>>,
+    opaque_pipelines: Res<OpaquePipelines>,
 ) {
-    for (extracted_view, mut opaque_phase) in views_query.iter_mut() {
+    for (extracted_view, msaa, mut opaque_phase) in views_query.iter_mut() {
         opaque_phase.items.clear();
+
+        // specialize pipelines for this view's MSAA and HDR settings
+        let mesh_key = OpaquePipelineKey {
+            msaa_samples: msaa.samples(),
+            hdr: extracted_view.hdr,
+            mode: *render_mode,
+            is_skybox: false,
+        };
+        opaque_phase.mesh_pipeline_id =
+            Some(specialized_pipelines.specialize(&pipeline_cache, &opaque_pipelines, mesh_key));
+
+        let skybox_key = OpaquePipelineKey {
+            msaa_samples: msaa.samples(),
+            hdr: extracted_view.hdr,
+            mode: *render_mode,
+            is_skybox: true,
+        };
+        opaque_phase.skybox_pipeline_id =
+            Some(specialized_pipelines.specialize(&pipeline_cache, &opaque_pipelines, skybox_key));
 
         // collect sortable items for the render pass
         let camera_position = extracted_view.world_from_view.translation();

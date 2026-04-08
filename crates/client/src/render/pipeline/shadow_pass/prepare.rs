@@ -53,7 +53,7 @@ pub fn update_shadow_view_buffer_system(
     let inv_view_proj = view_proj.inverse();
 
     // INFO: ------------------------------
-    //        frustum bounding box
+    //         frustum bounding box
     // ------------------------------------
     // NOTE: goal is to create a bounding box for the shadow texture that fits
     // the camera frustum in order to be efficient with the texture map
