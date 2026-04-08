@@ -14,7 +14,7 @@ pub struct VantablockUiRoot;
 pub fn spawn_ui_system(mut commands: Commands, asset_server: ResMut<AssetServer>) {
     info!("Spawning Vantablock UI...");
 
-    let font = asset_server.load("client/fonts/Teko_variable.ttf");
+    let font = asset_server.load("client/font/Recursive_variable.ttf");
 
     // root node
     commands

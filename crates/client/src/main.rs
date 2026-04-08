@@ -101,14 +101,14 @@ fn main() {
     info!("App exited safely!");
 }
 
-/// A system that initializes the simulation registries (textures, blocks, etc.)
+/// A system that initializes the simulation registries (texture, block, etc.)
 /// This is critical for both rendering and simulation logic.
 fn initialize_simulation_registries_system(world: &mut World) {
-    info!("Initializing simulation registries (textures, blocks)...");
+    info!("Initializing simulation registries (texture, block)...");
     let client_settings = world.resource::<ClientSettings>().clone();
     let persistent_paths = world.resource::<PersistentPaths>();
 
-    // load textures (CPU-side registry + the stitched texture array image)
+    // load texture (CPU-side registry + the stitched texture array image)
     let (texture_array_image, texture_registry) = VoxelTextureProcessor::new(
         persistent_paths.assets_dir.clone(),
         &client_settings.texture_pack,

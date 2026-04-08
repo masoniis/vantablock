@@ -76,7 +76,7 @@ Assuming rust is properly setup, `cargo` can be used like any standard Rust proj
 4. Full transparency support via a separate render pass.
 5. Custom UI implementation (with `taffy` for computing flexbox layouts and `glyphon` for text heavylifting)
 6. Custom fog and sky shaders that define the sky and horizon blending with sun/moon.
-7. Convenient texture and voxel definition loading enabling swapping voxel textures easily in the `assets/shared/blocks` folder.
+7. Convenient texture and voxel definition loading enabling swapping voxel textures easily in the `assets/shared/block` folder.
 8. Water vertices "wave" up and down if you look at them closer
 
 </details>

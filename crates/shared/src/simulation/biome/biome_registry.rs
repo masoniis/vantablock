@@ -66,7 +66,7 @@ impl BiomeRegistryResource {
         self.get_id_by_name(name).unwrap_or(0)
     }
 
-    /// Internal util to load all biomes from disk into a new registry instance.
+    /// Internal util to load all biome from disk into a new registry instance.
     fn load_from_disk(persistent_paths: &PersistentPaths) -> Self {
         info!("Loading biome definitions from disk...");
 
@@ -81,7 +81,7 @@ impl BiomeRegistryResource {
             id
         };
 
-        let full_path = persistent_paths.assets_dir.join("shared/biomes");
+        let full_path = persistent_paths.assets_dir.join("shared/biome");
 
         // load the default biome
         let default_biome_name = "ocean";

@@ -165,11 +165,11 @@ impl BlockRegistryResource {
         texture_lut_vec.push([missing_texture_id; 6]);
 
         // INFO: ------------------------------------------
-        //         parse blocks from shared assets
+        //         parse block from shared assets
         // ------------------------------------------------
 
         let mut stone_was_loaded = false;
-        let full_path = persistent_paths.assets_dir.join("shared/blocks");
+        let full_path = persistent_paths.assets_dir.join("shared/block");
 
         if full_path.is_dir() {
             let entries = std::fs::read_dir(&full_path).unwrap_or_else(|e| {
