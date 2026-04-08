@@ -3,9 +3,10 @@ use crate::simulation::chunk::{ChunkCoord, ChunkState, chunk_blocks::ChunkView};
 use crate::simulation::{
     block::{TargetedBlock, block_registry::AIR_BLOCK_ID},
     chunk::{ChunkBlocksComponent, ChunkStateManager},
-    player::{active_camera::ActiveCamera, camera_component::CameraComponent},
+    player::active_camera::ActiveCamera,
 };
 use bevy::ecs::prelude::{Query, Res, ResMut};
+use bevy::transform::components::Transform;
 
 /// Max raycast traverse distance in blocks
 const RAYCAST_MAX_DIST: f32 = 8.0;
@@ -17,16 +18,16 @@ const RAYCAST_STEP: f32 = 0.1;
 pub fn update_targeted_block_system(
     // input
     active_camera: Res<ActiveCamera>,
-    camera_query: Query<&CameraComponent>,
+    camera_query: Query<&Transform>,
     chunk_manager: Res<ChunkStateManager>,
     chunks_query: Query<&ChunkBlocksComponent>,
 
     // output
     mut targeted_block: ResMut<TargetedBlock>,
 ) {
-    let Ok(cam) = camera_query.get(active_camera.0) else {
+    let Ok(transform) = camera_query.get(active_camera.0) else {
         warn!(
-            "update_targeted_block_system: ActiveCamera entity {:?} not found.",
+            "update_targeted_block_system: ActiveCamera entity {:?} not found or has no Transform.",
             active_camera.0
         );
         return;
@@ -42,7 +43,7 @@ pub fn update_targeted_block_system(
 
     for i in 0..steps {
         let dist = i as f32 * RAYCAST_STEP;
-        let current_pos = cam.position + cam.front * dist;
+        let current_pos = transform.translation + transform.forward() * dist;
         let current_voxel_pos = current_pos.floor().as_ivec3();
 
         // skip if we're still in the same voxel

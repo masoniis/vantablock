@@ -1,8 +1,7 @@
-use crate::prelude::*;
-use bevy::ecs::prelude::{Commands, Query, Res, ResMut, Resource};
+use bevy::ecs::prelude::{Commands, Query, ResMut, Resource, With};
+use bevy::prelude::{Camera, Camera3d, GlobalTransform, Mat4, Projection, Vec3};
 use bevy::render::Extract;
-use shared::simulation::player::active_camera::ActiveCamera;
-use shared::simulation::player::camera_component::CameraComponent;
+use tracing::{instrument, warn};
 
 /// A resource in the render world holding the extracted camera matrices.
 #[derive(Resource, Debug)]
@@ -15,45 +14,43 @@ pub struct RenderCameraResource {
 /// A standalone system to extract the active camera's data from sim world.
 #[instrument(skip_all)]
 pub fn extract_active_camera_system(
-    // Input
+    // input
     mut commands: Commands,
-    active_camera_res: Extract<Option<Res<ActiveCamera>>>,
-    camera_query: Extract<Query<&CameraComponent>>,
+    camera_query: Extract<Query<(&Camera, &GlobalTransform, &Projection), With<Camera3d>>>,
 
-    // Output (optional because it might not exist yet)
-    render_camera: Option<ResMut<RenderCameraResource>>,
+    // output (optional because it might not exist yet)
+    mut render_camera: Option<ResMut<RenderCameraResource>>,
 ) {
-    // get the ActiveCamera resource from the simulation world
-    let active_camera_res = match active_camera_res.as_ref() {
-        Some(res) => res,
-        None => {
-            warn!("extract_active_camera_system: SimulationWorld has no ActiveCamera resource.");
-            return;
+    // find the active 3D camera
+    let mut active_camera_data = None;
+    for (camera, global_transform, projection) in camera_query.iter() {
+        if camera.is_active {
+            active_camera_data = Some((global_transform, projection));
+            break;
         }
-    };
-    let active_entity = active_camera_res.0;
+    }
 
-    // get the CameraComponent for that entity
-    let source_component = match camera_query.get(active_entity) {
-        Ok(comp) => comp,
-        Err(_) => {
-            warn!(
-                "extract_active_camera_system: ActiveCamera entity {:?} has no CameraComponent.",
-                active_entity
-            );
-            return; // entity exists but component is missing
+    let Some((global_transform, projection)) = active_camera_data else {
+        warn!("extract_active_camera_system: SimulationWorld has no active Camera3d.");
+        return;
+    };
+
+    let projection_matrix = match projection {
+        Projection::Perspective(p) => {
+            Mat4::perspective_infinite_reverse_rh(p.fov, p.aspect_ratio, p.near)
         }
+        _ => Mat4::IDENTITY,
     };
 
     let new_camera = RenderCameraResource {
-        view_matrix: source_component.view_matrix,
-        projection_matrix: source_component.projection_matrix,
-        world_position: source_component.position,
+        view_matrix: global_transform.to_matrix().inverse(),
+        projection_matrix,
+        world_position: global_transform.translation(),
     };
 
     // update the render world camera resource
-    if let Some(mut target) = render_camera {
-        *target = new_camera;
+    if let Some(ref mut target) = render_camera {
+        **target = new_camera;
     } else {
         commands.insert_resource(new_camera);
     }

@@ -1,12 +1,9 @@
 use crate::{
     prelude::*,
-    simulation::{
-        chunk::{CHUNK_SIDE_LENGTH, ChunkCoord},
-        player::camera_component::CameraComponent,
-    },
+    simulation::chunk::{ChunkCoord, CHUNK_SIDE_LENGTH},
 };
 use bevy::ecs::prelude::*;
-use bevy::prelude::Camera3d;
+use bevy::prelude::{Camera3d, Transform, Vec3};
 
 const DEFAULT_CAMERA_STARTING_X: f32 = (CHUNK_SIDE_LENGTH / 2) as f32;
 const DEFAULT_CAMERA_STARTING_Y: f32 = 64.0;
@@ -27,13 +24,11 @@ impl FromWorld for ActiveCamera {
         );
 
         let start_chunk = ChunkCoord::world_to_chunk_pos(start_position);
+
         let camera_entity = world
             .spawn((
                 Camera3d::default(),
-                CameraComponent {
-                    position: start_position,
-                    ..Default::default()
-                },
+                Transform::from_translation(start_position),
                 ChunkCoord { pos: start_chunk },
             ))
             .id();
