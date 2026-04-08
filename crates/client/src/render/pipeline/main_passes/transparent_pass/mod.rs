@@ -15,14 +15,12 @@ use crate::{
     VantablockNode,
     render::pipeline::main_passes::transparent_pass::{
         prepare::prepare_transparent_meshes_system,
-        queue::{Transparent3dRenderPhase, queue_and_prepare_transparent_system},
+        queue::queue_and_prepare_transparent_system,
     },
 };
 use bevy::app::{App, Plugin};
-use bevy::ecs::prelude::*;
 use bevy::prelude::IntoScheduleConfigs;
 use bevy::render::render_graph::{RenderGraphExt, ViewNodeRunner};
-use bevy::render::view::ExtractedView;
 use bevy::render::{Render, RenderSystems};
 
 pub struct TransparentRenderPassPlugin;
@@ -44,18 +42,7 @@ impl Plugin for TransparentRenderPassPlugin {
 
         app.add_systems(
             Render,
-            (
-                |mut commands: Commands, query: Query<Entity, Added<ExtractedView>>| {
-                    for entity in query.iter() {
-                        commands
-                            .entity(entity)
-                            .insert(Transparent3dRenderPhase::default());
-                    }
-                },
-                queue_and_prepare_transparent_system,
-            )
-                .chain()
-                .in_set(RenderSystems::Queue),
+            queue_and_prepare_transparent_system.in_set(RenderSystems::Queue),
         );
 
         // INFO: -----------------------------------------

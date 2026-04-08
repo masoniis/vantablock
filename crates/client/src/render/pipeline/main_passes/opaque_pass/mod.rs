@@ -7,17 +7,13 @@ pub mod startup;
 pub use render::OpaquePassRenderNode;
 
 // INFO: ---------------------------
-//         Plugin definition
+//         plugin definition
 // ---------------------------------
 
-use crate::{
-    render::pipeline::main_passes::opaque_pass::queue::Opaque3dRenderPhase, VantablockNode,
-};
+use crate::VantablockNode;
 use bevy::app::{App, Plugin};
-use bevy::ecs::prelude::*;
 use bevy::prelude::IntoScheduleConfigs;
 use bevy::render::render_graph::{RenderGraphExt, ViewNodeRunner};
-use bevy::render::view::ExtractedView;
 use bevy::render::{Render, RenderSystems};
 use startup::OpaquePipelines;
 
@@ -40,18 +36,7 @@ impl Plugin for OpaqueRenderPassPlugin {
 
         app.add_systems(
             Render,
-            (
-                |mut commands: Commands, query: Query<Entity, Added<ExtractedView>>| {
-                    for entity in query.iter() {
-                        commands
-                            .entity(entity)
-                            .insert(Opaque3dRenderPhase::default());
-                    }
-                },
-                queue::queue_opaque_system,
-            )
-                .chain()
-                .in_set(RenderSystems::Queue),
+            queue::queue_opaque_system.in_set(RenderSystems::Queue),
         );
 
         // INFO: -----------------------------------------
