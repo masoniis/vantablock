@@ -12,8 +12,7 @@ pub use targeted_block::TargetedBlock;
 //         Block plugin
 // ----------------------------
 
-use crate::simulation::block::block_registry::initialize_block_registry_system;
-use bevy::app::{App, Plugin, Startup};
+use bevy::app::{App, Plugin};
 
 pub struct BlockPlugin;
 
@@ -23,9 +22,8 @@ impl Plugin for BlockPlugin {
         app.init_resource::<TargetedBlock>();
         app.init_resource::<BlockRegistryResource>();
 
-        // We run the initialization at startup.
-        // Note: For the client, this should run after texture registry is ready.
-        app.add_systems(Startup, initialize_block_registry_system);
+        // Note: For the client, registry initialization is handled asynchronously
+        // to avoid blocking the main thread during startup.
     }
 }
 

@@ -1,11 +1,12 @@
 use bevy::{
-    app::{App, FixedUpdate, PostUpdate, PreStartup},
+    app::{App, FixedUpdate, PostUpdate},
     asset::Assets,
     log::LogPlugin,
     prelude::{
-        AssetPlugin, DefaultPlugins, Image, IntoScheduleConfigs, PluginGroup, Window, WindowPlugin,
-        World, default, info,
+        default, info, AssetPlugin, ClearColor, Color, Commands, DefaultPlugins, Image,
+        IntoScheduleConfigs, PluginGroup, Res, Startup, Window, WindowPlugin, World,
     },
+    tasks::AsyncComputeTaskPool,
     window::WindowResolution,
 };
 use client::{
@@ -13,15 +14,16 @@ use client::{
     player::PlayerPlugin,
     prelude::*,
     render::{
-        VantablockRenderPlugin,
         texture::{BlockTextureArray, VoxelTextureProcessor},
+        VantablockRenderPlugin,
     },
     showcase::ShowcasePlugin,
     state::ClientLifecyclePlugin,
     ui::VantablockUiPlugin,
 };
+use crossbeam::channel::unbounded;
 use shared::{
-    load::LoadingTracker,
+    load::{LoadingTracker, SimulationWorldLoadingTaskComponent, TaskResultCallback},
     simulation::{
         asset::AssetPlugin as SimulationAssetPlugin,
         biome::BiomePlugin,
@@ -63,6 +65,9 @@ fn main() {
             .disable::<LogPlugin>(),
     );
 
+    // red clear color to prevent white screen flash
+    app.insert_resource(ClearColor(Color::linear_rgb(1.0, 0.0, 0.0)));
+
     // load config & loading trackers into main world
     app.insert_resource(ClientSettings::load_or_create(&persistent_paths));
     app.insert_resource(persistent_paths);
@@ -96,38 +101,68 @@ fn main() {
         VantablockRenderPlugin,
     ));
 
-    // registry data must be initialized before anything else
-    app.add_systems(PreStartup, initialize_simulation_registries_system);
+    // start background registry initialization
+    app.add_systems(Startup, start_async_registry_initialization);
 
     app.run();
     info!("App exited safely!");
 }
 
-/// A system that initializes the simulation registries (texture, block, etc.)
-/// This is critical for both rendering and simulation logic.
-fn initialize_simulation_registries_system(world: &mut World) {
-    info!("Initializing simulation registries (texture, block)...");
-    let client_settings = world.resource::<ClientSettings>().clone();
-    let persistent_paths = world.resource::<PersistentPaths>();
+/// A system that starts the asynchronous initialization of simulation registries.
+/// This prevents the main thread from blocking during heavy tasks like texture stitching and block registry generation.
+fn start_async_registry_initialization(
+    mut commands: Commands,
+    client_settings: Res<ClientSettings>,
+    persistent_paths: Res<PersistentPaths>,
+) {
+    info!("Starting asynchronous simulation registry initialization...");
 
-    // load texture (CPU-side registry + the stitched texture array image)
-    let (texture_array_image, texture_registry) = VoxelTextureProcessor::new(
-        persistent_paths.assets_dir.clone(),
-        &client_settings.texture_pack,
-    )
-    .load_and_stitch()
-    .unwrap();
+    let (sender, receiver) = unbounded();
+    let settings = client_settings.clone();
+    let paths = persistent_paths.clone();
 
-    // add the image to Bevy's native Assets<Image>
-    let mut image_assets = world.resource_mut::<Assets<Image>>();
-    let texture_handle = image_assets.add(texture_array_image);
+    AsyncComputeTaskPool::get()
+        .spawn(async move {
+            info!("Initializing simulation registries in background...");
 
-    // insert resources into world
-    world.insert_resource(texture_registry);
-    world.insert_resource(BlockTextureArray {
-        handle: texture_handle,
-    });
-    world.init_resource::<BlockRegistryResource>();
+            // 1. Texture Stitching (CPU Intensive)
+            let (texture_array_image, texture_registry) =
+                VoxelTextureProcessor::new(paths.assets_dir.clone(), &settings.texture_pack)
+                    .load_and_stitch()
+                    .expect("Failed to load and stitch textures");
 
-    info!("Simulation registries initialized successfully.");
+            // 2. Block Registry Generation (CPU Intensive, depends on texture registry)
+            let block_registry =
+                BlockRegistryResource::load_from_disk(Some(&texture_registry), &paths);
+
+            // prepare callback to apply results on main thread
+            let callback: TaskResultCallback = Box::new(move |commands: &mut Commands| {
+                info!("Applying simulation registry results to the world.");
+
+                // access world via commands to insert resources
+                commands.queue(move |world: &mut World| {
+                    let mut image_assets = world.resource_mut::<Assets<Image>>();
+                    let texture_handle = image_assets.add(texture_array_image);
+
+                    // insert both registries
+                    world.insert_resource(texture_registry);
+                    world.insert_resource(block_registry);
+
+                    // insert texture array handle
+                    world.insert_resource(BlockTextureArray {
+                        handle: texture_handle,
+                    });
+                });
+
+                info!("Simulation registries initialized successfully.");
+            });
+
+            sender
+                .send(callback)
+                .expect("Failed to send registry task result");
+        })
+        .detach();
+
+    // register this as a loading task so the game waits for it
+    commands.spawn(SimulationWorldLoadingTaskComponent { receiver });
 }

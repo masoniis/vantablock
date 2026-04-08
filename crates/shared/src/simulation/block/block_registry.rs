@@ -92,7 +92,7 @@ impl BlockRegistryResource {
     }
 
     /// Internal util to load all blocks from disk into a new registry instance.
-    fn load_from_disk(
+    pub fn load_from_disk(
         texture_registry: Option<&TextureRegistryResource>,
         persistent_paths: &PersistentPaths,
     ) -> Self {
