@@ -71,8 +71,4 @@ fn main() {
         &"package::world::shadow::main_vert".parse().unwrap(),
         "shadow_vert",
     );
-
-    // UI shaders
-    compiler.build_artifact(&"package::ui::main_vert".parse().unwrap(), "ui_vert");
-    compiler.build_artifact(&"package::ui::main_frag".parse().unwrap(), "ui_frag");
 }

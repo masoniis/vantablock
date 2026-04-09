@@ -1,9 +1,8 @@
 use crate::prelude::*;
 use crate::render::{
     pipeline::main_passes::opaque_pass::extract::OpaqueRenderMeshComponent,
-    pipeline::main_passes::opaque_pass::startup::{
-        OpaquePipelineKey, OpaquePipelines, OpaqueRenderMode,
-    },
+    pipeline::main_passes::opaque_pass::pipeline::{OpaqueRenderMode, WorldOpaquePipeline, WorldOpaquePipelineKey},
+    pipeline::main_passes::skybox_pass::{SkyboxPipeline, SkyboxPipelineKey},
     types::RenderTransformComponent,
 };
 use bevy::ecs::prelude::*;
@@ -46,30 +45,35 @@ pub fn queue_opaque_system(
     )>,
     render_mode: Res<OpaqueRenderMode>,
     pipeline_cache: Res<PipelineCache>,
-    mut specialized_pipelines: ResMut<SpecializedRenderPipelines<OpaquePipelines>>,
-    opaque_pipelines: Res<OpaquePipelines>,
+    mut specialized_world_pipelines: ResMut<SpecializedRenderPipelines<WorldOpaquePipeline>>,
+    world_pipelines: Res<WorldOpaquePipeline>,
+    mut specialized_skybox_pipelines: ResMut<SpecializedRenderPipelines<SkyboxPipeline>>,
+    skybox_pipelines: Res<SkyboxPipeline>,
 ) {
     for (extracted_view, msaa, mut opaque_phase) in views_query.iter_mut() {
         opaque_phase.items.clear();
 
         // specialize pipelines for this view's MSAA and HDR settings
-        let mesh_key = OpaquePipelineKey {
+        let mesh_key = WorldOpaquePipelineKey {
             msaa_samples: msaa.samples(),
             hdr: extracted_view.hdr,
             mode: *render_mode,
-            is_skybox: false,
         };
-        opaque_phase.mesh_pipeline_id =
-            Some(specialized_pipelines.specialize(&pipeline_cache, &opaque_pipelines, mesh_key));
+        opaque_phase.mesh_pipeline_id = Some(specialized_world_pipelines.specialize(
+            &pipeline_cache,
+            &world_pipelines,
+            mesh_key,
+        ));
 
-        let skybox_key = OpaquePipelineKey {
+        let skybox_key = SkyboxPipelineKey {
             msaa_samples: msaa.samples(),
             hdr: extracted_view.hdr,
-            mode: *render_mode,
-            is_skybox: true,
         };
-        opaque_phase.skybox_pipeline_id =
-            Some(specialized_pipelines.specialize(&pipeline_cache, &opaque_pipelines, skybox_key));
+        opaque_phase.skybox_pipeline_id = Some(specialized_skybox_pipelines.specialize(
+            &pipeline_cache,
+            &skybox_pipelines,
+            skybox_key,
+        ));
 
         // collect sortable items for the render pass
         let camera_position = extracted_view.world_from_view.translation();

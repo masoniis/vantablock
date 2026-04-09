@@ -1,9 +1,10 @@
 pub mod extract;
+pub mod pipeline;
 pub mod prepare;
 pub mod queue;
 pub mod render;
-pub mod startup;
 
+pub use pipeline::*;
 pub use render::OpaquePassRenderNode;
 
 // INFO: ---------------------------
@@ -17,7 +18,6 @@ use bevy::render::{
     render_resource::SpecializedRenderPipelines,
     {Render, RenderSystems},
 };
-use startup::OpaquePipelines;
 
 pub struct OpaqueRenderPassPlugin;
 
@@ -56,7 +56,7 @@ impl Plugin for OpaqueRenderPassPlugin {
         //         Startup
         // -----------------------
 
-        app.init_resource::<OpaquePipelines>();
-        app.init_resource::<SpecializedRenderPipelines<OpaquePipelines>>();
+        app.init_resource::<WorldOpaquePipeline>();
+        app.init_resource::<SpecializedRenderPipelines<WorldOpaquePipeline>>();
     }
 }
