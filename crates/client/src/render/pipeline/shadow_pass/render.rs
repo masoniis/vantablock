@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use crate::render::pipeline::gpu_resources::world_uniforms::ChunkStorageManager;
 use crate::render::{
-    global_extract::RenderMeshStorageResource,
+    data::RenderMeshStorageResource,
     pipeline::main_passes::opaque_pass::{
         extract::OpaqueRenderMeshComponent, queue::Opaque3dRenderPhase,
     },
@@ -9,10 +9,8 @@ use crate::render::{
         ShadowDepthTextureResource, ShadowPassPipeline, ShadowViewBuffer,
     },
 };
-
 use bevy::ecs::prelude::*;
 use bevy::ecs::query::QueryItem;
-
 use bevy::render::render_graph::{NodeRunError, RenderGraphContext, ViewNode};
 use bevy::render::render_resource::{
     LoadOp, Operations, PipelineCache, RenderPassDepthStencilAttachment, RenderPassDescriptor,
@@ -24,27 +22,20 @@ use bevy::render::renderer::RenderContext;
 pub struct ShadowRenderPassNode;
 
 impl ViewNode for ShadowRenderPassNode {
-    type ViewQuery = ();
+    type ViewQuery = &'static Opaque3dRenderPhase;
 
     #[instrument(skip_all, name = "shadow_pass_render_node")]
     fn run(
         &self,
         _graph: &mut RenderGraphContext,
         render_context: &mut RenderContext,
-        _view_target: QueryItem<Self::ViewQuery>,
+        opaque_phase: QueryItem<Self::ViewQuery>,
         world: &World,
     ) -> Result<(), NodeRunError> {
-        // INFO: --------------------------------------
-        //          collect rendering resources
-        // --------------------------------------------
-
         let (
-            // shadow-specific stuff
             Some(pipeline_res),
             Some(shadow_view_buffer),
             Some(shadow_depth_texture),
-            // opaque mesh to base shadow depth on
-            Some(phase),
             Some(mesh_storage),
             Some(chunk_memory_manager),
             Some(pipeline_cache),
@@ -52,7 +43,6 @@ impl ViewNode for ShadowRenderPassNode {
             world.get_resource::<ShadowPassPipeline>(),
             world.get_resource::<ShadowViewBuffer>(),
             world.get_resource::<ShadowDepthTextureResource>(),
-            world.get_resource::<Opaque3dRenderPhase>(),
             world.get_resource::<RenderMeshStorageResource>(),
             world.get_resource::<ChunkStorageManager>(),
             world.get_resource::<PipelineCache>(),
@@ -65,10 +55,6 @@ impl ViewNode for ShadowRenderPassNode {
         if pipeline.is_none() {
             return Ok(());
         }
-
-        // INFO: --------------------------------
-        //         set up the render pass
-        // --------------------------------------
 
         let mut render_pass =
             render_context
@@ -88,16 +74,12 @@ impl ViewNode for ShadowRenderPassNode {
                     occlusion_query_set: None,
                 });
 
-        // INFO: -------------------------------------------
-        //         shadow pipeline: iterate and draw
-        // -------------------------------------------------
-
         render_pass.set_pipeline(pipeline.unwrap());
-
         render_pass.set_bind_group(0, &shadow_view_buffer.bind_group, &[]);
         render_pass.set_bind_group(1, &chunk_memory_manager.bind_group, &[]);
 
-        for item in phase.items.iter() {
+        // iterate directly over the phase passed into the method
+        for item in opaque_phase.items.iter() {
             if let Some(render_mesh_comp) = world.get::<OpaqueRenderMeshComponent>(item.entity)
                 && let Some(gpu_mesh) = mesh_storage.meshes.get(&render_mesh_comp.mesh_handle.id())
             {

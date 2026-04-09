@@ -1,7 +1,7 @@
 use super::TOTAL_BUFFER_SIZE;
 use crate::prelude::*;
 use crate::simulation::{
-    block::block_registry::{AIR_BLOCK_ID, BlockId, BlockRegistryResource},
+    block::block_registry::{AIR_BLOCK_ID, BlockId, BlockRegistry},
     chunk::{CHUNK_SIDE_LENGTH, ChunkBlocksComponent, ChunkLod, ChunkView},
 };
 
@@ -203,11 +203,7 @@ impl PaddedChunk {
     }
 
     /// Returns whether or not a particular neighbor offset from the center chunk is fully opaque.
-    pub fn is_neighbor_fully_opaque(
-        &self,
-        offset: IVec3,
-        registry: &BlockRegistryResource,
-    ) -> bool {
+    pub fn is_neighbor_fully_opaque(&self, offset: IVec3, registry: &BlockRegistry) -> bool {
         let (x_range, y_range, z_range) = match (offset.x, offset.y, offset.z) {
             (1, 0, 0) => (
                 (CHUNK_SIDE_LENGTH + 1)..(CHUNK_SIDE_LENGTH + 2),
@@ -230,12 +226,14 @@ impl PaddedChunk {
             _ => return false,
         };
 
+        let transparency_lut = registry.get_transparency_lut();
+
         for x in x_range {
             for z in z_range.clone() {
                 for y in y_range.clone() {
                     let idx = y + z * PADDED_SIZE + x * PADDED_SIZE * PADDED_SIZE;
                     let block_id = self.voxels[idx];
-                    if registry.get_render_data(block_id).is_transparent {
+                    if transparency_lut[block_id as usize] {
                         return false;
                     }
                 }

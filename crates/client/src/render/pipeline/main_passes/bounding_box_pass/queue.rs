@@ -1,31 +1,68 @@
-use crate::prelude::*;
-use crate::render::pipeline::main_passes::bounding_box_pass::extract::WireframeToggleState;
-use crate::render::pipeline::main_passes::bounding_box_pass::gpu_resources::object_binding::WireframeObjectBindGroupLayout;
-use crate::render::pipeline::main_passes::bounding_box_pass::gpu_resources::{
-    WireframeObjectBuffer, WireframeObjectData,
+use crate::{
+    prelude::*,
+    render::{
+        pipeline::main_passes::bounding_box_pass::{
+            extract::WireframeToggleState,
+            gpu_resources::{
+                WireframeObjectBuffer, WireframeObjectData,
+                object_binding::WireframeObjectBindGroupLayout, wireframe_pipeline::*,
+            },
+        },
+        types::RenderTransformComponent,
+    },
 };
-use crate::render::types::RenderTransformComponent;
-use bevy::ecs::prelude::*;
-use bevy::render::render_resource::{BindGroupEntry, BufferDescriptor, BufferUsages};
-use bevy::render::renderer::{RenderDevice, RenderQueue};
-use shared::simulation::block::TargetedBlock;
-use shared::simulation::chunk::consts::{CHUNK_DEPTH, CHUNK_HEIGHT, CHUNK_WIDTH};
+use bevy::{
+    ecs::prelude::*,
+    render::{
+        render_resource::{
+            BindGroupEntry, BufferDescriptor, BufferUsages, CachedRenderPipelineId, PipelineCache,
+            SpecializedRenderPipelines,
+        },
+        renderer::{RenderDevice, RenderQueue},
+        view::{ExtractedView, Msaa},
+    },
+};
+use shared::simulation::{
+    block::TargetedBlock,
+    chunk::consts::{CHUNK_DEPTH, CHUNK_HEIGHT, CHUNK_WIDTH},
+};
+
+#[derive(Component, Default, Debug)]
+pub struct BoundingBoxPhase {
+    pub pipeline_id: Option<CachedRenderPipelineId>,
+}
 
 #[instrument(skip_all)]
+#[allow(clippy::too_many_arguments)]
 pub fn queue_wireframe_system(
     // input
     queue: Res<RenderQueue>,
     device: Res<RenderDevice>,
-
     object_layout: Res<WireframeObjectBindGroupLayout>,
-
     chunk_query: Query<&RenderTransformComponent>,
     active_bounds: Res<WireframeToggleState>,
     targeted_block: Res<TargetedBlock>,
+    pipeline_cache: Res<PipelineCache>,
+    mut specialized_pipelines: ResMut<SpecializedRenderPipelines<WireframePipeline>>,
+    wireframe_pipeline: Res<WireframePipeline>,
+
+    // views
+    mut views_query: Query<(&ExtractedView, &Msaa, &mut BoundingBoxPhase)>,
 
     // output
     mut wireframe_buffer: ResMut<WireframeObjectBuffer>,
 ) {
+    // specialize pipelines for each view
+    for (view, msaa, mut phase) in views_query.iter_mut() {
+        let key = WireframePipelineKey {
+            msaa_samples: msaa.samples(),
+            hdr: view.hdr,
+        };
+        phase.pipeline_id =
+            Some(specialized_pipelines.specialize(&pipeline_cache, &wireframe_pipeline, key));
+    }
+
+    // populate the global wireframe buffer (shared across views for now)
     wireframe_buffer.objects.clear();
 
     if !active_bounds.enabled && targeted_block.position.is_none() {

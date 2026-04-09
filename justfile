@@ -5,6 +5,17 @@ project := "vantablock"
 client  := "client"
 server  := "server"
 
+# where to place wsl windows builds
+wsl_target := "C:/temp/vantablock-build"
+
+open_cmd := if os() == "macos" { \
+    "open" \
+} else if os() == "windows" { \
+    "explorer.exe" \
+} else { \
+    "xdg-open" \
+}
+
 default: run
 
 # INFO: -------------------------
@@ -21,7 +32,12 @@ server *args:
 
 # runs the client via max-optimization release profile
 release *args:
-    cargo run -p {{client}} --profile distribution --features {{client}}/final_release {{args}}
+    cargo run -p {{client}} --profile distribution --features {{client}}/distribution {{args}}
+
+# compiles and runs the client natively on Windows from within WSL
+wsl *args:
+    @WSL_PATH=$(wslpath -w .)
+    @powershell.exe -Command "if (!(Test-Path '{{wsl_target}}')) { New-Item -ItemType Directory -Force -Path '{{wsl_target}}' }; cd '$WSL_PATH'; \$env:CARGO_TARGET_DIR='{{wsl_target}}'; cargo run -p {{client}} {{args}}"
 
 alias run-fast := release
 
@@ -32,6 +48,7 @@ alias run-fast := release
 # runs cargo check across the workspace
 check *args:
     cargo check {{args}}
+    cargo check --benches
 
 # runs clippy across the workspace
 clippy *args:
@@ -48,6 +65,8 @@ fmt:
 # cleans ephemeral dirs
 clean:
 	rm -rf target/
+
+alias clip := clippy
 
 # INFO: ------------------------------
 #         testing & validation
@@ -66,7 +85,7 @@ test-bench:
 bench *args:
     cargo bench -p {{client}} {{args}}
     @echo "Opening Criterion report..."
-    open target/criterion/report/index.html
+    -{{ open_cmd }} target/criterion/report/index.html
 
 # full pre-push verification suite
 ready *args:
@@ -80,7 +99,7 @@ ready *args:
 
 # packages the client for distribution
 package profile="distribution":
-    cargo build -p client --profile {{profile}} --features final_release
+    cargo build -p client --profile {{profile}} --features distribution
     cargo packager -p client --profile {{ if profile == "dev" { "debug" } else { profile } }}
 
 # runs the texture processor utility
@@ -120,7 +139,7 @@ debug_bevy *args:
 debug_wgpu *args:
     RUST_LOG=wgpu=trace cargo run -p {{client}} {{args}}
 
-# targeted tracing. Call without args to list targets found in source.
+# targeted tracing, call without args to list targets found in source.
 debug *args:
     #!/usr/bin/env bash
     set -euo pipefail

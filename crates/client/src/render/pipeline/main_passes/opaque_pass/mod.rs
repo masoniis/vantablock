@@ -7,16 +7,16 @@ pub mod startup;
 pub use render::OpaquePassRenderNode;
 
 // INFO: ---------------------------
-//         Plugin definition
+//         plugin definition
 // ---------------------------------
 
-use crate::{
-    VantablockNode, render::pipeline::main_passes::opaque_pass::queue::Opaque3dRenderPhase,
+use crate::VantablockNode;
+use bevy::prelude::{App, IntoScheduleConfigs, Plugin};
+use bevy::render::{
+    render_graph::{RenderGraphExt, ViewNodeRunner},
+    render_resource::SpecializedRenderPipelines,
+    {Render, RenderSystems},
 };
-use bevy::app::{App, Plugin};
-use bevy::prelude::IntoScheduleConfigs;
-use bevy::render::render_graph::{RenderGraphExt, ViewNodeRunner};
-use bevy::render::{Render, RenderSystems};
 use startup::OpaquePipelines;
 
 pub struct OpaqueRenderPassPlugin;
@@ -24,7 +24,7 @@ pub struct OpaqueRenderPassPlugin;
 impl Plugin for OpaqueRenderPassPlugin {
     fn build(&self, app: &mut App) {
         // INFO: -----------------
-        //         Prepare
+        //         prepare
         // -----------------------
 
         app.add_systems(
@@ -33,21 +33,17 @@ impl Plugin for OpaqueRenderPassPlugin {
         );
 
         // INFO: ---------------
-        //         Queue
+        //         queue
         // ---------------------
 
-        app
-            // resources
-            .init_resource::<Opaque3dRenderPhase>()
-            // systems
-            .add_systems(
-                Render,
-                queue::queue_opaque_system.in_set(RenderSystems::Queue),
-            );
+        app.add_systems(
+            Render,
+            queue::queue_opaque_system.in_set(RenderSystems::Queue),
+        );
 
-        // INFO: -----------------------------------------
-        //         Render Graph Integration
-        // -----------------------------------------------
+        // INFO: ----------------------------------
+        //         render graph integration
+        // ----------------------------------------
 
         app.add_render_graph_node::<ViewNodeRunner<OpaquePassRenderNode>>(
             bevy::core_pipeline::core_3d::graph::Core3d,
@@ -61,5 +57,6 @@ impl Plugin for OpaqueRenderPassPlugin {
         // -----------------------
 
         app.init_resource::<OpaquePipelines>();
+        app.init_resource::<SpecializedRenderPipelines<OpaquePipelines>>();
     }
 }

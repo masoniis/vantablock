@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 default-run = "client"
 
+[lints]
+workspace = true
+
 [package.metadata.packager]
 product-name = "Vantablock"
 identifier = "com.masoniis.vantablock"
@@ -24,8 +27,9 @@ name = "generation_benchmarks"
 harness = false
 
 [features]
+dev = ["bevy/dev"]
 tracy = ["dep:tracy-client", "dep:tracing-tracy"]
-final_release = ["tracing/release_max_level_error"]
+distribution = ["tracing/release_max_level_error"]
 
 [build-dependencies]
 wesl = { workspace = true } # shader compliation from WESL to WGSL
@@ -69,7 +73,6 @@ offset-allocator = { workspace = true } # gpu buffer allocation
 # --------------------------------
 
 bevy = { workspace = true }
-rayon = { workspace = true }        # multi threaded pooling
 futures-lite = { workspace = true } # future utils
 
 # INFO: ---------------

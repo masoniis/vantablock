@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use crate::render::chunk::meshing::packed_face::PackedFace;
 use bevy::ecs::prelude::*;
 use bevy::render::render_resource::{
     BindGroup, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry,
@@ -7,7 +8,6 @@ use bevy::render::render_resource::{
 };
 use bevy::render::renderer::{RenderDevice, RenderQueue};
 use offset_allocator::{Allocation, Allocator};
-use shared::simulation::chunk::meshing::packed_face::PackedFace;
 
 /// The virtual address space size the allocator believes it has.
 const VIRTUAL_ADDRESS_SPACE: u32 = 2 * 1024 * 1024 * 1024; // (2 GB)

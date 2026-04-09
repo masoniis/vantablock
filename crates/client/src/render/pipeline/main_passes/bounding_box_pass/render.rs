@@ -1,8 +1,7 @@
-use super::gpu_resources::WireframeObjectBuffer;
+use super::gpu_resources::{UnitCubeMesh, WireframeObjectBuffer};
 use crate::prelude::*;
 use crate::render::pipeline::main_passes::{
-    bounding_box_pass::gpu_resources::{unit_cube_mesh::UnitCubeMesh, wireframe_pipeline::*},
-    shared_resources::main_depth_texture::MainDepthTextureResource,
+    bounding_box_pass::queue::BoundingBoxPhase,
     shared_resources::{CentralCameraViewUniform, EnvironmentUniforms},
 };
 use bevy::ecs::prelude::*;
@@ -10,43 +9,43 @@ use bevy::ecs::query::QueryItem;
 use bevy::render::render_graph::{NodeRunError, RenderGraphContext, ViewNode};
 use bevy::render::render_resource::PipelineCache;
 use bevy::render::render_resource::{
-    IndexFormat, LoadOp, Operations, RenderPassColorAttachment, RenderPassDepthStencilAttachment,
-    RenderPassDescriptor, StoreOp,
+    IndexFormat, LoadOp, Operations, RenderPassDepthStencilAttachment, RenderPassDescriptor,
+    StoreOp,
 };
 use bevy::render::renderer::RenderContext;
-use bevy::render::view::ViewTarget;
+use bevy::render::view::{ViewDepthTexture, ViewTarget};
 
 #[derive(Default)]
 pub struct BoundingBoxNode;
 
 impl ViewNode for BoundingBoxNode {
-    type ViewQuery = &'static ViewTarget;
+    type ViewQuery = (
+        &'static ViewTarget,
+        &'static ViewDepthTexture,
+        &'static BoundingBoxPhase,
+    );
 
     #[instrument(skip_all, name = "wireframe_pass_render_node")]
     fn run(
         &self,
         _graph: &mut RenderGraphContext,
         render_context: &mut RenderContext,
-        view_target: QueryItem<Self::ViewQuery>,
+        (view_target, depth_texture, phase): QueryItem<Self::ViewQuery>,
         world: &World,
     ) -> Result<(), NodeRunError> {
         // INFO: ---------------------------
         //         resource fetching
         // ---------------------------------
         let (
-            Some(pipeline_res),
             Some(wireframe_buffer),
             Some(wireframe_mesh),
             Some(view_bind_group),
-            Some(depth_texture),
             Some(environment),
             Some(pipeline_cache),
         ) = (
-            world.get_resource::<WireframePipeline>(),
             world.get_resource::<WireframeObjectBuffer>(),
             world.get_resource::<UnitCubeMesh>(),
             world.get_resource::<CentralCameraViewUniform>(),
-            world.get_resource::<MainDepthTextureResource>(),
             world.get_resource::<EnvironmentUniforms>(),
             world.get_resource::<PipelineCache>(),
         )
@@ -54,7 +53,11 @@ impl ViewNode for BoundingBoxNode {
             return Ok(());
         };
 
-        let pipeline = pipeline_cache.get_render_pipeline(pipeline_res.pipeline_id);
+        let Some(pipeline_id) = phase.pipeline_id else {
+            return Ok(());
+        };
+
+        let pipeline = pipeline_cache.get_render_pipeline(pipeline_id);
         if pipeline.is_none() {
             return Ok(());
         }
@@ -72,17 +75,9 @@ impl ViewNode for BoundingBoxNode {
                 .command_encoder()
                 .begin_render_pass(&RenderPassDescriptor {
                     label: Some("Wireframe Render Pass"),
-                    color_attachments: &[Some(RenderPassColorAttachment {
-                        view: view_target.main_texture_view(),
-                        resolve_target: None,
-                        ops: Operations {
-                            load: LoadOp::Load,
-                            store: StoreOp::Store,
-                        },
-                        depth_slice: None,
-                    })],
+                    color_attachments: &[Some(view_target.get_color_attachment())],
                     depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
-                        view: &depth_texture.view,
+                        view: depth_texture.view(),
                         depth_ops: Some(Operations {
                             load: LoadOp::Load,
                             store: StoreOp::Store,

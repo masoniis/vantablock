@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use crate::simulation::{
     biome::BiomeRegistryResource,
-    block::{BlockId, BlockRegistryResource, BlockRenderData},
+    block::{BlockId, BlockRegistry},
     chunk::{ChunkBlocksComponent, ChunkCoord, ChunkMetadata, VolumeDataWriter},
     terrain::BiomeMapComponent,
 };
@@ -18,7 +18,7 @@ pub trait TerrainPainter: Send + Sync + Debug {
 
         biome_map: &BiomeMapComponent,
 
-        block_registry: &BlockRegistryResource,
+        block_registry: &BlockRegistry,
         biome_registry: &BiomeRegistryResource,
     ) -> PaintResultBuilder;
 }
@@ -27,7 +27,7 @@ pub struct PaintResultBuilder {
     blocks: ChunkBlocksComponent,
     pub chunk_coord: ChunkCoord,
     metadata: ChunkMetadata,
-    block_registry: BlockRegistryResource,
+    block_registry: BlockRegistry,
 }
 
 impl PaintResultBuilder {
@@ -35,7 +35,7 @@ impl PaintResultBuilder {
     pub fn new(
         blocks: ChunkBlocksComponent,
         chunk_coord: ChunkCoord,
-        block_registry: BlockRegistryResource,
+        block_registry: BlockRegistry,
     ) -> Self {
         Self {
             blocks,
@@ -121,7 +121,7 @@ impl PaintResultBuilder {
 pub struct PaintWriter<'a> {
     block_writer: VolumeDataWriter<'a, BlockId>,
     metadata: &'a mut ChunkMetadata,
-    registry: &'a BlockRegistryResource,
+    registry: &'a BlockRegistry,
 }
 
 impl<'a> PaintWriter<'a> {
@@ -144,12 +144,6 @@ impl<'a> PaintWriter<'a> {
         self.block_writer.get_data(x, y, z)
     }
 
-    /// Helper to get block properties via registry if needed for logic decisions
-    #[inline(always)]
-    pub fn get_block_render_data(&self, block_id: BlockId) -> &BlockRenderData {
-        self.registry.get_render_data(block_id)
-    }
-
     #[inline(always)]
     fn update_metadata(&mut self, block_id: BlockId) {
         // uniformity
@@ -166,8 +160,8 @@ impl<'a> PaintWriter<'a> {
 
         // transparency
         if !self.metadata.contains_transparent {
-            let props = self.registry.get_render_data(block_id);
-            if props.is_transparent {
+            let is_transparent = self.registry.get_transparency_lut()[block_id as usize];
+            if is_transparent {
                 self.metadata.contains_transparent = true;
             }
         }

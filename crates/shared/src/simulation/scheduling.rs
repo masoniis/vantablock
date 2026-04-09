@@ -1,9 +1,5 @@
 use bevy::ecs::prelude::SystemSet;
 
-// INFO: -------------------------
-//         Core scheduling
-// -------------------------------
-
 /// The sets for the fixed timestep schedule.
 /// Used to strictly order logic within Bevy's native `FixedUpdate` schedule.
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]

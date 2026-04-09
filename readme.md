@@ -45,11 +45,8 @@ Assuming rust is properly setup, `cargo` can be used like any standard Rust proj
 
 ### Common problems
 
-1. MOUSE CAN BE UNLOCKED WITH `ESCAPE`
-
-2. UI is EXPENSIVE. I recommend turning it off when you aren't actively paying attention to it.
-3. Shadows have very low render distance of 32 voxels (didn't have time for cascaded shadow maps) and also have some other small issues.
-4. Chunk generation speed is not extremely fast (swap generator type with `T`). It is easy to overwhelm it by moving fast depending on hardware.
+1. Mouse can be unlocked with `Escape`
+2. Shadows have very low render distance of 32 voxels and also have other noticable issues.
 
 ### Keybinds
 
@@ -79,7 +76,7 @@ Assuming rust is properly setup, `cargo` can be used like any standard Rust proj
 4. Full transparency support via a separate render pass.
 5. Custom UI implementation (with `taffy` for computing flexbox layouts and `glyphon` for text heavylifting)
 6. Custom fog and sky shaders that define the sky and horizon blending with sun/moon.
-7. Convenient texture and voxel definition loading enabling swapping voxel textures easily in the `assets/shared/blocks` folder.
+7. Convenient texture and voxel definition loading enabling swapping voxel textures easily in the `assets/shared/block` folder.
 8. Water vertices "wave" up and down if you look at them closer
 
 </details>

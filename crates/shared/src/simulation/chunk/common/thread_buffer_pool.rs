@@ -17,15 +17,7 @@ pub fn acquire_buffer() -> Vec<BlockId> {
             vec
         }
         None => {
-            if let Some(index) = rayon::current_thread_index() {
-                debug!(
-                    target : "memory",
-                    "Allocating a new vector in thread buffer pool for Worker {}",
-                    index
-                );
-            } else {
-                debug!("Allocating a new vector on Main Thread");
-            }
+            debug!("Allocating a new vector on background/main thread buffer pool");
             Vec::with_capacity(TOTAL_BUFFER_SIZE)
         }
     })

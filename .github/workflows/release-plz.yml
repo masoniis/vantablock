@@ -89,7 +89,7 @@ jobs:
 
       - name: Build and Package
         run: |
-          cargo build -p client --profile distribution --features final_release
+          cargo build -p client --profile distribution --features distribution
           cargo packager -p client --profile distribution
 
       - name: Extract Client Release Tag

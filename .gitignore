@@ -6,3 +6,4 @@
 
 # project specific
 /target
+.dev_data

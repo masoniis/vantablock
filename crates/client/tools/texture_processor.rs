@@ -2,12 +2,12 @@ use image::{ImageBuffer, Rgba};
 
 fn main() {
     // Tint grass textures
-    tint_image("assets/client/textures/faithful/grass_top.png");
-    tint_image("assets/client/textures/rhinestone/grass_top.png");
+    tint_image("assets/client/texture/faithful/grass_top.png");
+    tint_image("assets/client/texture/rhinestone/grass_top.png");
 
     // Generate transparent water texture
-    create_transparent_water("assets/client/textures/faithful/water.png");
-    create_transparent_water("assets/client/textures/rhinestone/water.png");
+    create_transparent_water("assets/client/texture/faithful/water.png");
+    create_transparent_water("assets/client/texture/rhinestone/water.png");
 }
 
 fn tint_image(path: &str) {

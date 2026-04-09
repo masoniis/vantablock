@@ -1,11 +1,7 @@
 use crate::{
     prelude::*,
-    simulation::block::texture_registry::{TextureId, TextureRegistryResource},
-    simulation::block::{
-        BlockDescription, BlockFaceTextures, BlockRenderData, load_block_from_str,
-    },
+    simulation::block::{BlockDescription, load_block_from_str},
 };
-use bevy::asset::AssetServer;
 use bevy::ecs::prelude::*;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -17,17 +13,11 @@ pub const AIR_BLOCK_ID: BlockId = 0;
 /// ID of a default solid block guaranteed to exist (probably stone).
 pub const SOLID_BLOCK_ID: BlockId = 1;
 
-#[derive(Resource, Clone)]
-pub struct BlockRegistryResource {
-    /// All loaded block render data from disc.
-    render_data: Arc<Vec<BlockRenderData>>,
+#[derive(Resource, Clone, Default)]
+pub struct BlockRegistry {
     /// Direct access to transparency data from BlockRenderData
     /// to optimize super hot loops (meshing).
     transparency_lut: Arc<Vec<bool>>,
-    /// Direct access to slices of TextureIds (Hot Array)
-    /// to optimize super hot loops (meshing).
-    /// Layout: [Top, Bottom, Left, Right, Front, Back]
-    texture_lut: Arc<Vec<[TextureId; 6]>>,
 
     /// All loaded block descriptors from disc.
     descriptions: Arc<Vec<BlockDescription>>,
@@ -36,26 +26,7 @@ pub struct BlockRegistryResource {
     name_to_id: Arc<HashMap<String, BlockId>>,
 }
 
-impl FromWorld for BlockRegistryResource {
-    fn from_world(world: &mut World) -> Self {
-        let texture_registry = world.get_resource::<TextureRegistryResource>();
-        let persistent_paths = world
-            .get_resource::<PersistentPaths>()
-            .cloned()
-            .unwrap_or_else(PersistentPaths::resolve);
-        Self::load_from_disk(texture_registry, &persistent_paths)
-    }
-}
-
-impl BlockRegistryResource {
-    /// Gets the render data for a given block ID.
-    ///
-    /// Will have undefined behavior if the block ID is not within bounds.
-    #[inline(always)]
-    pub fn get_render_data(&self, id: BlockId) -> &BlockRenderData {
-        unsafe { self.render_data.get_unchecked(id as usize) }
-    }
-
+impl BlockRegistry {
     /// Gets the description/metadata for a given block ID.
     ///
     /// Will have undefined behavior if the block ID is not within bounds.
@@ -82,42 +53,17 @@ impl BlockRegistryResource {
         &self.transparency_lut
     }
 
-    /// Returns a slice of texture arrays for all blocks.
-    /// Index is BlockId.
-    ///
-    /// Use this for meshing to ensure O(1) array indexing without branching.
-    #[inline(always)]
-    pub fn get_texture_lut(&self) -> &[[TextureId; 6]] {
-        &self.texture_lut
-    }
-
     /// Internal util to load all blocks from disk into a new registry instance.
-    fn load_from_disk(
-        texture_registry: Option<&TextureRegistryResource>,
-        persistent_paths: &PersistentPaths,
-    ) -> Self {
-        info!("Loading block definitions from disk...");
+    pub fn load_from_disk(persistent_paths: &PersistentPaths) -> Self {
+        info!("Loading block definitions from disk (Simulation)...");
 
-        let mut render_data_vec: Vec<BlockRenderData<TextureId>> = Vec::new();
+        let mut transparency_vec: Vec<bool> = Vec::new();
         let mut descriptions_vec: Vec<BlockDescription> = Vec::new();
-        let mut texture_lut_vec: Vec<[TextureId; 6]> = Vec::new();
         let mut name_to_id: HashMap<String, BlockId> = HashMap::new();
 
         // INFO: ---------------------------------------
         //          manual air block registration (ID 0)
         // ---------------------------------------------
-
-        let air_render = BlockRenderData {
-            is_transparent: true,
-            textures: BlockFaceTextures {
-                front: "missing".to_string(),
-                back: "missing".to_string(),
-                right: "missing".to_string(),
-                left: "missing".to_string(),
-                top: "missing".to_string(),
-                bottom: "missing".to_string(),
-            },
-        };
 
         let air_desc = BlockDescription {
             display_name: "Air".to_string(),
@@ -125,13 +71,11 @@ impl BlockRegistryResource {
 
         let air_id = register_block(
             "air".to_string(),
-            air_render,
+            true,
             air_desc,
             None,
-            texture_registry,
-            &mut render_data_vec,
+            &mut transparency_vec,
             &mut descriptions_vec,
-            &mut texture_lut_vec,
             &mut name_to_id,
         );
         if air_id != AIR_BLOCK_ID {
@@ -142,34 +86,20 @@ impl BlockRegistryResource {
         //          reserve stone block ID (ID 1)
         // ----------------------------------------------
 
-        let missing_texture_id = texture_registry.map(|r| r.get_id("missing")).unwrap_or(0);
-
-        let placeholder_render_data_ids = BlockRenderData {
-            is_transparent: false,
-            textures: BlockFaceTextures {
-                front: missing_texture_id,
-                back: missing_texture_id,
-                right: missing_texture_id,
-                left: missing_texture_id,
-                top: missing_texture_id,
-                bottom: missing_texture_id,
-            },
-        };
-
         let placeholder_desc = BlockDescription {
             display_name: "Stone (Placeholder)".to_string(),
         };
 
-        render_data_vec.push(placeholder_render_data_ids);
+        transparency_vec.push(false);
         descriptions_vec.push(placeholder_desc);
-        texture_lut_vec.push([missing_texture_id; 6]);
+        name_to_id.insert("stone".to_string(), SOLID_BLOCK_ID);
 
         // INFO: ------------------------------------------
-        //         parse blocks from shared assets
+        //         parse block from shared assets
         // ------------------------------------------------
 
         let mut stone_was_loaded = false;
-        let full_path = persistent_paths.assets_dir.join("shared/blocks");
+        let full_path = persistent_paths.assets_dir.join("shared/block");
 
         if full_path.is_dir() {
             let entries = std::fs::read_dir(&full_path).unwrap_or_else(|e| {
@@ -194,26 +124,22 @@ impl BlockRegistryResource {
                         if name == "stone" {
                             register_block(
                                 name.clone(),
-                                render_props,
+                                render_props.is_transparent,
                                 desc_props,
                                 Some(SOLID_BLOCK_ID),
-                                texture_registry,
-                                &mut render_data_vec,
+                                &mut transparency_vec,
                                 &mut descriptions_vec,
-                                &mut texture_lut_vec,
                                 &mut name_to_id,
                             );
                             stone_was_loaded = true;
                         } else {
                             register_block(
                                 name.clone(),
-                                render_props,
+                                render_props.is_transparent,
                                 desc_props,
                                 None,
-                                texture_registry,
-                                &mut render_data_vec,
+                                &mut transparency_vec,
                                 &mut descriptions_vec,
-                                &mut texture_lut_vec,
                                 &mut name_to_id,
                             );
                         }
@@ -226,67 +152,42 @@ impl BlockRegistryResource {
             warn!("'stone.ron' was not found in assets! ID 1 remains a placeholder.");
         }
 
-        let transparency_lut: Vec<bool> =
-            render_data_vec.iter().map(|d| d.is_transparent).collect();
-
         Self {
-            render_data: Arc::new(render_data_vec),
-            transparency_lut: Arc::new(transparency_lut),
-            texture_lut: Arc::new(texture_lut_vec),
+            transparency_lut: Arc::new(transparency_vec),
             descriptions: Arc::new(descriptions_vec),
+            name_to_id: Arc::new(name_to_id),
+        }
+    }
+
+    /// Construct a registry from raw components (used by unified loading tasks)
+    pub fn from_raw(
+        transparency_lut: Vec<bool>,
+        descriptions: Vec<BlockDescription>,
+        name_to_id: HashMap<String, BlockId>,
+    ) -> Self {
+        Self {
+            transparency_lut: Arc::new(transparency_lut),
+            descriptions: Arc::new(descriptions),
             name_to_id: Arc::new(name_to_id),
         }
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 fn register_block(
     name: String,
-    render: BlockRenderData<String>,
+    is_transparent: bool,
     desc: BlockDescription,
     force_id: Option<BlockId>,
-    texture_registry: Option<&TextureRegistryResource>,
-    render_data_vec: &mut Vec<BlockRenderData<TextureId>>,
+    transparency_vec: &mut Vec<bool>,
     descriptions_vec: &mut Vec<BlockDescription>,
-    texture_lut_vec: &mut Vec<[TextureId; 6]>,
     name_to_id: &mut HashMap<String, BlockId>,
 ) -> BlockId {
-    // resolve strings from parsed ron to textures
-    let resolved_textures = if let Some(registry) = texture_registry {
-        render.textures.map(|n| registry.get_id(&n))
-    } else {
-        BlockFaceTextures {
-            front: 0,
-            back: 0,
-            left: 0,
-            right: 0,
-            top: 0,
-            bottom: 0,
-        }
-    };
-
-    let render_with_ids = BlockRenderData {
-        is_transparent: render.is_transparent,
-        textures: resolved_textures.clone(),
-    };
-
-    // hot texture array
-    let texture_array = [
-        resolved_textures.top,
-        resolved_textures.bottom,
-        resolved_textures.right,
-        resolved_textures.left,
-        resolved_textures.front,
-        resolved_textures.back,
-    ];
-
     // force id into slot
     if let Some(target_id) = force_id {
         let idx = target_id as usize;
-        if idx < render_data_vec.len() {
-            render_data_vec[idx] = render_with_ids;
+        if idx < transparency_vec.len() {
+            transparency_vec[idx] = is_transparent;
             descriptions_vec[idx] = desc;
-            texture_lut_vec[idx] = texture_array;
             name_to_id.insert(name.to_lowercase(), target_id);
             target_id
         } else {
@@ -294,29 +195,14 @@ fn register_block(
                 "Critical: Attempted to force block '{}' to ID {} but registry length is {}",
                 name,
                 target_id,
-                render_data_vec.len()
+                transparency_vec.len()
             );
         }
     } else {
-        let id = render_data_vec.len() as BlockId;
-        render_data_vec.push(render_with_ids);
+        let id = transparency_vec.len() as BlockId;
+        transparency_vec.push(is_transparent);
         descriptions_vec.push(desc);
-        texture_lut_vec.push(texture_array);
         name_to_id.insert(name.to_lowercase(), id);
         id
     }
-}
-
-/// A system that scans the block directory and loads all definitions found.
-/// This system replaces the manual `FromWorld` implementation to support standard AssetServer pathing.
-#[instrument(skip_all)]
-pub fn initialize_block_registry_system(
-    mut commands: Commands,
-    _asset_server: Res<AssetServer>,
-    texture_registry: Option<Res<TextureRegistryResource>>,
-    persistent_paths: Res<PersistentPaths>,
-) {
-    let registry =
-        BlockRegistryResource::load_from_disk(texture_registry.as_deref(), &persistent_paths);
-    commands.insert_resource(registry);
 }

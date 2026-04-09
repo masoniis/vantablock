@@ -4,17 +4,15 @@ pub mod shader_registry;
 pub mod shadow_pass;
 
 pub use gpu_resources::*;
+pub use main_passes::*;
+pub use shader_registry::*;
+pub use shadow_pass::*;
 
 // INFO: ---------------------------
 //         plugin definition
 // ---------------------------------
 
-use crate::{
-    VantablockNode,
-    render::pipeline::{
-        main_passes::PlayerCentricRenderPassPlugin, shadow_pass::ShadowRenderPassPlugin,
-    },
-};
+use crate::VantablockNode;
 use bevy::{
     app::{App, Plugin},
     render::render_graph::RenderGraphExt,
@@ -43,8 +41,6 @@ pub struct RenderGraphEdgesPlugin;
 
 impl Plugin for RenderGraphEdgesPlugin {
     fn build(&self, app: &mut App) {
-        // Wire the edges inside the Core3d sub-graph to ensure our custom passes
-        // run in the correct order relative to Bevy's native passes.
         app.add_render_graph_edges(
             bevy::core_pipeline::core_3d::graph::Core3d,
             (

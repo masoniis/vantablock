@@ -1,30 +1,31 @@
+use crate::player::CAMERA_NEAR_PLANE;
 use crate::prelude::*;
-use crate::render::global_extract::ExtractedSun;
+use crate::render::data::ExtractedSun;
+use crate::render::pipeline::main_passes::opaque_pass::queue::Opaque3dRenderPhase;
 use crate::render::pipeline::shadow_pass::gpu_resources::SHADOW_MAP_RESOLUTION;
-use crate::{
-    render::{
-        global_extract::RenderCameraResource,
-        pipeline::shadow_pass::gpu_resources::{ShadowViewBuffer, ShadowViewData},
-    },
-    simulation::player::CAMERA_NEAR_PLANE,
-};
+use crate::render::pipeline::shadow_pass::gpu_resources::{ShadowViewBuffer, ShadowViewData};
 use bevy::ecs::prelude::*;
 use bevy::math::Vec4Swizzles;
 use bevy::render::renderer::RenderQueue;
+use bevy::render::view::ExtractedView;
 
 /// The max distance at which shadows render
-const SHADOW_DISTANCE: f32 = 64.0;
+const SHADOW_DISTANCE: f32 = 256.0;
 
 #[instrument(skip_all)]
 pub fn update_shadow_view_buffer_system(
-    // Input
+    // input
     view_buffer: Res<ShadowViewBuffer>,
-    camera: Res<RenderCameraResource>,
+    view_query: Query<(&ExtractedView, &Opaque3dRenderPhase)>,
     sun: Res<ExtractedSun>,
 
-    // Output (writing buffer to queue)
+    // output (writing buffer to queue)
     queue: Res<RenderQueue>,
 ) {
+    let Some((extracted_view, _)) = view_query.iter().next() else {
+        return;
+    };
+
     // INFO: -------------------------
     //         sun view matrix
     // -------------------------------
@@ -40,16 +41,19 @@ pub fn update_shadow_view_buffer_system(
     };
 
     // view mat
-    let sun_target = camera.world_position;
+    let camera_position = extracted_view.world_from_view.translation();
+    let sun_target = camera_position;
     let sun_position = sun_target + sun_direction * 1024.0; // sun is "far away" from target
     let sun_view_mat = Mat4::look_at_rh(sun_position, sun_target, light_up);
 
     // camera view and inverse matrices
-    let view_proj = camera.projection_matrix * camera.view_matrix;
+    let view_matrix = extracted_view.world_from_view.to_matrix().inverse();
+    let projection_matrix = extracted_view.clip_from_view;
+    let view_proj = projection_matrix * view_matrix;
     let inv_view_proj = view_proj.inverse();
 
     // INFO: ------------------------------
-    //        frustum bounding box
+    //         frustum bounding box
     // ------------------------------------
     // NOTE: goal is to create a bounding box for the shadow texture that fits
     // the camera frustum in order to be efficient with the texture map
@@ -57,7 +61,7 @@ pub fn update_shadow_view_buffer_system(
     // far plane is close to 0, but not 0 since 0 is "infinite" away
     // using the infinite reverse z projection
     let z_ndc_far = CAMERA_NEAR_PLANE / SHADOW_DISTANCE;
-    let frustum_corners_ndc = [
+    let frustum_corners_ndc: [Vec4; 8] = [
         // near plane (z=1.0)
         vec4(-1.0, -1.0, 1.0, 1.0),
         vec4(1.0, -1.0, 1.0, 1.0),
@@ -76,12 +80,12 @@ pub fn update_shadow_view_buffer_system(
 
     for &corner_ndc in frustum_corners_ndc.iter() {
         // ndc -> world space
-        let world_pos_w = inv_view_proj * corner_ndc;
-        let world_pos = world_pos_w.xyz() / world_pos_w.w;
+        let world_pos_w: Vec4 = inv_view_proj * corner_ndc;
+        let world_pos: Vec3 = world_pos_w.xyz() / world_pos_w.w;
 
         // world space -> sun view space
-        let light_space_pos_w = sun_view_mat * world_pos.extend(1.0);
-        let light_space_pos = light_space_pos_w.xyz();
+        let light_space_pos_w: Vec4 = sun_view_mat * world_pos.extend(1.0);
+        let light_space_pos: Vec3 = light_space_pos_w.xyz();
 
         // find the min/max of the box in sun space
         min_light_space = min_light_space.min(light_space_pos);

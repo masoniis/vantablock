@@ -1,5 +1,4 @@
-pub mod app_lifecycle;
-pub mod asset_management;
+pub mod asset;
 pub mod biome;
 pub mod block;
 pub mod chunk;

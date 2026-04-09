@@ -31,9 +31,9 @@ impl Plugin for ShadowRenderPassPlugin {
             update_shadow_view_buffer_system.in_set(RenderSystems::Prepare),
         );
 
-        // INFO: -----------------------------------------
-        //         Render Graph Integration
-        // -----------------------------------------------
+        // INFO: ----------------------------------
+        //         render graph integration
+        // ----------------------------------------
 
         app.add_render_graph_node::<ViewNodeRunner<ShadowRenderPassNode>>(
             bevy::core_pipeline::core_3d::graph::Core3d,

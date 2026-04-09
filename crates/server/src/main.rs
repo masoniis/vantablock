@@ -4,14 +4,8 @@ use bevy::{
     asset::AssetPlugin,
     prelude::{PluginGroup, default, info},
 };
-use shared::{
-    ecs_core::LoadingTracker,
-    simulation::{
-        app_lifecycle::AppLifecyclePlugin, asset_management::AssetManagementPlugin,
-        biome::BiomePlugin, block::BlockPlugin, chunk::ChunkLoadingPlugin,
-        terrain::TerrainGenerationPlugin, time::TimeControlPlugin,
-    },
-};
+use server::ServerPlugins;
+use shared::load::LoadingTracker;
 use std::time::Duration;
 use utils::PersistentPaths;
 
@@ -38,16 +32,8 @@ fn main() {
     app.insert_resource(persistent_paths);
     app.insert_resource(LoadingTracker::default());
 
-    // add shared simulation plugins
-    app.add_plugins((
-        AppLifecyclePlugin,
-        AssetManagementPlugin,
-        BlockPlugin,
-        BiomePlugin,
-        ChunkLoadingPlugin,
-        TerrainGenerationPlugin,
-        TimeControlPlugin,
-    ));
+    // add server-side and shared plugins
+    app.add_plugins(ServerPlugins);
 
     info!("Server started successfully!");
     app.run();

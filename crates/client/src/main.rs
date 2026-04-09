@@ -1,9 +1,19 @@
-use bevy::log::LogPlugin;
-use bevy::{app::App, prelude::*, window::WindowResolution};
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+use bevy::{
+    app::{App, FixedUpdate, PostUpdate},
+    log::LogPlugin,
+    prelude::{
+        AssetPlugin, ClearColor, Color, DefaultPlugins, IntoScheduleConfigs, PluginGroup, Window,
+        WindowPlugin, default, info,
+    },
+    window::WindowResolution,
+};
 use client::prelude::*;
-use client::render::VantablockRenderPlugin;
-use client::simulation::SimulationPlugin;
-use shared::ecs_core::LoadingTracker;
+use shared::{
+    load::LoadingTracker,
+    simulation::scheduling::{FixedUpdateSet, RenderPrepSet},
+};
 use utils::PersistentPaths;
 
 #[instrument(skip_all, fields(name = "main"))]
@@ -13,15 +23,17 @@ fn main() {
     // setup default bevy app
     let mut app = App::new();
 
-    // Resolve platform paths and initialize application paths
+    // resolve platform paths
     let persistent_paths = PersistentPaths::resolve();
 
+    // config of default bevy plugins
     app.add_plugins(
         DefaultPlugins
             .set(WindowPlugin {
                 primary_window: Some(Window {
-                    title: "Vantablock".to_string(),
+                    title: format!("Vantablock v{}", env!("CARGO_PKG_VERSION")),
                     resolution: WindowResolution::new(1280, 720),
+                    visible: false,
                     ..default()
                 }),
                 ..default()
@@ -33,16 +45,25 @@ fn main() {
             .disable::<LogPlugin>(),
     );
 
+    // red clear color to prevent white screen flash
+    app.insert_resource(ClearColor(Color::linear_rgb(1.0, 0.0, 0.0)));
+
     // load config & loading trackers into main world
     app.insert_resource(ClientSettings::load_or_create(&persistent_paths));
     app.insert_resource(persistent_paths);
     app.insert_resource(LoadingTracker::default());
 
-    // initialize simulation and renderer
-    app.add_plugins(SimulationPlugin);
-    app.add_plugins(VantablockRenderPlugin);
+    // configure schedule sets
+    app.configure_sets(
+        FixedUpdate,
+        (FixedUpdateSet::PreUpdate, FixedUpdateSet::MainLogic).chain(),
+    );
 
-    // run the app...
+    app.configure_sets(PostUpdate, RenderPrepSet);
+
+    // initialize simulation and renderer
+    app.add_plugins((shared::SharedPlugins, client::ClientPlugins));
+
     app.run();
     info!("App exited safely!");
 }

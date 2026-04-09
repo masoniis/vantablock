@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use crate::render::global_extract::resources::RenderCameraResource;
+use crate::render::pipeline::main_passes::opaque_pass::queue::Opaque3dRenderPhase;
 use crate::render::pipeline::shadow_pass::gpu_resources::{
     ShadowDepthTextureResource, ShadowViewBuffer,
 };
@@ -8,6 +8,7 @@ use bevy::render::render_resource::{
     BindGroup, BindGroupEntry, BindingResource, Buffer, BufferDescriptor, BufferUsages,
 };
 use bevy::render::renderer::{RenderDevice, RenderQueue};
+use bevy::render::view::ExtractedView;
 use bytemuck::{Pod, Zeroable};
 use shared::simulation::chunk::{CHUNK_SIDE_LENGTH, RENDER_DISTANCE};
 
@@ -160,7 +161,7 @@ impl FromWorld for CentralCameraViewUniform {
 }
 
 // INFO: ----------------------------
-//         Management systems
+//         management systems
 // ----------------------------------
 
 /// Takes the extracted camera data and uploads it to the GPU buffer for any pass that needs it.
@@ -171,20 +172,24 @@ impl FromWorld for CentralCameraViewUniform {
 #[instrument(skip_all)]
 pub fn update_camera_view_buffer_system(
     // Input
-    camera_info: Res<RenderCameraResource>,
+    view_query: Query<(&ExtractedView, &Opaque3dRenderPhase)>,
     view_buffer: Res<CentralCameraViewUniform>,
 
     // Output (writing buffer to queue)
     queue: Res<RenderQueue>,
 ) {
-    let view_proj_matrix = camera_info.projection_matrix * camera_info.view_matrix;
+    if let Some((extracted_view, _)) = view_query.iter().next() {
+        let view_matrix = extracted_view.world_from_view.to_matrix().inverse();
+        let projection_matrix = extracted_view.clip_from_view;
+        let view_proj_matrix = projection_matrix * view_matrix;
 
-    let camera_data = CentralCameraViewData {
-        view_proj_matrix: view_proj_matrix.to_cols_array(),
-        inverse_view_proj_matrix: view_proj_matrix.inverse().to_cols_array(),
-        world_position: camera_info.world_position.into(),
-        render_distance: (RENDER_DISTANCE * CHUNK_SIDE_LENGTH as i32) as f32,
-    };
+        let camera_data = CentralCameraViewData {
+            view_proj_matrix: view_proj_matrix.to_cols_array(),
+            inverse_view_proj_matrix: view_proj_matrix.inverse().to_cols_array(),
+            world_position: extracted_view.world_from_view.translation().to_array(),
+            render_distance: (RENDER_DISTANCE * CHUNK_SIDE_LENGTH as i32) as f32,
+        };
 
-    queue.write_buffer(&view_buffer.buffer, 0, bytemuck::cast_slice(&[camera_data]));
+        queue.write_buffer(&view_buffer.buffer, 0, bytemuck::cast_slice(&[camera_data]));
+    }
 }
