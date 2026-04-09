@@ -1,5 +1,6 @@
 [package]
 name = "utils"
+description = "utils for vantablock"
 version.workspace = true
 edition.workspace = true
 

@@ -16,8 +16,8 @@ name = "server"
 path = "src/main.rs"
 
 [dependencies]
-shared = { path = "../shared" }
-utils = { path = "../utils" }
+utils = { workspace = true }
+shared = { workspace = true }
 
 # INFO: --------------------------------
 #         logging/error handling

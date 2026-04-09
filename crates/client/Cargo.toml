@@ -1,5 +1,6 @@
 [package]
 name = "client"
+description = "client for vantablock"
 version.workspace = true
 edition.workspace = true
 default-run = "client"
@@ -46,8 +47,8 @@ name = "texture_processor"
 path = "tools/texture_processor.rs"
 
 [dependencies]
-utils = { path = "../utils" }
-shared = { path = "../shared" }
+utils = { workspace = true }
+shared = { workspace = true }
 
 # INFO: --------------------------------
 #         logging/error handling

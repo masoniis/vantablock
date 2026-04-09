@@ -1,16 +1,32 @@
 [workspace]
 changelog_path = "./CHANGELOG.md"
+
+publish = false            # don't publish to crates.io
+git_tag_enable = false     # default no tags for workspace crates
+git_release_enable = false # default no gh release for workspace crates
+release = false            # default no release for workspace crates
+release_always = false     # do not publish on every commit to main
+semver_check = false       # do not semver
+
+# visual release/pr config
+git_release_type = "auto"   # mark as pre-release on gh if rc, otherwise normal release
 pr_labels = ["autorelease"]
-publish = false                   # don't publish to crates.io
-git_tag_enable = false            # default no tag for workspace crates
-git_release_enable = false        # default no release for workspace crates
+# TODO: more robust way to query version change than array index 0
+pr_body = """
+# **Vantablock**: {{ releases[0].previous_version }} -> {{ releases[0].next_version }}
+
+{{ releases[0].changelog }}
+"""
 
 # client package is the main release entrypoint
 [[package]]
 name = "client"
-git_release_enable = true
-git_tag_enable = true
 release = true
+# TODO: can't get git_only to work, https://github.com/release-plz/release-plz/issues/2595
+# waiting on https://github.com/release-plz/release-plz/pull/2652 to be merged, seems like the fix
+# git_only = true            # rely on git tags instead of crates.io
+git_tag_enable = true                           # create tags
+git_release_enable = true                       # make a gh release
 git_release_name = "Vanta🅱️lock v{{ version }}" # release with game name since single-release
 git_tag_name = "v{{ version }}"                 # tag with only version since single-release
 

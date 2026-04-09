@@ -5,6 +5,7 @@ resolver = "2"
 [workspace.package]
 version = "0.0.1"
 edition = "2024"
+publish = false
 
 [workspace.lints.clippy]
 type_complexity = "allow"
@@ -35,12 +36,16 @@ panic = "abort"
 strip = true
 debug = false
 
+# INFO: ------------------------
+#         workspace deps
+# ------------------------------
+
 [workspace.dependencies]
+# crate deps
+utils = { path = "./crates/utils" }
+shared = { path = "./crates/shared" }
 
-# INFO: --------------------------------
-#         logging/error handling
-# --------------------------------------
-
+# logging/error handling deps
 time = { version = "0.3.43", features = ["formatting", "macros"] }
 tracing = { version = "0.1.41", features = ["release_max_level_info"] }
 tracing-subscriber = { version = "0.3.20", features = [
@@ -51,19 +56,13 @@ tracing-subscriber = { version = "0.3.20", features = [
 tracy-client = "=0.18.0"
 tracing-tracy = "=0.11.4"
 
-# INFO: ------------------
-#         graphics
-# ------------------------
-
+# graphics deps
 wesl = "0.2.0"                                                               # shader compliation from WESL to WGSL
 image = { version = "0.25.6", default-features = false, features = ["png"] }
 bytemuck = { version = "1.13", features = ["derive"] }                       # gpu friendly data
 offset-allocator = "0.2.0"                                                   # gpu buffer allocation
 
-# INFO: --------------------------
-#         simulation logic
-# --------------------------------
-
+# simulation related deps
 bevy = { version = "0.18.1", default-features = false, features = [
   "default_app",      # core app/ecs/etc
   "default_platform", # core OS features, windowing, input, etc
@@ -74,10 +73,7 @@ bevy = { version = "0.18.1", default-features = false, features = [
 ] }
 futures-lite = "2.6.1" # future utils
 
-# INFO: ---------------
-#         utils
-# ---------------------
-
+# util deps
 sysinfo = { version = "0.37.2", default-features = false, features = [
   "system",
 ] }
