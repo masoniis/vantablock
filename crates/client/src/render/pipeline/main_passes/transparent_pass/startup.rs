@@ -1,6 +1,6 @@
 use super::super::shared_resources::{
-    CentralCameraViewBindGroupLayout, EnvironmentBindGroupLayout, MAIN_DEPTH_FORMAT,
-    TextureArrayBindGroupLayout,
+    CentralCameraViewBindGroupLayout, EnvironmentBindGroupLayout, TextureArrayBindGroupLayout,
+    MAIN_DEPTH_FORMAT,
 };
 use crate::render::pipeline::{
     gpu_resources::world_uniforms::ChunkStorageBindGroupLayout,
@@ -19,13 +19,12 @@ pub struct TransparentPipelineKey {
     pub hdr: bool,
 }
 
-// TODO: we should storethe actual layouts, NOT the descriptors
 #[derive(Resource)]
 pub struct TransparentPipeline {
-    pub view_layout: BindGroupLayoutDescriptor,
-    pub environment_layout: BindGroupLayoutDescriptor,
-    pub texture_layout: BindGroupLayoutDescriptor,
-    pub chunk_storage_layout: BindGroupLayoutDescriptor,
+    pub view_layout_descriptor: BindGroupLayoutDescriptor,
+    pub environment_layout_descriptor: BindGroupLayoutDescriptor,
+    pub texture_layout_descriptor: BindGroupLayoutDescriptor,
+    pub chunk_storage_layout_descriptor: BindGroupLayoutDescriptor,
 }
 
 impl FromWorld for TransparentPipeline {
@@ -37,10 +36,10 @@ impl FromWorld for TransparentPipeline {
         let chunk_storage_layout = world.resource::<ChunkStorageBindGroupLayout>();
 
         Self {
-            view_layout: view_layout.descriptor.clone(),
-            environment_layout: environment_layout.descriptor.clone(),
-            texture_layout: texture_layout.descriptor.clone(),
-            chunk_storage_layout: chunk_storage_layout.descriptor.clone(),
+            view_layout_descriptor: view_layout.descriptor.clone(),
+            environment_layout_descriptor: environment_layout.descriptor.clone(),
+            texture_layout_descriptor: texture_layout.descriptor.clone(),
+            chunk_storage_layout_descriptor: chunk_storage_layout.descriptor.clone(),
         }
     }
 }
@@ -58,10 +57,10 @@ impl SpecializedRenderPipeline for TransparentPipeline {
         RenderPipelineDescriptor {
             label: Some("Transparent Render Pipeline".into()),
             layout: vec![
-                self.view_layout.clone(),
-                self.environment_layout.clone(),
-                self.texture_layout.clone(),
-                self.chunk_storage_layout.clone(),
+                self.view_layout_descriptor.clone(),
+                self.environment_layout_descriptor.clone(),
+                self.texture_layout_descriptor.clone(),
+                self.chunk_storage_layout_descriptor.clone(),
             ],
             push_constant_ranges: vec![],
             vertex: VertexState {
