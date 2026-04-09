@@ -2,18 +2,14 @@ use bevy::{
     app::{App, FixedUpdate, PostUpdate},
     log::LogPlugin,
     prelude::{
-        default, info, AssetPlugin, ClearColor, Color, DefaultPlugins, IntoScheduleConfigs,
-        PluginGroup, Startup, Window, WindowPlugin,
+        AssetPlugin, ClearColor, Color, DefaultPlugins, IntoScheduleConfigs, PluginGroup, Window,
+        WindowPlugin, default, info,
     },
     window::WindowResolution,
 };
 use client::{
-    input::InputModulePlugin,
-    player::PlayerPlugin,
-    prelude::*,
-    render::{texture::start_async_registry_initialization, VantablockRenderPlugin},
-    showcase::ShowcasePlugin,
-    state::ClientLifecyclePlugin,
+    input::InputModulePlugin, load::ClientLoadPlugin, player::PlayerPlugin, prelude::*,
+    render::VantablockRenderPlugin, showcase::ShowcasePlugin, state::ClientLifecyclePlugin,
     ui::VantablockUiPlugin,
 };
 use shared::{
@@ -80,6 +76,7 @@ fn main() {
     app.add_plugins((
         // client-specific simulation
         ClientLifecyclePlugin,
+        ClientLoadPlugin,
         InputModulePlugin,
         PlayerPlugin,
         ShowcasePlugin,
@@ -95,9 +92,6 @@ fn main() {
         VantablockUiPlugin,
         VantablockRenderPlugin,
     ));
-
-    // start background registry initialization
-    app.add_systems(Startup, start_async_registry_initialization);
 
     app.run();
     info!("App exited safely!");

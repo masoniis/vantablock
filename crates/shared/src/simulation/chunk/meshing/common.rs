@@ -1,7 +1,7 @@
 use super::{OpaqueMeshData, TransparentMeshData};
 use crate::simulation::chunk::meshing::packed_face::PackedFace;
 use crate::simulation::{
-    block::{BlockId, BlockRegistryResource},
+    block::{BlockId, BlockRegistry},
     chunk::{NeighborLODs, PaddedChunk, types::ChunkLod},
 };
 use crate::{prelude::*, simulation::block::texture_registry::TextureId};
@@ -258,16 +258,17 @@ pub fn build_mesh_assets(
     (opaque, trans)
 }
 
-pub struct MesherContext<'a> {
+pub struct MesherContext<'a, R> {
     pub padded_chunk: &'a PaddedChunk,
-    pub block_registry: &'a BlockRegistryResource,
+    pub block_registry: &'a BlockRegistry,
+    pub render_registry: &'a R,
     pub center_lod: ChunkLod,
     pub neighbor_lods: &'a NeighborLODs,
     pub chunk_size: usize,
     pub scale: f32,
 }
 
-impl<'a> MesherContext<'a> {
+impl<'a, R> MesherContext<'a, R> {
     #[inline(always)]
     pub fn push_face(
         &self,

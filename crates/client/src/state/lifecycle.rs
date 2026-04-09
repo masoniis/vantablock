@@ -2,11 +2,11 @@ use crate::state::enums::{ClientAppState, ClientGameState};
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 use shared::{
-    load::{
-        master_finalize_loading_system, reset_loading_tracker_system, LoadingTracker,
-        OnLoadComplete,
-    },
     FixedUpdateSet, RenderPrepSet,
+    load::{
+        LoadingTracker, OnLoadComplete, master_finalize_loading_system,
+        reset_loading_tracker_system,
+    },
 };
 
 pub struct ClientLifecyclePlugin;

@@ -1,4 +1,5 @@
 pub mod input;
+pub mod load;
 pub mod player;
 pub mod prelude;
 pub mod render;

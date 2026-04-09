@@ -1,3 +1,4 @@
+pub mod block;
 pub mod data;
 pub mod pipeline;
 pub mod scheduling;
@@ -43,6 +44,7 @@ pub struct VantablockRenderPlugin;
 impl Plugin for VantablockRenderPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(pipeline::shader_registry::VantablockShaderPlugin);
+        app.add_plugins(block::BlockRenderPlugin);
 
         app.init_asset::<VoxelMeshAsset>();
 

@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use crate::simulation::{
     biome::BiomeRegistryResource,
-    block::BlockRegistryResource,
+    block::BlockRegistry,
     chunk::{
         ChunkBlocksComponent, ChunkCoord, ChunkGenerationTaskComponent, ChunkState,
         ChunkStateManager, NeedsGenerating, components::GeneratedChunkComponentBundle,
@@ -32,7 +32,7 @@ pub fn start_pending_generation_tasks_system(
     // Output/Resources
     mut commands: Commands,
     mut chunk_manager: ResMut<ChunkStateManager>,
-    block_registry: Res<BlockRegistryResource>,
+    block_registry: Res<BlockRegistry>,
     biome_registry: Res<BiomeRegistryResource>,
     biome_generator: Res<ActiveBiomeGenerator>,
     terrain_generator: Res<ActiveTerrainGenerator>,

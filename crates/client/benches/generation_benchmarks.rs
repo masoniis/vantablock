@@ -1,11 +1,11 @@
 use bevy::ecs::prelude::World;
 use client::prelude::*;
-use client::render::texture::VoxelTextureProcessor;
+use client::render::{block::BlockRenderDataRegistry, texture::VoxelTextureProcessor};
 use client::settings::ClientSettings;
 use criterion::{Criterion, criterion_group, criterion_main};
 use shared::simulation::{
     biome::biome_registry::BiomeRegistryResource,
-    block::{BlockRegistryResource, SOLID_BLOCK_ID},
+    block::{BlockRegistry, SOLID_BLOCK_ID},
     chunk::{
         ChunkDataOption, NeighborLODs, PaddedChunk, build_chunk_mesh,
         components::{ChunkBlocksComponent, ChunkCoord},
@@ -31,23 +31,13 @@ fn bench_chunk_generation(c: &mut Criterion) {
     // ---------------------
 
     let persistent_paths = PersistentPaths::resolve();
-    let client_settings = ClientSettings::load_or_create(&persistent_paths);
+    let block_registry = BlockRegistry::load_from_disk(&persistent_paths);
 
     let mut world = World::new();
-    world.insert_resource(
-        VoxelTextureProcessor::new(
-            persistent_paths.assets_dir.clone(),
-            &client_settings.texture_pack,
-        )
-        .create_registry()
-        .unwrap(),
-    );
     world.insert_resource(persistent_paths.clone());
-
-    world.init_resource::<BlockRegistryResource>();
+    world.insert_resource(block_registry.clone());
     world.init_resource::<BiomeRegistryResource>();
 
-    let block_registry = world.resource::<BlockRegistryResource>().clone();
     let biome_registry = world.resource::<BiomeRegistryResource>().clone();
 
     let origin_chunk_coord = ChunkCoord {
@@ -133,19 +123,20 @@ fn bench_chunk_meshing(c: &mut Criterion) {
     let persistent_paths = PersistentPaths::resolve();
     let client_settings = ClientSettings::load_or_create(&persistent_paths);
 
-    let mut world = World::new();
-    world.insert_resource(
-        VoxelTextureProcessor::new(
-            persistent_paths.assets_dir.clone(),
-            &client_settings.texture_pack,
-        )
-        .create_registry()
-        .unwrap(),
-    );
-    world.insert_resource(persistent_paths.clone());
-    world.init_resource::<BlockRegistryResource>();
+    // meshing requires textures to resolve
+    let (_texture_array, texture_registry) = VoxelTextureProcessor::new(
+        persistent_paths.assets_dir.clone(),
+        &client_settings.texture_pack,
+    )
+    .load_and_stitch()
+    .expect("Failed to load and stitch textures");
 
-    let block_registry = world.resource::<BlockRegistryResource>().clone();
+    let block_registry = BlockRegistry::load_from_disk(&persistent_paths);
+    let render_registry = BlockRenderDataRegistry::load_from_disk(
+        &persistent_paths,
+        &block_registry,
+        &texture_registry,
+    );
 
     // INFO: ---------------------------------
     //         dense meshing benchmark
@@ -185,13 +176,20 @@ fn bench_chunk_meshing(c: &mut Criterion) {
     dense_chunks[1][1][1] = ChunkDataOption::Generated(center_chunk);
 
     let dense_neighbor_lods = NeighborLODs::default();
+    let texture_lut = render_registry.get_texture_lut();
 
     group.bench_function("dense meshing", |b| {
         b.iter(|| {
             let buffer = acquire_buffer();
             let dense_padded_chunk =
                 PaddedChunk::new(&dense_chunks, ChunkLod(0), dense_neighbor_lods, buffer);
-            build_chunk_mesh("bench_chunk_dense", &dense_padded_chunk, &block_registry)
+            build_chunk_mesh(
+                "bench_chunk_dense",
+                &dense_padded_chunk,
+                &block_registry,
+                &render_registry,
+                texture_lut,
+            )
         })
     });
 
@@ -222,7 +220,13 @@ fn bench_chunk_meshing(c: &mut Criterion) {
             let buffer = acquire_buffer();
             let hull_padded_chunk =
                 PaddedChunk::new(&hull_chunks, ChunkLod(0), hull_neighbor_lods, buffer);
-            build_chunk_mesh("bench_chunk_hull", &hull_padded_chunk, &block_registry)
+            build_chunk_mesh(
+                "bench_chunk_hull",
+                &hull_padded_chunk,
+                &block_registry,
+                &render_registry,
+                texture_lut,
+            )
         })
     });
 }

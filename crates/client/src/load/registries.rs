@@ -1,5 +1,8 @@
 use crate::prelude::*;
-use crate::render::texture::{BlockTextureArray, VoxelTextureProcessor};
+use crate::render::{
+    block::BlockRenderDataRegistry,
+    texture::{BlockTextureArray, VoxelTextureProcessor},
+};
 use bevy::{
     asset::Assets,
     prelude::{Commands, Image, Res, World},
@@ -8,7 +11,7 @@ use bevy::{
 use crossbeam::channel::unbounded;
 use shared::{
     load::{SimulationWorldLoadingTaskComponent, TaskResultCallback},
-    simulation::block::BlockRegistryResource,
+    simulation::block::BlockRegistry,
 };
 use utils::PersistentPaths;
 
@@ -35,9 +38,12 @@ pub fn start_async_registry_initialization(
                     .load_and_stitch()
                     .expect("Failed to load and stitch textures");
 
-            // block registry generation (depends on texture registry)
-            let block_registry =
-                BlockRegistryResource::load_from_disk(Some(&texture_registry), &paths);
+            // independent simulation block loading
+            let block_registry = BlockRegistry::load_from_disk(&paths);
+
+            // independent client render block loading (resolves IDs via simulation registry)
+            let render_registry =
+                BlockRenderDataRegistry::load_from_disk(&paths, &block_registry, &texture_registry);
 
             // prepare callback to apply results on main thread
             let callback: TaskResultCallback = Box::new(move |commands: &mut Commands| {
@@ -48,9 +54,10 @@ pub fn start_async_registry_initialization(
                     let mut image_assets = world.resource_mut::<Assets<Image>>();
                     let texture_handle = image_assets.add(texture_array_image);
 
-                    // insert both registries
+                    // insert all registries
                     world.insert_resource(texture_registry);
                     world.insert_resource(block_registry);
+                    world.insert_resource(render_registry);
 
                     // insert texture array handle
                     world.insert_resource(BlockTextureArray {

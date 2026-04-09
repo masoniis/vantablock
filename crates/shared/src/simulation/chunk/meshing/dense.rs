@@ -1,16 +1,18 @@
 use super::{OpaqueMeshData, TransparentMeshData, common::*};
 use crate::prelude::*;
 use crate::simulation::{
-    block::{BlockRegistryResource, block_registry::AIR_BLOCK_ID},
+    block::{BlockRegistry, block_registry::AIR_BLOCK_ID},
     chunk::{CHUNK_SIDE_LENGTH, PaddedChunk},
 };
 
 /// Standard mesher for dense, mixed-block chunks.
 #[instrument(skip_all)]
-pub fn build_dense_mesh(
+pub fn build_dense_mesh<R>(
     name: &str,
     padded_chunk: &PaddedChunk,
-    block_registry: &BlockRegistryResource,
+    block_registry: &BlockRegistry,
+    render_registry: &R,
+    texture_lut: &[[u32; 6]],
 ) -> (Option<OpaqueMeshData>, Option<TransparentMeshData>) {
     // TODO: using a buffer pool is probably better than this alloc guesswork
     // even though we ultimately need a personal copy of the data at the end
@@ -20,6 +22,7 @@ pub fn build_dense_mesh(
     let ctx = MesherContext {
         padded_chunk,
         block_registry,
+        render_registry,
         center_lod: padded_chunk.center_lod(),
         neighbor_lods: padded_chunk.neighbor_lods(),
         chunk_size: padded_chunk.get_size(),
@@ -27,7 +30,6 @@ pub fn build_dense_mesh(
     };
 
     let transparency_lut = block_registry.get_transparency_lut();
-    let texture_lut = block_registry.get_texture_lut();
 
     let size = ctx.chunk_size;
 
@@ -43,7 +45,7 @@ pub fn build_dense_mesh(
 
                 let is_current_transparent = transparency_lut[current_block_id as usize];
 
-                let faces = if is_current_transparent {
+                let out_faces = if is_current_transparent {
                     &mut transparent_faces
                 } else {
                     &mut opaque_faces
@@ -75,7 +77,7 @@ pub fn build_dense_mesh(
                             transparency_lut,
                         );
 
-                        ctx.push_face(face_side, pos, tex_id, ao, faces);
+                        ctx.push_face(face_side, pos, tex_id, ao, out_faces);
                     }
                 }
             }

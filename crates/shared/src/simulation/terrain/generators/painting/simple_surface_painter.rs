@@ -1,6 +1,6 @@
 use crate::prelude::*;
 use crate::simulation::biome::BiomeRegistryResource;
-use crate::simulation::block::BlockRegistryResource;
+use crate::simulation::block::BlockRegistry;
 use crate::simulation::terrain::BiomeMapComponent;
 use crate::simulation::terrain::generators::painting::{PaintResultBuilder, TerrainPainter};
 use crate::simulation::terrain::shaping::realistic_shaper::REALISTIC_SEA_LEVEL;
@@ -26,7 +26,7 @@ impl TerrainPainter for SimpleSurfacePainter {
         &self,
         mut painter: PaintResultBuilder,
         biome_map: &BiomeMapComponent,
-        block_registry: &BlockRegistryResource,
+        block_registry: &BlockRegistry,
         biome_registry: &BiomeRegistryResource,
     ) -> PaintResultBuilder {
         let air_id = block_registry.get_block_id_by_name("air").unwrap();

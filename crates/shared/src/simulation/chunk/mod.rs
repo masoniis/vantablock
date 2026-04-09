@@ -42,8 +42,6 @@ impl Plugin for ChunkLoadingPlugin {
                 handle_dirty_chunks_system,
                 start_pending_generation_tasks_system,
                 poll_chunk_generation_tasks,
-                start_pending_meshing_tasks_system,
-                poll_chunk_meshing_tasks,
             )
                 .in_set(FixedUpdateSet::MainLogic),
         );

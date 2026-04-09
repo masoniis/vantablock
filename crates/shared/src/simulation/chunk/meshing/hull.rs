@@ -1,7 +1,7 @@
 use super::{OpaqueMeshData, TransparentMeshData, common::*};
 use crate::prelude::*;
 use crate::simulation::{
-    block::{BlockRegistryResource, block_registry::BlockId},
+    block::{BlockRegistry, block_registry::BlockId},
     chunk::{CHUNK_SIDE_LENGTH, PaddedChunk},
 };
 
@@ -9,17 +9,20 @@ use crate::simulation::{
 ///
 /// Only iterates the 6 boundary faces, skipping the interior.
 #[instrument(skip_all)]
-pub fn build_hull_mesh(
+pub fn build_hull_mesh<R>(
     name: &str,
     padded_chunk: &PaddedChunk,
-    block_registry: &BlockRegistryResource,
+    block_registry: &BlockRegistry,
+    render_registry: &R,
     block_id: BlockId,
+    texture_lut: &[[u32; 6]],
 ) -> (Option<OpaqueMeshData>, Option<TransparentMeshData>) {
     let mut faces = Vec::with_capacity(4096);
 
     let ctx = MesherContext {
         padded_chunk,
         block_registry,
+        render_registry,
         center_lod: padded_chunk.center_lod(),
         neighbor_lods: padded_chunk.neighbor_lods(),
         chunk_size: padded_chunk.get_size(),
@@ -27,10 +30,12 @@ pub fn build_hull_mesh(
     };
 
     let transparency_lut = block_registry.get_transparency_lut();
-    let texture_lut = block_registry.get_texture_lut();
 
     let is_trans = transparency_lut[block_id as usize];
     let size = ctx.chunk_size;
+
+    // 3. OPTIMIZATION: Direct array index for texture ID (No matching/branching)
+    let tex_id = texture_lut[block_id as usize];
 
     macro_rules! mesh_plane {
         ($face_idx:expr, $u_range:expr, $v_range:expr, $pos_fn:expr) => {
@@ -40,9 +45,6 @@ pub fn build_hull_mesh(
                 .padded_chunk
                 .is_neighbor_fully_opaque(offset, ctx.block_registry)
             {
-                // 3. OPTIMIZATION: Direct array index for texture ID (No matching/branching)
-                let tex_id = texture_lut[block_id as usize][$face_idx];
-
                 for u in $u_range {
                     for v in $v_range {
                         let pos = $pos_fn(u, v);
@@ -64,7 +66,13 @@ pub fn build_hull_mesh(
                                 transparency_lut,
                             );
 
-                            ctx.push_face(FaceSide::ALL[$face_idx], pos, tex_id, ao, &mut faces);
+                            ctx.push_face(
+                                FaceSide::ALL[$face_idx],
+                                pos,
+                                tex_id[$face_idx],
+                                ao,
+                                &mut faces,
+                            );
                         }
                     }
                 }
