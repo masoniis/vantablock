@@ -1,6 +1,7 @@
 pub mod bounding_box_pass;
 pub mod opaque_pass;
 pub mod shared_resources;
+pub mod skybox_pass;
 pub mod transparent_pass;
 
 use shared_resources::{
@@ -18,6 +19,7 @@ use crate::render::pipeline::main_passes::{
     shared_resources::{
         update_camera_view_buffer_system, update_environment_uniform_buffer_system,
     },
+    skybox_pass::SkyboxRenderPassPlugin,
     transparent_pass::TransparentRenderPassPlugin,
 };
 use bevy::app::{App, Plugin};
@@ -51,6 +53,7 @@ impl Plugin for PlayerCentricRenderPassPlugin {
         app.add_plugins((
             TransparentRenderPassPlugin,
             OpaqueRenderPassPlugin,
+            SkyboxRenderPassPlugin,
             WireframeRenderPassPlugin,
         ));
     }

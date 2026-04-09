@@ -19,7 +19,7 @@ use crate::render::{
         RenderGraphEdgesPlugin, WorldRenderPassesPlugin,
         main_passes::{
             bounding_box_pass::extract::WireframeToggleState,
-            opaque_pass::{extract::extract_opaque_meshes, startup::OpaqueRenderMode},
+            opaque_pass::{extract::extract_opaque_meshes, pipeline::OpaqueRenderMode},
             transparent_pass::extract::extract_transparent_meshes,
         },
     },
