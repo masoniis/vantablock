@@ -1,5 +1,6 @@
 pub mod load;
 pub mod prelude;
+pub mod protocol;
 pub mod simulation;
 pub mod state;
 
