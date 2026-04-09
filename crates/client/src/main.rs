@@ -1,9 +1,11 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use bevy::{
     app::{App, FixedUpdate, PostUpdate},
     log::LogPlugin,
     prelude::{
-        AssetPlugin, ClearColor, Color, DefaultPlugins, IntoScheduleConfigs, PluginGroup, Window,
-        WindowPlugin, default, info,
+        default, info, AssetPlugin, ClearColor, Color, DefaultPlugins, IntoScheduleConfigs,
+        PluginGroup, Window, WindowPlugin,
     },
     window::WindowResolution,
 };
@@ -42,7 +44,7 @@ fn main() {
         DefaultPlugins
             .set(WindowPlugin {
                 primary_window: Some(Window {
-                    title: "Vantablock".to_string(),
+                    title: format!("Vantablock v{}", env!("CARGO_PKG_VERSION")),
                     resolution: WindowResolution::new(1280, 720),
                     visible: false,
                     ..default()
