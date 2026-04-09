@@ -93,14 +93,6 @@ impl ViewNode for OpaquePassRenderNode {
                     occlusion_query_set: None,
                 });
 
-        // INFO: -------------------------
-        //         skybox pipeline
-        // -------------------------------
-        render_pass.set_pipeline(skybox_pipeline.unwrap());
-        render_pass.set_bind_group(0, &view_buffer.bind_group, &[]);
-        render_pass.set_bind_group(1, &skybox_params.bind_group, &[]);
-        render_pass.draw(0..6, 0..1);
-
         // INFO: -----------------------------------------
         //         mesh pipeline: iterate and draw
         // -----------------------------------------------
@@ -122,6 +114,15 @@ impl ViewNode for OpaquePassRenderNode {
                 );
             }
         }
+
+        // INFO: -------------------------
+        //         skybox pipeline
+        // -------------------------------
+        // runs after opaque, filling in empty pixels where depth = 0.0 still
+        render_pass.set_pipeline(skybox_pipeline.unwrap());
+        render_pass.set_bind_group(0, &view_buffer.bind_group, &[]);
+        render_pass.set_bind_group(1, &skybox_params.bind_group, &[]);
+        render_pass.draw(0..6, 0..1);
 
         Ok(())
     }

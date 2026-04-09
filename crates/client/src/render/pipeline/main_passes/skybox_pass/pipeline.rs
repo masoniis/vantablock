@@ -56,7 +56,7 @@ impl SpecializedRenderPipeline for SkyboxPipeline {
         let depth_stencil = Some(DepthStencilState {
             format: MAIN_DEPTH_FORMAT,
             depth_write_enabled: false,
-            depth_compare: CompareFunction::GreaterEqual,
+            depth_compare: CompareFunction::Equal,
             stencil: StencilState::default(),
             bias: DepthBiasState::default(),
         });
