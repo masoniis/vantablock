@@ -18,7 +18,7 @@ pub struct RenderMeshStorageResource {
 
 #[derive(Resource, Default)]
 pub struct MeshesToUploadQueue {
-    pub queue: Vec<(AssetId<VoxelMeshAsset>, VoxelMeshAsset, Vec3)>,
+    pub additions: Vec<(AssetId<VoxelMeshAsset>, VoxelMeshAsset, Vec3)>,
     pub removals: Vec<AssetId<VoxelMeshAsset>>,
 }
 
@@ -51,7 +51,7 @@ pub fn extract_modified_voxel_meshes(
     for (mesh, transform) in opaque_meshes.iter() {
         if let Some(asset) = assets.get(&mesh.mesh_handle) {
             upload_queue
-                .queue
+                .additions
                 .push((mesh.mesh_handle.id(), asset.clone(), transform.position));
         }
     }
@@ -59,7 +59,7 @@ pub fn extract_modified_voxel_meshes(
     for (mesh, transform) in transparent_meshes.iter() {
         if let Some(asset) = assets.get(&mesh.mesh_handle) {
             upload_queue
-                .queue
+                .additions
                 .push((mesh.mesh_handle.id(), asset.clone(), transform.position));
         }
     }
