@@ -1,12 +1,10 @@
 use crate::{
+    input::systems::toggle_chunk_borders::ChunkBoundsToggle,
     prelude::*,
     render::{
-        passes::bounding_box::{
-            extract::WireframeToggleState,
-            gpu_resources::{
-                WireframeObjectBuffer, WireframeObjectData,
-                object_binding::WireframeObjectBindGroupLayout, wireframe_pipeline::*,
-            },
+        passes::bounding_box::gpu_resources::{
+            WireframeObjectBuffer, WireframeObjectData,
+            object_binding::WireframeObjectBindGroupLayout, wireframe_pipeline::*,
         },
         types::RenderTransformComponent,
     },
@@ -40,7 +38,7 @@ pub fn queue_wireframe_system(
     device: Res<RenderDevice>,
     object_layout: Res<WireframeObjectBindGroupLayout>,
     chunk_query: Query<&RenderTransformComponent>,
-    active_bounds: Res<WireframeToggleState>,
+    active_bounds: Res<ChunkBoundsToggle>,
     targeted_block: Res<TargetedBlock>,
     pipeline_cache: Res<PipelineCache>,
     mut specialized_pipelines: ResMut<SpecializedRenderPipelines<WireframePipeline>>,

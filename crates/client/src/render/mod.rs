@@ -14,13 +14,13 @@ pub use data::*;
 //         render world interface
 // --------------------------------------
 
+use crate::input::systems::toggle_chunk_borders::ChunkBoundsToggle;
 use crate::input::systems::toggle_opaque_wireframe::OpaqueRenderMode;
 use crate::prelude::*;
 use crate::render::{
     chunk::{OpaqueMeshComponent, TransparentMeshComponent},
     passes::{
-        RenderGraphEdgesPlugin, WorldRenderPassesPlugin,
-        bounding_box::extract::WireframeToggleState, opaque::extract::extract_opaque_meshes,
+        RenderGraphEdgesPlugin, WorldRenderPassesPlugin, opaque::extract::extract_opaque_meshes,
         transparent::extract::extract_transparent_meshes,
     },
     texture::BlockTextureArray,
@@ -51,11 +51,8 @@ impl Plugin for VantablockRenderPlugin {
             ExtractResourcePlugin::<RenderTimeResource>::default(),
             ExtractResourcePlugin::<OpaqueRenderMode>::default(),
             ExtractResourcePlugin::<TargetedBlock>::default(),
-        ));
-
-        app.add_plugins((
-            ExtractResourcePlugin::<WireframeToggleState>::default(),
             ExtractResourcePlugin::<BlockTextureArray>::default(),
+            ExtractResourcePlugin::<ChunkBoundsToggle>::default(),
         ));
 
         // INFO: ------------------------------------
@@ -94,6 +91,7 @@ impl Plugin for VantablockRenderPlugin {
 pub fn pre_setup_render_sub_app(sub_app: &mut SubApp) {
     // resources for rendering
     sub_app
+        .init_resource::<ChunkBoundsToggle>()
         .init_resource::<RenderTimeResource>()
         .init_resource::<RenderMeshStorageResource>()
         .init_resource::<MeshesToUploadQueue>();

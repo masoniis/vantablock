@@ -1,4 +1,3 @@
-pub mod extract;
 pub mod gpu_resources;
 pub mod queue;
 pub mod render;
@@ -10,12 +9,14 @@ pub use render::BoundingBoxNode;
 // ---------------------------------
 
 use crate::{VantablockNode, render::passes::bounding_box::queue::queue_wireframe_system};
-use bevy::core_pipeline::core_3d;
-use bevy::prelude::{App, IntoScheduleConfigs, Plugin};
-use bevy::render::{
-    render_graph::{RenderGraphExt, ViewNodeRunner},
-    render_resource::SpecializedRenderPipelines,
-    {Render, RenderSystems},
+use bevy::{
+    core_pipeline::core_3d,
+    prelude::{App, IntoScheduleConfigs, Plugin},
+    render::{
+        render_graph::{RenderGraphExt, ViewNodeRunner},
+        render_resource::SpecializedRenderPipelines,
+        {Render, RenderSystems},
+    },
 };
 use gpu_resources::{
     UnitCubeMesh, WireframeObjectBuffer, WireframePipeline,
@@ -26,16 +27,10 @@ pub struct WireframeRenderPassPlugin;
 
 impl Plugin for WireframeRenderPassPlugin {
     fn build(&self, app: &mut App) {
-        // INFO: ---------------
-        //         queue
-        // ---------------------
-
+        // queue
         app.add_systems(Render, queue_wireframe_system.in_set(RenderSystems::Queue));
 
-        // INFO: ----------------------------------
-        //         render graph integration
-        // ----------------------------------------
-
+        // render graph node
         app.add_render_graph_node::<ViewNodeRunner<BoundingBoxNode>>(
             core_3d::graph::Core3d,
             VantablockNode::BoundingBoxPass,
