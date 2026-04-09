@@ -12,16 +12,17 @@ pub use data::*;
 //         render world interface
 // --------------------------------------
 
+use crate::input::systems::toggle_opaque_wireframe::OpaqueRenderMode;
 use crate::prelude::*;
 use crate::render::{
     chunk::{OpaqueMeshComponent, TransparentMeshComponent},
     pipeline::{
-        RenderGraphEdgesPlugin, WorldRenderPassesPlugin,
         main_passes::{
             bounding_box_pass::extract::WireframeToggleState,
-            opaque_pass::{extract::extract_opaque_meshes, pipeline::OpaqueRenderMode},
+            opaque_pass::extract::extract_opaque_meshes,
             transparent_pass::extract::extract_transparent_meshes,
         },
+        RenderGraphEdgesPlugin, WorldRenderPassesPlugin,
     },
     texture::BlockTextureArray,
 };
@@ -29,8 +30,8 @@ use bevy::{
     app::{App, Plugin, SubApp},
     prelude::{Add, Commands, On},
     render::{
-        ExtractSchedule, RenderApp, extract_resource::ExtractResourcePlugin,
-        sync_world::SyncToRenderWorld,
+        extract_resource::ExtractResourcePlugin, sync_world::SyncToRenderWorld, ExtractSchedule,
+        RenderApp,
     },
 };
 use shared::simulation::block::TargetedBlock;

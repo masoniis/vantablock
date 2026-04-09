@@ -1,7 +1,8 @@
+use crate::input::systems::toggle_opaque_wireframe::OpaqueRenderMode;
 use crate::prelude::*;
 use crate::render::{
     pipeline::main_passes::opaque_pass::extract::OpaqueRenderMeshComponent,
-    pipeline::main_passes::opaque_pass::pipeline::{OpaqueRenderMode, WorldOpaquePipeline, WorldOpaquePipelineKey},
+    pipeline::main_passes::opaque_pass::pipeline::{WorldOpaquePipeline, WorldOpaquePipelineKey},
     pipeline::main_passes::skybox_pass::{SkyboxPipeline, SkyboxPipelineKey},
     types::RenderTransformComponent,
 };

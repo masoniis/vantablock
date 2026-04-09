@@ -1,4 +1,4 @@
-use crate::input::systems::toggle_opaque_wireframe::OpaqueWireframeMode;
+use crate::input::systems::toggle_opaque_wireframe::OpaqueRenderMode;
 use crate::prelude::*;
 use crate::render::pipeline::{
     gpu_resources::world_uniforms::ChunkStorageBindGroupLayout,
@@ -10,28 +10,8 @@ use crate::render::pipeline::{
 };
 use bevy::{
     ecs::prelude::*,
-    render::{extract_resource::ExtractResource, render_resource::*, view::ViewTarget},
+    render::{render_resource::*, view::ViewTarget},
 };
-
-/// A resource that defines the current opaque rendering polygon mode
-#[derive(Resource, Default, Debug, PartialEq, Eq, Hash, Clone, Copy)]
-pub enum OpaqueRenderMode {
-    #[default]
-    Fill,
-    Wireframe,
-}
-
-impl ExtractResource for OpaqueRenderMode {
-    type Source = OpaqueWireframeMode;
-
-    fn extract_resource(source: &Self::Source) -> Self {
-        if source.enabled {
-            OpaqueRenderMode::Wireframe
-        } else {
-            OpaqueRenderMode::Fill
-        }
-    }
-}
 
 /// A key that uniquely identifies a specialized world opaque pipeline.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]

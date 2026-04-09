@@ -4,15 +4,17 @@ pub mod systems;
 //         input module plugin
 // -----------------------------------
 
+use crate::input::systems::toggle_opaque_wireframe::OpaqueRenderMode;
 use crate::input::systems::{
     toggle_chunk_borders::ChunkBoundsToggle, toggle_chunk_borders_system, toggle_cursor_system,
-    toggle_opaque_wireframe::OpaqueWireframeMode, toggle_opaque_wireframe_mode_system,
+    toggle_opaque_wireframe_mode_system,
 };
 use bevy::app::{App, Plugin, PreUpdate, Update};
 use bevy::ecs::{schedule::IntoScheduleConfigs, system::Res};
 use shared::simulation::input::resources::{
     ActionStateResource, CursorMovement, InputActionMapResource,
 };
+use shared::simulation::input::types::SimulationAction;
 use systems::processing;
 
 pub struct InputModulePlugin;
@@ -42,20 +44,17 @@ impl Plugin for InputModulePlugin {
         app.add_systems(
             Update,
             toggle_cursor_system.run_if(|action_state: Res<ActionStateResource>| {
-                action_state
-                    .just_happened(shared::simulation::input::types::SimulationAction::TogglePause)
+                action_state.just_happened(SimulationAction::TogglePause)
             }),
         );
 
         // toggle opaque wireframe mode
-        app.insert_resource(OpaqueWireframeMode::default())
+        app.insert_resource(OpaqueRenderMode::default())
             .add_systems(
                 Update,
                 toggle_opaque_wireframe_mode_system.run_if(
                     |action_state: Res<ActionStateResource>| {
-                        action_state.just_happened(
-                    shared::simulation::input::types::SimulationAction::ToggleOpaqueWireframeMode,
-                )
+                        action_state.just_happened(SimulationAction::ToggleOpaqueWireframeMode)
                     },
                 ),
             );
@@ -65,9 +64,7 @@ impl Plugin for InputModulePlugin {
             .add_systems(
                 Update,
                 toggle_chunk_borders_system.run_if(|action_state: Res<ActionStateResource>| {
-                    action_state.just_happened(
-                        shared::simulation::input::types::SimulationAction::ToggleChunkBorders,
-                    )
+                    action_state.just_happened(SimulationAction::ToggleChunkBorders)
                 }),
             );
     }
