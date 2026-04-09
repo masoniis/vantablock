@@ -1,8 +1,10 @@
 pub mod block;
 pub mod chunk;
 pub mod data;
-pub mod pipeline;
+pub mod passes;
+pub mod resources;
 pub mod scheduling;
+pub mod shaders;
 pub mod texture;
 pub mod types;
 
@@ -16,13 +18,10 @@ use crate::input::systems::toggle_opaque_wireframe::OpaqueRenderMode;
 use crate::prelude::*;
 use crate::render::{
     chunk::{OpaqueMeshComponent, TransparentMeshComponent},
-    pipeline::{
-        main_passes::{
-            bounding_box_pass::extract::WireframeToggleState,
-            opaque_pass::extract::extract_opaque_meshes,
-            transparent_pass::extract::extract_transparent_meshes,
-        },
+    passes::{
         RenderGraphEdgesPlugin, WorldRenderPassesPlugin,
+        bounding_box::extract::WireframeToggleState, opaque::extract::extract_opaque_meshes,
+        transparent::extract::extract_transparent_meshes,
     },
     texture::BlockTextureArray,
 };
@@ -30,18 +29,18 @@ use bevy::{
     app::{App, Plugin, SubApp},
     prelude::{Add, Commands, On},
     render::{
-        extract_resource::ExtractResourcePlugin, sync_world::SyncToRenderWorld, ExtractSchedule,
-        RenderApp,
+        ExtractSchedule, RenderApp, extract_resource::ExtractResourcePlugin,
+        sync_world::SyncToRenderWorld,
     },
 };
 use shared::simulation::block::TargetedBlock;
 
-/// Plugin responsible for attaching our custom render logic to Bevy's native RenderApp
+/// Plugin responsible for attaching custom render logic to Bevy's native RenderApp
 pub struct VantablockRenderPlugin;
 
 impl Plugin for VantablockRenderPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(pipeline::shader_registry::VantablockShaderPlugin);
+        app.add_plugins(shaders::VantablockShaderPlugin);
         app.add_plugins(block::BlockRenderPlugin);
         app.add_plugins(chunk::ChunkMeshingPlugin);
 

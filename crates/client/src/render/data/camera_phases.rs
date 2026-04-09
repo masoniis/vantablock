@@ -1,6 +1,6 @@
-use crate::render::pipeline::main_passes::{
-    bounding_box_pass::queue::BoundingBoxPhase, opaque_pass::queue::Opaque3dRenderPhase,
-    transparent_pass::queue::Transparent3dRenderPhase,
+use crate::render::passes::{
+    bounding_box::queue::BoundingBoxPhase, opaque::queue::Opaque3dRenderPhase,
+    transparent::queue::Transparent3dRenderPhase,
 };
 use bevy::prelude::*;
 use bevy::render::Extract;
