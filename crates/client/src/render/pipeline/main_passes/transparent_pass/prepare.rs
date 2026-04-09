@@ -29,7 +29,7 @@ pub fn prepare_transparent_meshes_system(
     }
 
     // handle uploads (Added/Modified)
-    for (id, mesh, world_pos) in meshes_to_upload.queue.drain(..) {
+    for (id, mesh, world_pos) in meshes_to_upload.additions.drain(..) {
         // if it already exists, free the old allocation first
         if let Some(old_mesh_handle) = gpu_mesh_storage.meshes.remove(&id) {
             chunk_memory_manager.free_chunk(*old_mesh_handle);

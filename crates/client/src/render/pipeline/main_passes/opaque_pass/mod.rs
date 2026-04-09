@@ -1,6 +1,5 @@
 pub mod extract;
 pub mod pipeline;
-pub mod prepare;
 pub mod queue;
 pub mod render;
 
@@ -23,15 +22,6 @@ pub struct OpaqueRenderPassPlugin;
 
 impl Plugin for OpaqueRenderPassPlugin {
     fn build(&self, app: &mut App) {
-        // INFO: -----------------
-        //         prepare
-        // -----------------------
-
-        app.add_systems(
-            Render,
-            prepare::prepare_opaque_meshes_system.in_set(RenderSystems::Prepare),
-        );
-
         // INFO: ---------------
         //         queue
         // ---------------------

@@ -1,9 +1,10 @@
 use crate::input::systems::toggle_opaque_wireframe::OpaqueWireframeMode;
+use crate::prelude::*;
 use crate::render::pipeline::{
     gpu_resources::world_uniforms::ChunkStorageBindGroupLayout,
     main_passes::shared_resources::{
-        CentralCameraViewBindGroupLayout, EnvironmentBindGroupLayout, MAIN_DEPTH_FORMAT,
-        TextureArrayBindGroupLayout,
+        CentralCameraViewBindGroupLayout, EnvironmentBindGroupLayout, TextureArrayBindGroupLayout,
+        MAIN_DEPTH_FORMAT,
     },
     shader_registry::{OPAQUE_FRAG_SHADER_HANDLE, OPAQUE_VERT_SHADER_HANDLE},
 };
@@ -11,9 +12,8 @@ use bevy::{
     ecs::prelude::*,
     render::{extract_resource::ExtractResource, render_resource::*, view::ViewTarget},
 };
-use tracing::instrument;
 
-/// A resource that defines the current opaque render mode
+/// A resource that defines the current opaque rendering polygon mode
 #[derive(Resource, Default, Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum OpaqueRenderMode {
     #[default]
