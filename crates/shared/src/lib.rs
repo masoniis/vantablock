@@ -20,6 +20,7 @@ impl PluginGroup for SharedPlugins {
     fn build(self) -> PluginGroupBuilder {
         PluginGroupBuilder::start::<Self>()
             .add(state::SimulationLifecyclePlugin)
+            .add(protocol::NetworkProtoclPlugin)
             .add(simulation::asset::AssetPlugin)
             .add(simulation::biome::BiomePlugin)
             .add(simulation::block::BlockPlugin)

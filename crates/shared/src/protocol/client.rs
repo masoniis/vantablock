@@ -3,7 +3,7 @@ use crate::simulation::input::types::SimulationAction;
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Message, Serialize, Deserialize, Debug, Clone)]
 pub enum ClientMessage {
     /// A discrete input action performed by the player.
     Action(SimulationAction),

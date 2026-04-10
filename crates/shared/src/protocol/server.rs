@@ -2,7 +2,7 @@ use crate::simulation::chunk::ChunkCoord;
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Message, Serialize, Deserialize, Debug, Clone)]
 pub enum ServerMessage {
     /// Initial state sent to the client upon joining.
     Welcome { entity_id: Entity, spawn_pos: Vec3 },
