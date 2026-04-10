@@ -1,7 +1,9 @@
-use bevy::state::state::States;
+use crate::state::enums::AppState;
+use bevy::prelude::{StateSet, SubStates};
 
 /// An enum representing the networking mode of the server module.
-#[derive(States, Default, Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(SubStates, Default, Debug, Clone, Eq, PartialEq, Hash)]
+#[source(AppState = AppState::Running)]
 pub enum NetworkingMode {
     #[default]
     /// The networking module is inactive. This may be, for example, the case on a client

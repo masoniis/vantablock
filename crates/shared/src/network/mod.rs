@@ -23,7 +23,7 @@ impl Plugin for NetworkPlugin {
         app.add_plugins(NetworkProtoclPlugin);
 
         // add states
-        app.init_state::<NetworkingMode>();
+        app.add_sub_state::<NetworkingMode>();
 
         // add channels
         app.add_channel::<PlayerMovement>(ChannelSettings {
