@@ -1,6 +1,6 @@
 pub mod load;
+pub mod network;
 pub mod prelude;
-pub mod protocol;
 pub mod simulation;
 pub mod state;
 
@@ -20,7 +20,7 @@ impl PluginGroup for SharedPlugins {
     fn build(self) -> PluginGroupBuilder {
         PluginGroupBuilder::start::<Self>()
             .add(state::SimulationLifecyclePlugin)
-            .add(protocol::NetworkProtoclPlugin)
+            .add(network::NetworkPlugin)
             .add(simulation::asset::AssetPlugin)
             .add(simulation::biome::BiomePlugin)
             .add(simulation::block::BlockPlugin)
