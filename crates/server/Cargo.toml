@@ -32,3 +32,4 @@ tracing-subscriber = { workspace = true }
 # --------------------------------
 
 bevy = { workspace = true }
+lightyear = { workspace = true }

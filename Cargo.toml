@@ -72,6 +72,7 @@ bevy = { version = "0.18.1", default-features = false, features = [
   "bevy_asset",
   "bevy_state",
 ] }
+lightyear = "0.26.4"
 futures-lite = "2.6.1" # future utils
 
 # util deps

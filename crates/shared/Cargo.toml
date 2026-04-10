@@ -32,6 +32,7 @@ bytemuck = { workspace = true } # gpu friendly data
 # --------------------------------
 
 bevy = { workspace = true }
+lightyear = { workspace = true }
 futures-lite = { workspace = true } # future utils
 
 # INFO: ---------------

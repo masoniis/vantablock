@@ -75,6 +75,7 @@ offset-allocator = { workspace = true } # gpu buffer allocation
 # --------------------------------
 
 bevy = { workspace = true }
+lightyear = { workspace = true }
 futures-lite = { workspace = true } # future utils
 
 # INFO: ---------------
