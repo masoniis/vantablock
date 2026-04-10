@@ -1,10 +1,10 @@
 use crate::lifecycle::load::{
-    OnLoadComplete, master_finalize_loading_system, poll_simulation_loading_tasks,
-    reset_loading_tracker_system, start_fake_work_system,
+    SimulationPhase, check_loading_complete, cleanup_orphaned_tasks, poll_tasks,
+    start_fake_work_system,
 };
 use crate::lifecycle::state::SimulationState;
 use bevy::prelude::{
-    App, AppExtStates, IntoScheduleConfigs, OnExit, Plugin, Startup, Update, in_state,
+    App, AppExtStates, IntoScheduleConfigs, OnEnter, OnExit, Plugin, Update, in_state,
 };
 
 pub struct SimulationLifecyclePlugin;
@@ -14,6 +14,11 @@ pub struct SimulationLifecyclePlugin;
 /// involves orchestration of loading tasks and state transitions.
 impl Plugin for SimulationLifecyclePlugin {
     fn build(&self, app: &mut App) {
+        // INFO: ---------------------------
+        //         state transitions
+        // ---------------------------------
+        app.init_state::<SimulationState>();
+
         // INFO: -----------------------
         //         async loading
         // -----------------------------
@@ -21,31 +26,21 @@ impl Plugin for SimulationLifecyclePlugin {
         // polling systems and tracking load state
         app.add_systems(
             Update,
-            (poll_simulation_loading_tasks.run_if(in_state(SimulationState::Loading)),),
+            (
+                poll_tasks::<SimulationPhase>,
+                check_loading_complete::<SimulationPhase, SimulationState>(SimulationState::Running)
+                    .after(poll_tasks::<SimulationPhase>),
+            )
+                .run_if(in_state(SimulationState::Loading)),
         );
 
         // load cleanup to run after transitions
         app.add_systems(
             OnExit(SimulationState::Loading),
-            reset_loading_tracker_system,
+            cleanup_orphaned_tasks::<SimulationPhase>,
         );
 
         // systems to ensure rigidity
-        app.add_systems(Startup, start_fake_work_system);
-
-        // INFO: ---------------------------
-        //         state transitions
-        // ---------------------------------
-        app.init_state::<SimulationState>();
-
-        app.add_systems(
-            Update,
-            (master_finalize_loading_system::<SimulationState>,)
-                .run_if(in_state(SimulationState::Loading)),
-        );
-
-        // initial startup loading state should take us from loading
-        // to running/playing once they finish.
-        app.insert_resource(OnLoadComplete::new(SimulationState::Running));
+        app.add_systems(OnEnter(SimulationState::Loading), start_fake_work_system);
     }
 }

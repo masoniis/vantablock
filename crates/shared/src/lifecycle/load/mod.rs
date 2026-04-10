@@ -4,25 +4,34 @@
 // tasks complete.
 
 pub mod components;
-pub mod resources;
 pub mod systems;
 
 pub use components::*;
-pub use resources::*;
 pub use systems::*;
 
 // INFO: ---------------------------
 //         plugin definition
 // ---------------------------------
 
-// TODO: more robust loading setup, also add other loading systems to the plugin
-
-use bevy::prelude::{App, Plugin};
+use crate::lifecycle::{
+    load::loading_tasks::loading_is_complete, state::enums::AppState, state::transition_to,
+};
+use bevy::prelude::*;
 
 pub struct LoadPlugin;
 
 impl Plugin for LoadPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<LoadingTracker>();
+        // polling systems and tracking load state for app startup
+        app.add_systems(
+            Update,
+            (
+                poll_tasks::<AppStartupLoadingPhase>,
+                transition_to(AppState::Running)
+                    .run_if(loading_is_complete::<AppStartupLoadingPhase>),
+            )
+                .chain()
+                .run_if(in_state(AppState::StartingUp)),
+        );
     }
 }

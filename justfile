@@ -146,7 +146,7 @@ debug *args:
     set -- {{args}}
     if [ "$#" -eq 0 ]; then
         echo -e "\033[1;33mNo debug targets specified. Available targets are:\033[0m"
-        rg --no-heading -o --replace '$f:$1' 'target\s*:\s*"([^"]+)"' crates/{{client}}/src/ \
+        rg --no-heading -o --replace '$f:$1' 'target\s*:\s*"([^"]+)"' crates/ \
             | awk -F: '{print $NF}' | sort | uniq -c | sort -rn \
             | while read -r count target; do
                 printf '  - \033[1;35m%s\033[0m (%sx)\n' "$target" "$count"

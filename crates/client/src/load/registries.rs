@@ -9,7 +9,10 @@ use bevy::{
     prelude::{Commands, Image, Res, World},
     tasks::AsyncComputeTaskPool,
 };
-use shared::{lifecycle::load::LoadingTaskComponent, simulation::block::BlockRegistry};
+use shared::{
+    lifecycle::load::{AppStartupLoadingPhase, LoadingTaskComponent},
+    simulation::block::BlockRegistry,
+};
 use utils::PersistentPaths;
 
 /// A system that starts the asynchronous initialization of texture and block registries
@@ -62,5 +65,5 @@ pub fn start_async_registry_initialization(
     });
 
     // register this as a loading task so the game waits for it
-    commands.spawn(LoadingTaskComponent(task));
+    commands.spawn((LoadingTaskComponent(task), AppStartupLoadingPhase));
 }

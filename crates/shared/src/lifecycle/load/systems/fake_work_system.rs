@@ -1,7 +1,12 @@
-use crate::{lifecycle::load::LoadingTaskComponent, prelude::*};
-use bevy::ecs::system::Commands;
-use bevy::ecs::world::{CommandQueue, World};
-use bevy::tasks::AsyncComputeTaskPool;
+use crate::{
+    lifecycle::load::components::{LoadingTaskComponent, SimulationPhase},
+    prelude::*,
+};
+use bevy::{
+    ecs::system::Commands,
+    ecs::world::{CommandQueue, World},
+    tasks::AsyncComputeTaskPool,
+};
 use rand::random_range;
 use std::{thread, time::Duration};
 
@@ -31,5 +36,7 @@ pub fn start_fake_work_system(mut commands: Commands) {
         queue
     });
 
-    commands.entity(entity).insert(LoadingTaskComponent(task));
+    commands
+        .entity(entity)
+        .insert((LoadingTaskComponent(task), SimulationPhase));
 }
