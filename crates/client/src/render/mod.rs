@@ -33,6 +33,8 @@ use bevy::{
         RenderApp,
     },
 };
+#[cfg(feature = "dev")]
+use bevy::{camera::ClearColor, color::Color};
 use shared::simulation::block::TargetedBlock;
 
 /// Plugin responsible for attaching custom render logic to Bevy's native RenderApp
@@ -53,6 +55,10 @@ impl Plugin for VantablockRenderPlugin {
             ExtractResourcePlugin::<TargetedBlock>::default(),
             ExtractResourcePlugin::<BlockTextureArray>::default(),
         ));
+
+        // red clear color for dev testing
+        #[cfg(feature = "dev")]
+        app.insert_resource(ClearColor(Color::linear_rgb(1.0, 0.0, 0.0)));
 
         // INFO: ------------------------------------
         //         main world synchronization

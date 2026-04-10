@@ -7,16 +7,13 @@ use bevy::{
     app::{App, FixedUpdate, PostUpdate},
     log::LogPlugin,
     prelude::{
-        default, info, AssetPlugin, ClearColor, Color, DefaultPlugins, IntoScheduleConfigs,
+        default, info, AssetPlugin, DefaultPlugins, IntoScheduleConfigs,
         PluginGroup, Window, WindowPlugin,
     },
     window::WindowResolution,
 };
 use client::prelude::*;
-use shared::{
-    load::LoadingTracker,
-    simulation::scheduling::{FixedUpdateSet, RenderPrepSet},
-};
+use shared::simulation::scheduling::{FixedUpdateSet, RenderPrepSet};
 use utils::PersistentPaths;
 
 #[instrument(skip_all, fields(name = "main"))]
@@ -52,13 +49,9 @@ fn main() {
         },
     ));
 
-    // red clear color to prevent white screen flash
-    app.insert_resource(ClearColor(Color::linear_rgb(1.0, 0.0, 0.0)));
-
     // load config & loading trackers into main world
     app.insert_resource(ClientSettings::load_or_create(&persistent_paths));
     app.insert_resource(persistent_paths);
-    app.insert_resource(LoadingTracker::default());
 
     // configure schedule sets
     app.configure_sets(

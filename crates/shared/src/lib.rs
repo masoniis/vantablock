@@ -19,6 +19,7 @@ pub struct SharedPlugins;
 impl PluginGroup for SharedPlugins {
     fn build(self) -> PluginGroupBuilder {
         PluginGroupBuilder::start::<Self>()
+            .add(load::LoadPlugin)
             .add(state::SimulationLifecyclePlugin)
             .add(network::NetworkPlugin)
             .add(simulation::asset::AssetPlugin)

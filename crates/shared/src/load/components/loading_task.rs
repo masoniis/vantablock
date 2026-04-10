@@ -3,12 +3,9 @@ use crossbeam::channel::Receiver;
 
 pub type TaskResultCallback = Box<dyn FnOnce(&mut Commands) + Send>;
 
-#[derive(Component)]
-pub struct SimulationWorldLoadingTaskComponent {
-    pub receiver: Receiver<TaskResultCallback>,
-}
+// TODO: no longer need with bevy tasks
 
 #[derive(Component)]
-pub struct RenderWorldLoadingTaskComponent {
+pub struct SimulationWorldLoadingTaskComponent {
     pub receiver: Receiver<TaskResultCallback>,
 }
