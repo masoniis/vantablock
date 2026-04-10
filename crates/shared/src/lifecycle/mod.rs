@@ -1,7 +1,9 @@
 pub mod load;
+pub mod scheduling;
 pub mod state;
 
 pub use load::*;
+pub use scheduling::*;
 pub use state::*;
 
 // INFO: ---------------------------
@@ -18,6 +20,7 @@ impl PluginGroup for SharedLifecyclePlugins {
     fn build(self) -> PluginGroupBuilder {
         PluginGroupBuilder::start::<Self>()
             .add(load::LoadPlugin)
+            .add(scheduling::SharedSchedulingPlugin)
             .add(state::StatePlugin)
     }
 }

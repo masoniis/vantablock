@@ -5,6 +5,7 @@ pub mod tasks;
 
 pub use asset::VoxelMeshAsset;
 pub use components::{OpaqueMeshComponent, TransparentMeshComponent};
+use shared::FixedUpdateSet;
 pub use shared::simulation::chunk::ChunkMeshDirty;
 
 use crate::prelude::*;
@@ -13,7 +14,6 @@ use bevy::asset::AssetApp;
 use bevy::ecs::prelude::*;
 use bevy::prelude::{Camera, Camera3d};
 use shared::simulation::chunk::{ChunkCoord, ChunkStateManager};
-use shared::simulation::scheduling::FixedUpdateSet;
 
 pub struct ChunkMeshingPlugin;
 

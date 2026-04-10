@@ -1,8 +1,6 @@
 use crate::{lifecycle::load::components::LoadingTaskComponent, prelude::*};
 use bevy::{
     ecs::prelude::*,
-    prelude::{NextState, States},
-    state::state::FreelyMutableState,
     tasks::{block_on, poll_once},
 };
 
@@ -42,15 +40,4 @@ pub fn cleanup_orphaned_tasks<Marker: Component>(
 /// which is useful to catch accidental race conditions or useless polling.
 pub fn loading_is_complete<Marker: Component>(query: Query<(), With<Marker>>) -> bool {
     query.is_empty()
-}
-
-/// A transition checker that moves to a target state when all entities with a marker are gone.
-pub fn check_loading_complete<Marker: Component, S: States + Copy + FreelyMutableState>(
-    target_state: S,
-) -> impl FnMut(Query<(), With<Marker>>, ResMut<NextState<S>>) {
-    move |tasks_query, mut next_state| {
-        if tasks_query.is_empty() {
-            next_state.set(target_state);
-        }
-    }
 }

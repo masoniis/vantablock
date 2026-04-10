@@ -13,13 +13,11 @@ use bevy::{
     state::app::AppExtStates,
 };
 use shared::{
-    lifecycle::load::{
-        check_loading_complete, cleanup_orphaned_tasks, AppStartupLoadingPhase,
-        LoadingTaskComponent,
-    },
+    FixedUpdateSet,
+    lifecycle::load::{AppStartupLoadingPhase, LoadingTaskComponent, cleanup_orphaned_tasks},
     lifecycle::state::enums::AppState,
-    {FixedUpdateSet, RenderPrepSet},
 };
+use shared::{loading_is_complete, transition_to};
 
 pub struct ClientStatePlugin;
 
@@ -34,12 +32,9 @@ impl Plugin for ClientStatePlugin {
         // polling systems for simulation-linked client state transitions
         app.add_systems(
             Update,
-            (
-                check_loading_complete::<LoadingTaskComponent, ClientGameState>(
-                    ClientGameState::Playing,
-                )
-                .run_if(in_state(ClientGameState::MainMenu)),
-            )
+            (transition_to(ClientGameState::Playing)
+                .run_if(loading_is_complete::<LoadingTaskComponent>)
+                .run_if(in_state(ClientGameState::MainMenu)),)
                 .run_if(in_state(AppState::Running)),
         );
 
@@ -53,13 +48,6 @@ impl Plugin for ClientStatePlugin {
         app.configure_sets(
             FixedUpdate,
             (FixedUpdateSet::PreUpdate, FixedUpdateSet::MainLogic).run_if(
-                in_state(ClientGameState::Playing).or(in_state(ClientGameState::Connecting)),
-            ),
-        );
-
-        app.configure_sets(
-            PostUpdate,
-            RenderPrepSet.run_if(
                 in_state(ClientGameState::Playing).or(in_state(ClientGameState::Connecting)),
             ),
         );

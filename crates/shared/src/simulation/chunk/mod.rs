@@ -14,7 +14,7 @@ pub use types::*;
 //         chunk loading plugin
 // ------------------------------------
 
-use crate::simulation::scheduling::FixedUpdateSet;
+use crate::FixedUpdateSet;
 use bevy::app::{App, FixedUpdate, Plugin, PreUpdate};
 use bevy::ecs::prelude::*;
 use bevy::prelude::{Camera, Camera3d};

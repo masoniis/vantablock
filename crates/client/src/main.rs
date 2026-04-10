@@ -4,16 +4,12 @@
 use bevy::dev_tools::fps_overlay::{FpsOverlayConfig, FpsOverlayPlugin};
 
 use bevy::{
-    app::{App, FixedUpdate, PostUpdate},
+    app::{App, PostUpdate},
     log::LogPlugin,
-    prelude::{
-        AssetPlugin, DefaultPlugins, IntoScheduleConfigs, PluginGroup, Window, WindowPlugin,
-        default, info,
-    },
+    prelude::{AssetPlugin, DefaultPlugins, PluginGroup, Window, WindowPlugin, default, info},
     window::WindowResolution,
 };
-use client::prelude::*;
-use shared::simulation::scheduling::{FixedUpdateSet, RenderPrepSet};
+use client::{lifecycle::scheduling::RenderPrepSet, prelude::*};
 use utils::PersistentPaths;
 
 #[instrument(skip_all, fields(name = "main"))]
@@ -52,12 +48,6 @@ fn main() {
     // load config & loading trackers into main world
     app.insert_resource(ClientSettings::load_or_create(&persistent_paths));
     app.insert_resource(persistent_paths);
-
-    // configure schedule sets
-    app.configure_sets(
-        FixedUpdate,
-        (FixedUpdateSet::PreUpdate, FixedUpdateSet::MainLogic).chain(),
-    );
 
     app.configure_sets(PostUpdate, RenderPrepSet);
 
