@@ -65,6 +65,7 @@ fmt:
 # cleans ephemeral dirs
 clean:
 	rm -rf target/
+	rm -rf .dev_data/
 
 alias clip := clippy
 

@@ -1,16 +1,32 @@
-use crate::state::enums::ClientGameState;
+pub mod enums;
+
+pub use enums::*;
+
+// INFO: ---------------------------
+//         plugin definition
+// ---------------------------------
+
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
-use shared::lifecycle::load::{
-    AppStartupLoadingPhase, LoadingTaskComponent, check_loading_complete, cleanup_orphaned_tasks,
+use bevy::{
+    prelude::{App, Plugin},
+    state::app::AppExtStates,
 };
-use shared::lifecycle::state::enums::AppState;
-use shared::{FixedUpdateSet, RenderPrepSet};
+use shared::{
+    lifecycle::load::{
+        check_loading_complete, cleanup_orphaned_tasks, AppStartupLoadingPhase,
+        LoadingTaskComponent,
+    },
+    lifecycle::state::enums::AppState,
+    {FixedUpdateSet, RenderPrepSet},
+};
 
-pub struct ClientLifecyclePlugin;
+pub struct ClientStatePlugin;
 
-impl Plugin for ClientLifecyclePlugin {
+impl Plugin for ClientStatePlugin {
     fn build(&self, app: &mut App) {
+        app.add_sub_state::<ClientGameState>();
+
         // INFO: -----------------------
         //         async loading
         // -----------------------------

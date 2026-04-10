@@ -1,11 +1,10 @@
 pub mod input;
-pub mod load;
+pub mod lifecycle;
 pub mod player;
 pub mod prelude;
 pub mod render;
 pub mod settings;
 pub mod showcase;
-pub mod state;
 pub mod ui;
 
 pub use prelude::*;
@@ -23,9 +22,7 @@ pub struct ClientPlugins;
 impl PluginGroup for ClientPlugins {
     fn build(self) -> PluginGroupBuilder {
         PluginGroupBuilder::start::<Self>()
-            .add(state::StatePlugin)
-            .add(state::ClientLifecyclePlugin)
-            .add(load::ClientLoadPlugin)
+            .add_group(lifecycle::LifecyclePlugins)
             .add(input::InputModulePlugin)
             .add(player::PlayerPlugin)
             .add(showcase::ShowcasePlugin)

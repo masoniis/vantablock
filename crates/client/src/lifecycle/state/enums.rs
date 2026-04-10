@@ -7,6 +7,9 @@ use shared::lifecycle::state::enums::AppState;
 #[derive(SubStates, Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[source(AppState = AppState::Running)]
 pub enum ClientGameState {
+    /// The client is currently launching and loading data before hitting the main menu.
+    // TODO: make launching default
+    Launching,
     /// The user is navigating the main menu UI.
     #[default]
     MainMenu,
