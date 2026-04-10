@@ -2,9 +2,11 @@ use crate::{
     input::systems::toggle_opaque_wireframe::OpaqueRenderMode,
     prelude::*,
     render::{
-        passes::opaque::extract::OpaqueRenderMeshComponent,
-        passes::opaque::pipeline::{WorldOpaquePipeline, WorldOpaquePipelineKey},
-        passes::skybox::{SkyboxPipeline, SkyboxPipelineKey},
+        passes::opaque::{
+            extract::OpaqueRenderMeshComponent,
+            pipeline::{Opaque3dPipeline, Opaque3dPipelineKey},
+            skybox::{OpaqueSkyboxPipeline, OpaqueSkyboxPipelineKey},
+        },
         types::RenderTransformComponent,
     },
 };
@@ -48,16 +50,16 @@ pub fn queue_opaque_system(
     )>,
     render_mode: Res<OpaqueRenderMode>,
     pipeline_cache: Res<PipelineCache>,
-    mut specialized_world_pipelines: ResMut<SpecializedRenderPipelines<WorldOpaquePipeline>>,
-    world_pipelines: Res<WorldOpaquePipeline>,
-    mut specialized_skybox_pipelines: ResMut<SpecializedRenderPipelines<SkyboxPipeline>>,
-    skybox_pipelines: Res<SkyboxPipeline>,
+    mut specialized_world_pipelines: ResMut<SpecializedRenderPipelines<Opaque3dPipeline>>,
+    world_pipelines: Res<Opaque3dPipeline>,
+    mut specialized_skybox_pipelines: ResMut<SpecializedRenderPipelines<OpaqueSkyboxPipeline>>,
+    skybox_pipelines: Res<OpaqueSkyboxPipeline>,
 ) {
     for (extracted_view, msaa, mut opaque_phase) in views_query.iter_mut() {
         opaque_phase.items.clear();
 
         // specialize pipelines for this view's MSAA and HDR settings
-        let mesh_key = WorldOpaquePipelineKey {
+        let mesh_key = Opaque3dPipelineKey {
             msaa_samples: msaa.samples(),
             hdr: extracted_view.hdr,
             mode: *render_mode,
@@ -68,7 +70,7 @@ pub fn queue_opaque_system(
             mesh_key,
         ));
 
-        let skybox_key = SkyboxPipelineKey {
+        let skybox_key = OpaqueSkyboxPipelineKey {
             msaa_samples: msaa.samples(),
             hdr: extracted_view.hdr,
         };

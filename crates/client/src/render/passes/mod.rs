@@ -1,7 +1,6 @@
 pub mod bounding_box;
 pub mod opaque;
 pub mod shadow;
-pub mod skybox;
 pub mod transparent;
 
 // INFO: ---------------------------
@@ -9,25 +8,25 @@ pub mod transparent;
 // ---------------------------------
 
 use crate::{
-    VantablockNode,
     render::{
         passes::{
             bounding_box::WireframeRenderPassPlugin, opaque::OpaqueRenderPassPlugin,
-            shadow::ShadowRenderPassPlugin, skybox::SkyboxRenderPassPlugin,
-            transparent::TransparentRenderPassPlugin,
+            shadow::ShadowRenderPassPlugin, transparent::TransparentRenderPassPlugin,
         },
         resources::{
-            CentralCameraViewBindGroupLayout, CentralCameraViewUniform, EnvironmentBindGroupLayout,
-            EnvironmentUniforms, TextureArrayBindGroupLayout, prepare_texture_array_system,
-            update_camera_view_buffer_system, update_environment_uniform_buffer_system,
+            prepare_texture_array_system, update_camera_view_buffer_system,
+            update_environment_uniform_buffer_system,
             world_uniforms::{ChunkStorageBindGroupLayout, ChunkStorageManager},
+            CentralCameraViewBindGroupLayout, CentralCameraViewUniform, EnvironmentBindGroupLayout,
+            EnvironmentUniforms, TextureArrayBindGroupLayout,
         },
     },
+    VantablockNode,
 };
 use bevy::prelude::IntoScheduleConfigs;
 use bevy::{
     app::{App, Plugin},
-    render::{Render, RenderSystems, render_graph::RenderGraphExt},
+    render::{render_graph::RenderGraphExt, Render, RenderSystems},
 };
 
 /// A plugin that sets up all the necessary resources and render
@@ -110,7 +109,6 @@ impl Plugin for PlayerCentricRenderPassPlugin {
         app.add_plugins((
             TransparentRenderPassPlugin,
             OpaqueRenderPassPlugin,
-            SkyboxRenderPassPlugin,
             WireframeRenderPassPlugin,
         ));
     }

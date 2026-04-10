@@ -1,21 +1,25 @@
-pub mod extract;
-pub mod pipeline;
-pub mod queue;
+pub mod mesh;
 pub mod render;
+pub mod skybox;
 
+pub use mesh::*;
 pub use render::OpaquePassRenderNode;
 
 // INFO: ---------------------------
 //         plugin definition
 // ---------------------------------
 
-use crate::VantablockNode;
-use crate::render::passes::opaque::pipeline::WorldOpaquePipeline;
-use bevy::prelude::{App, IntoScheduleConfigs, Plugin};
-use bevy::render::{
-    render_graph::{RenderGraphExt, ViewNodeRunner},
-    render_resource::SpecializedRenderPipelines,
-    {Render, RenderSystems},
+use crate::{
+    render::passes::opaque::{mesh::pipeline::Opaque3dPipeline, skybox::OpaqueSkyboxPipeline},
+    VantablockNode,
+};
+use bevy::{
+    prelude::{App, IntoScheduleConfigs, Plugin},
+    render::{
+        render_graph::{RenderGraphExt, ViewNodeRunner},
+        render_resource::SpecializedRenderPipelines,
+        {Render, RenderSystems},
+    },
 };
 
 pub struct OpaqueRenderPassPlugin;
@@ -43,10 +47,12 @@ impl Plugin for OpaqueRenderPassPlugin {
 
     fn finish(&self, app: &mut App) {
         // INFO: -----------------
-        //         Startup
+        //         startup
         // -----------------------
 
-        app.init_resource::<WorldOpaquePipeline>();
-        app.init_resource::<SpecializedRenderPipelines<WorldOpaquePipeline>>();
+        app.init_resource::<Opaque3dPipeline>();
+        app.init_resource::<SpecializedRenderPipelines<Opaque3dPipeline>>();
+        app.init_resource::<OpaqueSkyboxPipeline>();
+        app.init_resource::<SpecializedRenderPipelines<OpaqueSkyboxPipeline>>();
     }
 }

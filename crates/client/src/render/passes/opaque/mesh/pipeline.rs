@@ -3,8 +3,8 @@ use crate::{
     prelude::*,
     render::{
         resources::{
-            CentralCameraViewBindGroupLayout, EnvironmentBindGroupLayout,
-            TextureArrayBindGroupLayout, world_uniforms::ChunkStorageBindGroupLayout,
+            world_uniforms::ChunkStorageBindGroupLayout, CentralCameraViewBindGroupLayout,
+            EnvironmentBindGroupLayout, TextureArrayBindGroupLayout,
         },
         shaders::{OPAQUE_FRAG_SHADER_HANDLE, OPAQUE_VERT_SHADER_HANDLE},
     },
@@ -17,7 +17,7 @@ use bevy::{
 
 /// A key that uniquely identifies a specialized world opaque pipeline.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub struct WorldOpaquePipelineKey {
+pub struct Opaque3dPipelineKey {
     pub msaa_samples: u32,
     pub hdr: bool,
     pub mode: OpaqueRenderMode,
@@ -25,14 +25,14 @@ pub struct WorldOpaquePipelineKey {
 
 /// A resource that holds all the layouts and handles needed to specialize world opaque pipelines.
 #[derive(Resource)]
-pub struct WorldOpaquePipeline {
+pub struct Opaque3dPipeline {
     pub view_layout: BindGroupLayoutDescriptor,
     pub environment_layout: BindGroupLayoutDescriptor,
     pub texture_layout: BindGroupLayoutDescriptor,
     pub chunk_storage_layout: BindGroupLayoutDescriptor,
 }
 
-impl FromWorld for WorldOpaquePipeline {
+impl FromWorld for Opaque3dPipeline {
     #[instrument(skip_all)]
     fn from_world(world: &mut World) -> Self {
         let view_layout = world.resource::<CentralCameraViewBindGroupLayout>();
@@ -49,8 +49,8 @@ impl FromWorld for WorldOpaquePipeline {
     }
 }
 
-impl SpecializedRenderPipeline for WorldOpaquePipeline {
-    type Key = WorldOpaquePipelineKey;
+impl SpecializedRenderPipeline for Opaque3dPipeline {
+    type Key = Opaque3dPipelineKey;
 
     fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
         let format = if key.hdr {

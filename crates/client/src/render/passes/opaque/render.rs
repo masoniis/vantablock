@@ -1,20 +1,25 @@
 use crate::prelude::*;
-use crate::render::resources::TextureArrayUniforms;
-use crate::render::resources::world_uniforms::ChunkStorageManager;
 use crate::render::{
     data::RenderMeshStorageResource,
     passes::opaque::{extract::OpaqueRenderMeshComponent, queue::Opaque3dRenderPhase},
-    resources::{CentralCameraViewUniform, EnvironmentUniforms},
+    resources::{
+        world_uniforms::ChunkStorageManager, CentralCameraViewUniform, EnvironmentUniforms,
+        TextureArrayUniforms,
+    },
 };
-use bevy::ecs::prelude::*;
-use bevy::ecs::query::QueryItem;
-use bevy::render::render_graph::{NodeRunError, RenderGraphContext, ViewNode};
-use bevy::render::render_resource::{
-    LoadOp, Operations, PipelineCache, RenderPassDepthStencilAttachment, RenderPassDescriptor,
-    StoreOp,
+use bevy::{
+    ecs::prelude::*,
+    ecs::query::QueryItem,
+    render::{
+        render_graph::{NodeRunError, RenderGraphContext, ViewNode},
+        render_resource::{
+            LoadOp, Operations, PipelineCache, RenderPassDepthStencilAttachment,
+            RenderPassDescriptor, StoreOp,
+        },
+        renderer::RenderContext,
+        view::{ViewDepthTexture, ViewTarget},
+    },
 };
-use bevy::render::renderer::RenderContext;
-use bevy::render::view::{ViewDepthTexture, ViewTarget};
 
 #[derive(Default)]
 pub struct OpaquePassRenderNode;

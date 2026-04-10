@@ -9,19 +9,19 @@ use tracing::instrument;
 
 /// A key that uniquely identifies a specialized skybox pipeline.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub struct SkyboxPipelineKey {
+pub struct OpaqueSkyboxPipelineKey {
     pub msaa_samples: u32,
     pub hdr: bool,
 }
 
 /// A resource that holds all the layouts and handles needed to specialize skybox pipelines.
 #[derive(Resource)]
-pub struct SkyboxPipeline {
+pub struct OpaqueSkyboxPipeline {
     pub view_layout: BindGroupLayoutDescriptor,
     pub environment_layout: BindGroupLayoutDescriptor,
 }
 
-impl FromWorld for SkyboxPipeline {
+impl FromWorld for OpaqueSkyboxPipeline {
     #[instrument(skip_all)]
     fn from_world(world: &mut World) -> Self {
         let view_layout = world.resource::<CentralCameraViewBindGroupLayout>();
@@ -34,8 +34,8 @@ impl FromWorld for SkyboxPipeline {
     }
 }
 
-impl SpecializedRenderPipeline for SkyboxPipeline {
-    type Key = SkyboxPipelineKey;
+impl SpecializedRenderPipeline for OpaqueSkyboxPipeline {
+    type Key = OpaqueSkyboxPipelineKey;
 
     fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
         let format = if key.hdr {
