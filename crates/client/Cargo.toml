@@ -29,7 +29,7 @@ name = "generation_benchmarks"
 harness = false
 
 [features]
-dev = ["bevy/dev"]
+dev = ["bevy/dev", "bevy/bevy_dev_tools"]
 tracy = ["dep:tracy-client", "dep:tracing-tracy"]
 distribution = ["tracing/release_max_level_error"]
 

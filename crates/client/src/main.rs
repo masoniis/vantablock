@@ -1,11 +1,14 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+#[cfg(feature = "dev")]
+use bevy::dev_tools::fps_overlay::{FpsOverlayConfig, FpsOverlayPlugin};
+
 use bevy::{
     app::{App, FixedUpdate, PostUpdate},
     log::LogPlugin,
     prelude::{
-        AssetPlugin, ClearColor, Color, DefaultPlugins, IntoScheduleConfigs, PluginGroup, Window,
-        WindowPlugin, default, info,
+        default, info, AssetPlugin, ClearColor, Color, DefaultPlugins, IntoScheduleConfigs,
+        PluginGroup, Window, WindowPlugin,
     },
     window::WindowResolution,
 };
@@ -27,7 +30,7 @@ fn main() {
     let persistent_paths = PersistentPaths::resolve();
 
     // config of default bevy plugins
-    app.add_plugins(
+    app.add_plugins((
         DefaultPlugins
             .set(WindowPlugin {
                 primary_window: Some(Window {
@@ -43,7 +46,11 @@ fn main() {
                 ..default()
             })
             .disable::<LogPlugin>(),
-    );
+        #[cfg(feature = "dev")]
+        FpsOverlayPlugin {
+            config: FpsOverlayConfig { ..default() },
+        },
+    ));
 
     // red clear color to prevent white screen flash
     app.insert_resource(ClearColor(Color::linear_rgb(1.0, 0.0, 0.0)));
