@@ -8,13 +8,22 @@ use shared::lifecycle::state::enums::AppState;
 #[source(AppState = AppState::Running)]
 pub enum ClientGameState {
     /// The client is currently launching and loading data before hitting the main menu.
-    // TODO: make launching default
-    Launching,
-    /// The user is navigating the main menu UI.
     #[default]
+    Loading,
+    /// The user is navigating the main menu UI.
     MainMenu,
-    /// The client is attempting to establish a connection to a server or load into a world.
+    /// The client is attempting to establish a connection to a server.
     Connecting,
+    /// A server connection is formed but the client is waiting for initial chunk data
+    /// to arrive.
+    WorldLoading,
     /// The client is actively connected and in a game session.
     Playing,
+    /// The pause menu is open. In single-player, this stops the clock. In multiplayer,
+    /// it doesn't.
+    Paused,
+    /// Disconnect requested, clean up world/meshes, serialization, etc.
+    Disconnecting,
+    /// An error occurred (kick reason, connection failure)
+    Error,
 }

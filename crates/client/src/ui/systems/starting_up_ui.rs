@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use shared::lifecycle::state::SimulationState;
 
 #[derive(Component)]
 pub struct StartingUpUiRoot;
@@ -19,6 +20,7 @@ pub fn spawn_starting_up_ui(mut commands: Commands, asset_server: Res<AssetServe
                 ..Default::default()
             },
             StartingUpUiRoot,
+            DespawnOnExit(SimulationState::Loading),
         ))
         .with_children(|parent| {
             parent
@@ -46,14 +48,4 @@ pub fn spawn_starting_up_ui(mut commands: Commands, asset_server: Res<AssetServe
                     ));
                 });
         });
-}
-
-pub fn despawn_starting_up_ui(
-    mut commands: Commands,
-    query: Query<Entity, With<StartingUpUiRoot>>,
-) {
-    info!("Despawning StartingUp UI...");
-    for entity in query.iter() {
-        commands.entity(entity).despawn();
-    }
 }
