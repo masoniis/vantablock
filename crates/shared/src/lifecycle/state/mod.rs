@@ -1,8 +1,10 @@
 pub mod enums;
 pub mod lifecycle;
+pub mod systems;
 
 pub use enums::SimulationState;
 pub use lifecycle::SimulationLifecyclePlugin;
+pub use systems::transition_to;
 
 // INFO: ---------------------------
 //         plugin definition

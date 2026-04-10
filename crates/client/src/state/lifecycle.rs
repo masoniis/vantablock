@@ -1,23 +1,37 @@
 use crate::state::enums::ClientGameState;
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
-use shared::lifecycle::state::enums::AppState;
-use shared::{
-    lifecycle::load::{
-        master_finalize_loading_system, reset_loading_tracker_system, LoadingTracker,
-        OnLoadComplete,
-    },
-    FixedUpdateSet, RenderPrepSet,
+use shared::lifecycle::load::{
+    check_loading_complete, cleanup_orphaned_tasks, poll_tasks, AppStartupLoadingPhase,
+    LoadingTaskComponent,
 };
+use shared::lifecycle::state::enums::AppState;
+use shared::{FixedUpdateSet, RenderPrepSet};
 
 pub struct ClientLifecyclePlugin;
 
 impl Plugin for ClientLifecyclePlugin {
     fn build(&self, app: &mut App) {
+        // INFO: -----------------------
+        //         async loading
+        // -----------------------------
+
+        // polling systems for simulation-linked client state transitions
+        app.add_systems(
+            Update,
+            (
+                check_loading_complete::<LoadingTaskComponent, ClientGameState>(
+                    ClientGameState::Playing,
+                )
+                .run_if(in_state(ClientGameState::MainMenu)),
+            )
+                .run_if(in_state(AppState::Running)),
+        );
+
         // load cleanup to run after transitions
         app.add_systems(
             OnExit(AppState::StartingUp),
-            reset_loading_tracker_system,
+            cleanup_orphaned_tasks::<AppStartupLoadingPhase>,
         );
 
         // configure system sets to be state-bound
@@ -40,30 +54,12 @@ impl Plugin for ClientLifecyclePlugin {
         // ---------------------------------
 
         app.add_systems(
-            Update,
-            (
-                master_finalize_loading_system::<AppState>,
-                master_finalize_loading_system::<ClientGameState>,
-                show_window_when_ready,
-            )
-                .run_if(in_state(AppState::StartingUp)),
+            OnExit(AppState::StartingUp),
+            |mut window: Query<&mut Window, With<PrimaryWindow>>| {
+                if let Ok(mut win) = window.single_mut() {
+                    win.visible = true;
+                }
+            },
         );
-
-        // initial startup loading state should take us from loading
-        // to running/playing once they finish.
-        app.insert_resource(OnLoadComplete::new(AppState::Running))
-            .insert_resource(OnLoadComplete::new(ClientGameState::Playing));
-    }
-}
-
-/// A system that makes the window visible once the loading tracker reports readiness.
-fn show_window_when_ready(
-    mut query: Query<&mut Window, With<PrimaryWindow>>,
-    loading_tracker: Res<LoadingTracker>,
-) {
-    if loading_tracker.is_ready()
-        && let Ok(mut window) = query.single_mut()
-    {
-        window.visible = true;
     }
 }
