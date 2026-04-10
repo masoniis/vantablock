@@ -3,8 +3,8 @@ use crate::render::{
     data::RenderMeshStorageResource,
     passes::opaque::{extract::OpaqueRenderMeshComponent, queue::Opaque3dRenderPhase},
     resources::{
-        world_uniforms::ChunkStorageManager, CentralCameraViewUniform, EnvironmentUniforms,
-        TextureArrayUniforms,
+        CentralCameraViewUniform, EnvironmentUniforms, TextureArrayUniforms,
+        world_uniforms::ChunkStorageManager,
     },
 };
 use bevy::{

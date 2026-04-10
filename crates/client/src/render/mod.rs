@@ -20,8 +20,8 @@ use crate::prelude::*;
 use crate::render::{
     chunk::{OpaqueMeshComponent, TransparentMeshComponent},
     passes::{
-        opaque::extract::extract_opaque_meshes, transparent::extract::extract_transparent_meshes,
-        RenderGraphEdgesPlugin, WorldRenderPassesPlugin,
+        RenderGraphEdgesPlugin, WorldRenderPassesPlugin, opaque::extract::extract_opaque_meshes,
+        transparent::extract::extract_transparent_meshes,
     },
     texture::BlockTextureArray,
 };
@@ -29,8 +29,8 @@ use bevy::{
     app::{App, Plugin, SubApp},
     prelude::{Add, Commands, On},
     render::{
-        extract_resource::ExtractResourcePlugin, sync_world::SyncToRenderWorld, ExtractSchedule,
-        RenderApp,
+        ExtractSchedule, RenderApp, extract_resource::ExtractResourcePlugin,
+        sync_world::SyncToRenderWorld,
     },
 };
 #[cfg(feature = "dev")]
