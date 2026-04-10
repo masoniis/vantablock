@@ -1,8 +1,8 @@
 use bevy::{
+    MinimalPlugins,
     app::{App, ScheduleRunnerPlugin},
     asset::AssetPlugin,
-    prelude::{default, info, PluginGroup},
-    MinimalPlugins,
+    prelude::{PluginGroup, default, info},
 };
 use server::ServerPlugins;
 use shared::SharedPlugins;

@@ -3,8 +3,8 @@ use crate::{
     prelude::*,
     render::{
         resources::{
-            world_uniforms::ChunkStorageBindGroupLayout, CentralCameraViewBindGroupLayout,
-            EnvironmentBindGroupLayout, TextureArrayBindGroupLayout,
+            CentralCameraViewBindGroupLayout, EnvironmentBindGroupLayout,
+            TextureArrayBindGroupLayout, world_uniforms::ChunkStorageBindGroupLayout,
         },
         shaders::{OPAQUE_FRAG_SHADER_HANDLE, OPAQUE_VERT_SHADER_HANDLE},
     },

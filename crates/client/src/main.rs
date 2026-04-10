@@ -7,8 +7,8 @@ use bevy::{
     app::{App, FixedUpdate, PostUpdate},
     log::LogPlugin,
     prelude::{
-        default, info, AssetPlugin, DefaultPlugins, IntoScheduleConfigs,
-        PluginGroup, Window, WindowPlugin,
+        AssetPlugin, DefaultPlugins, IntoScheduleConfigs, PluginGroup, Window, WindowPlugin,
+        default, info,
     },
     window::WindowResolution,
 };

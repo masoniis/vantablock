@@ -2,8 +2,7 @@ use crate::state::enums::ClientGameState;
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 use shared::lifecycle::load::{
-    check_loading_complete, cleanup_orphaned_tasks, poll_tasks, AppStartupLoadingPhase,
-    LoadingTaskComponent,
+    AppStartupLoadingPhase, LoadingTaskComponent, check_loading_complete, cleanup_orphaned_tasks,
 };
 use shared::lifecycle::state::enums::AppState;
 use shared::{FixedUpdateSet, RenderPrepSet};

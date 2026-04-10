@@ -1,9 +1,7 @@
 pub mod enums;
-pub mod lifecycle;
 pub mod systems;
 
-pub use enums::SimulationState;
-pub use lifecycle::SimulationLifecyclePlugin;
+pub use enums::{AppState, SimulationState};
 pub use systems::transition_to;
 
 // INFO: ---------------------------
@@ -14,7 +12,6 @@ use bevy::{
     prelude::{App, Plugin},
     state::app::AppExtStates,
 };
-use enums::AppState;
 
 pub struct StatePlugin;
 
@@ -22,7 +19,5 @@ impl Plugin for StatePlugin {
     fn build(&self, app: &mut App) {
         app.init_state::<AppState>();
         app.init_state::<SimulationState>();
-
-        app.add_plugins(SimulationLifecyclePlugin);
     }
 }

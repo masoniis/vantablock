@@ -1,6 +1,6 @@
-use shared::lifecycle::state::enums::AppState;
 use bevy::prelude::*;
 use shared::lifecycle::state::SimulationState;
+use shared::lifecycle::state::enums::AppState;
 
 pub mod systems;
 

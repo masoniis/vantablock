@@ -10,8 +10,8 @@ pub use render::OpaquePassRenderNode;
 // ---------------------------------
 
 use crate::{
-    render::passes::opaque::{mesh::pipeline::Opaque3dPipeline, skybox::OpaqueSkyboxPipeline},
     VantablockNode,
+    render::passes::opaque::{mesh::pipeline::Opaque3dPipeline, skybox::OpaqueSkyboxPipeline},
 };
 use bevy::{
     prelude::{App, IntoScheduleConfigs, Plugin},

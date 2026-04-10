@@ -8,25 +8,24 @@ pub mod transparent;
 // ---------------------------------
 
 use crate::{
+    VantablockNode,
     render::{
         passes::{
             bounding_box::WireframeRenderPassPlugin, opaque::OpaqueRenderPassPlugin,
             shadow::ShadowRenderPassPlugin, transparent::TransparentRenderPassPlugin,
         },
         resources::{
-            prepare_texture_array_system, update_camera_view_buffer_system,
-            update_environment_uniform_buffer_system,
-            world_uniforms::{ChunkStorageBindGroupLayout, ChunkStorageManager},
             CentralCameraViewBindGroupLayout, CentralCameraViewUniform, EnvironmentBindGroupLayout,
-            EnvironmentUniforms, TextureArrayBindGroupLayout,
+            EnvironmentUniforms, TextureArrayBindGroupLayout, prepare_texture_array_system,
+            update_camera_view_buffer_system, update_environment_uniform_buffer_system,
+            world_uniforms::{ChunkStorageBindGroupLayout, ChunkStorageManager},
         },
     },
-    VantablockNode,
 };
 use bevy::prelude::IntoScheduleConfigs;
 use bevy::{
     app::{App, Plugin},
-    render::{render_graph::RenderGraphExt, Render, RenderSystems},
+    render::{Render, RenderSystems, render_graph::RenderGraphExt},
 };
 
 /// A plugin that sets up all the necessary resources and render
