@@ -1,3 +1,3 @@
 pub mod loading_task;
 
-pub use loading_task::{SimulationWorldLoadingTaskComponent, TaskResultCallback};
+pub use loading_task::LoadingTaskComponent;
