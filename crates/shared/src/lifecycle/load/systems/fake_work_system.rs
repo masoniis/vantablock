@@ -1,45 +1,35 @@
-use crate::{
-    lifecycle::load::{SimulationWorldLoadingTaskComponent, TaskResultCallback},
-    prelude::*,
-};
+use crate::{lifecycle::load::LoadingTaskComponent, prelude::*};
 use bevy::ecs::system::Commands;
+use bevy::ecs::world::{CommandQueue, World};
 use bevy::tasks::AsyncComputeTaskPool;
-use crossbeam::channel::{unbounded, Receiver, Sender};
 use rand::random_range;
 use std::{thread, time::Duration};
 
 #[instrument(skip_all)]
 pub fn start_fake_work_system(mut commands: Commands) {
-    let (sender, receiver): (Sender<TaskResultCallback>, Receiver<TaskResultCallback>) =
-        unbounded();
-
     let entity = commands.spawn_empty().id();
-    AsyncComputeTaskPool::get()
-        .spawn(async move {
-            const WORK_DURATION: u64 = 3;
-            for i in 1..=WORK_DURATION {
-                info!(
-                    "[BACKGROUND {}] Fake working... step {}/{}",
-                    entity, i, WORK_DURATION
-                );
+    let task = AsyncComputeTaskPool::get().spawn(async move {
+        const WORK_DURATION: u64 = 3;
+        for i in 1..=WORK_DURATION {
+            info!(
+                "[BACKGROUND {}] Fake working... step {}/{}",
+                entity, i, WORK_DURATION
+            );
 
-                let sleep_time = random_range(0.25..0.75);
-                thread::sleep(Duration::from_secs_f32(sleep_time));
-            }
-            info!("[BACKGROUND {}] Fake work finished!", entity);
+            let sleep_time = random_range(0.25..0.75);
+            thread::sleep(Duration::from_secs_f32(sleep_time));
+        }
+        info!("[BACKGROUND {}] Fake work finished!", entity);
 
-            let callback: TaskResultCallback = Box::new(move |_: &mut Commands| {
-                info!(
-                    "[MAIN THREAD {}] Applying fake work result to the world.",
-                    entity
-                );
-            });
+        let mut queue = CommandQueue::default();
+        queue.push(move |_: &mut World| {
+            info!(
+                "[MAIN THREAD {}] Applying fake work result to the world.",
+                entity
+            );
+        });
+        queue
+    });
 
-            sender.send(callback).expect("Failed to send task result");
-        })
-        .detach();
-
-    commands
-        .entity(entity)
-        .insert(SimulationWorldLoadingTaskComponent { receiver });
+    commands.entity(entity).insert(LoadingTaskComponent(task));
 }

@@ -1,15 +1,15 @@
 use crate::{
-    lifecycle::load::{LoadingTracker, SimulationWorldLoadingTaskComponent},
+    lifecycle::load::{LoadingTaskComponent, LoadingTracker},
     prelude::*,
 };
-use bevy::ecs::prelude::*;
-use crossbeam::channel::TryRecvError;
+use bevy::tasks::block_on;
+use bevy::{ecs::prelude::*, tasks::poll_once};
 
 /// Polls simulation-specific tasks and updates the shared `LoadingTracker`.
 #[instrument(skip_all)]
 pub fn poll_simulation_loading_tasks(
     // input
-    mut tasks: Query<(Entity, &mut SimulationWorldLoadingTaskComponent)>,
+    mut tasks: Query<(Entity, &mut LoadingTaskComponent)>,
 
     // output
     mut commands: Commands,
@@ -21,21 +21,12 @@ pub fn poll_simulation_loading_tasks(
 
     let mut remaining_tasks = 0;
 
-    for (entity, task) in &mut tasks {
-        match task.receiver.try_recv() {
-            Ok(callback) => {
-                callback(&mut commands);
-                commands.entity(entity).despawn();
-            }
-            Err(TryRecvError::Empty) => {
-                remaining_tasks += 1;
-            }
-            Err(TryRecvError::Disconnected) => {
-                // This could happen if a thread panicked or dropped the sender.
-                // It shouldn't happen during normal execution.
-                warn!("Simulation task failed: Channel disconnected!");
-                commands.entity(entity).despawn();
-            }
+    for (entity, mut task) in &mut tasks {
+        if let Some(mut command_queue) = block_on(poll_once(&mut task.0)) {
+            commands.append(&mut command_queue);
+            commands.entity(entity).despawn();
+        } else {
+            remaining_tasks += 1;
         }
     }
 
