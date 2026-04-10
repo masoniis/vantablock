@@ -14,10 +14,10 @@ use bevy::{
 };
 use shared::{
     FixedUpdateSet,
-    lifecycle::load::{AppStartupLoadingPhase, LoadingTaskComponent, cleanup_orphaned_tasks},
-    lifecycle::state::enums::AppState,
+    lifecycle::load::{AppStartupLoadingPhase, cleanup_orphaned_tasks},
+    lifecycle::state::{SimulationState, enums::AppState},
 };
-use shared::{loading_is_complete, transition_to};
+use shared::transition_to;
 
 pub struct ClientStatePlugin;
 
@@ -32,9 +32,12 @@ impl Plugin for ClientStatePlugin {
         // polling systems for simulation-linked client state transitions
         app.add_systems(
             Update,
-            (transition_to(ClientGameState::Playing)
-                .run_if(loading_is_complete::<LoadingTaskComponent>)
-                .run_if(in_state(ClientGameState::MainMenu)),)
+            (
+                // transition from loading to main menu once simulation is ready
+                transition_to(ClientGameState::MainMenu)
+                    .run_if(in_state(ClientGameState::Loading))
+                    .run_if(in_state(SimulationState::Running)),
+            )
                 .run_if(in_state(AppState::Running)),
         );
 

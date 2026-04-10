@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use shared::lifecycle::state::SimulationState;
 use shared::lifecycle::state::enums::AppState;
 
+use crate::lifecycle::state::ClientGameState;
 pub mod systems;
 
 // INFO: -------------------
@@ -25,10 +26,16 @@ impl Plugin for VantablockUiPlugin {
         app.add_systems(
             OnEnter(SimulationState::Loading),
             systems::starting_up_ui::spawn_starting_up_ui,
+        );
+
+        // main menu ui
+        app.add_systems(
+            OnEnter(ClientGameState::MainMenu),
+            systems::main_menu::spawn_main_menu,
         )
         .add_systems(
-            OnExit(SimulationState::Loading),
-            systems::starting_up_ui::despawn_starting_up_ui,
+            Update,
+            systems::main_menu::main_menu_button_interaction_system.run_if(in_state(ClientGameState::MainMenu)),
         );
     }
 }
