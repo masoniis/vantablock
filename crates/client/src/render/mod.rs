@@ -20,8 +20,8 @@ use crate::prelude::*;
 use crate::render::{
     chunk::{OpaqueMeshComponent, TransparentMeshComponent},
     passes::{
-        RenderGraphEdgesPlugin, WorldRenderPassesPlugin, opaque::extract::extract_opaque_meshes,
-        transparent::extract::extract_transparent_meshes,
+        opaque::extract::extract_opaque_meshes, transparent::extract::extract_transparent_meshes,
+        RenderGraphEdgesPlugin, WorldRenderPassesPlugin,
     },
     texture::BlockTextureArray,
 };
@@ -29,8 +29,8 @@ use bevy::{
     app::{App, Plugin, SubApp},
     prelude::{Add, Commands, On},
     render::{
-        ExtractSchedule, RenderApp, extract_resource::ExtractResourcePlugin,
-        sync_world::SyncToRenderWorld,
+        extract_resource::ExtractResourcePlugin, sync_world::SyncToRenderWorld, ExtractSchedule,
+        RenderApp,
     },
 };
 use shared::simulation::block::TargetedBlock;
@@ -52,7 +52,6 @@ impl Plugin for VantablockRenderPlugin {
             ExtractResourcePlugin::<OpaqueRenderMode>::default(),
             ExtractResourcePlugin::<TargetedBlock>::default(),
             ExtractResourcePlugin::<BlockTextureArray>::default(),
-            ExtractResourcePlugin::<ChunkBoundsToggle>::default(),
         ));
 
         // INFO: ------------------------------------

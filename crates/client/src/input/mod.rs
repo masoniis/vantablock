@@ -11,6 +11,7 @@ use crate::input::systems::{
 };
 use bevy::app::{App, Plugin, PreUpdate, Update};
 use bevy::ecs::{schedule::IntoScheduleConfigs, system::Res};
+use bevy::render::extract_resource::ExtractResourcePlugin;
 use shared::simulation::input::resources::{
     ActionStateResource, CursorMovement, InputActionMapResource,
 };
@@ -61,6 +62,7 @@ impl Plugin for InputModulePlugin {
 
         // toggle chunk borders
         app.insert_resource(ChunkBoundsToggle::default())
+            .add_plugins(ExtractResourcePlugin::<ChunkBoundsToggle>::default())
             .add_systems(
                 Update,
                 toggle_chunk_borders_system.run_if(|action_state: Res<ActionStateResource>| {
