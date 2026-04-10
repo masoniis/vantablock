@@ -14,7 +14,8 @@ pub use systems::*;
 // ---------------------------------
 
 use crate::lifecycle::{
-    load::loading_tasks::loading_is_complete, state::enums::AppState, state::transition_to,
+    load::loading_tasks::loading_is_complete,
+    state::{enums::AppState, transition_to, SimulationState},
 };
 use bevy::prelude::*;
 
@@ -32,6 +33,18 @@ impl Plugin for LoadPlugin {
             )
                 .chain()
                 .run_if(in_state(AppState::StartingUp)),
+        );
+
+        // polling systems and tracking load state for simulation loading
+        app.add_systems(
+            Update,
+            (
+                poll_tasks::<SimulationLoadingPhase>,
+                transition_to(SimulationState::Running)
+                    .run_if(loading_is_complete::<SimulationLoadingPhase>),
+            )
+                .chain()
+                .run_if(in_state(SimulationState::Loading)),
         );
     }
 }

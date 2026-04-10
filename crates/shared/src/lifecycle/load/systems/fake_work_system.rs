@@ -1,5 +1,5 @@
 use crate::{
-    lifecycle::load::components::{LoadingTaskComponent, SimulationPhase},
+    lifecycle::load::components::{LoadingTaskComponent, SimulationLoadingPhase},
     prelude::*,
 };
 use bevy::{
@@ -38,5 +38,5 @@ pub fn start_fake_work_system(mut commands: Commands) {
 
     commands
         .entity(entity)
-        .insert((LoadingTaskComponent(task), SimulationPhase));
+        .insert((LoadingTaskComponent(task), SimulationLoadingPhase));
 }

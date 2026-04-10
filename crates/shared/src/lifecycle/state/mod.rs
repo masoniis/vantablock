@@ -21,6 +21,8 @@ pub struct StatePlugin;
 impl Plugin for StatePlugin {
     fn build(&self, app: &mut App) {
         app.init_state::<AppState>();
+        app.init_state::<SimulationState>();
+
         app.add_plugins(SimulationLifecyclePlugin);
     }
 }

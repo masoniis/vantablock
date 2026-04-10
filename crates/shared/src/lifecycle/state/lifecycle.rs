@@ -1,10 +1,10 @@
 use crate::lifecycle::load::{
-    SimulationPhase, check_loading_complete, cleanup_orphaned_tasks, poll_tasks,
-    start_fake_work_system,
+    check_loading_complete, cleanup_orphaned_tasks, poll_tasks, start_fake_work_system,
+    SimulationLoadingPhase,
 };
 use crate::lifecycle::state::SimulationState;
 use bevy::prelude::{
-    App, AppExtStates, IntoScheduleConfigs, OnEnter, OnExit, Plugin, Update, in_state,
+    in_state, App, AppExtStates, IntoScheduleConfigs, OnEnter, OnExit, Plugin, Update,
 };
 
 pub struct SimulationLifecyclePlugin;
@@ -14,30 +14,14 @@ pub struct SimulationLifecyclePlugin;
 /// involves orchestration of loading tasks and state transitions.
 impl Plugin for SimulationLifecyclePlugin {
     fn build(&self, app: &mut App) {
-        // INFO: ---------------------------
-        //         state transitions
-        // ---------------------------------
-        app.init_state::<SimulationState>();
-
         // INFO: -----------------------
         //         async loading
         // -----------------------------
 
-        // polling systems and tracking load state
-        app.add_systems(
-            Update,
-            (
-                poll_tasks::<SimulationPhase>,
-                check_loading_complete::<SimulationPhase, SimulationState>(SimulationState::Running)
-                    .after(poll_tasks::<SimulationPhase>),
-            )
-                .run_if(in_state(SimulationState::Loading)),
-        );
-
         // load cleanup to run after transitions
         app.add_systems(
             OnExit(SimulationState::Loading),
-            cleanup_orphaned_tasks::<SimulationPhase>,
+            cleanup_orphaned_tasks::<SimulationLoadingPhase>,
         );
 
         // systems to ensure rigidity
