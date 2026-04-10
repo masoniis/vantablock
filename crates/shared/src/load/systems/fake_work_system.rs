@@ -4,7 +4,7 @@ use crate::{
 };
 use bevy::ecs::system::Commands;
 use bevy::tasks::AsyncComputeTaskPool;
-use crossbeam::channel::{Receiver, Sender, unbounded};
+use crossbeam::channel::{unbounded, Receiver, Sender};
 use rand::random_range;
 use std::{thread, time::Duration};
 
@@ -16,14 +16,14 @@ pub fn start_fake_work_system(mut commands: Commands) {
     let entity = commands.spawn_empty().id();
     AsyncComputeTaskPool::get()
         .spawn(async move {
-            const WORK_DURATION: u64 = 5;
+            const WORK_DURATION: u64 = 3;
             for i in 1..=WORK_DURATION {
                 info!(
                     "[BACKGROUND {}] Fake working... step {}/{}",
                     entity, i, WORK_DURATION
                 );
 
-                let sleep_time = random_range(0.75..1.5);
+                let sleep_time = random_range(0.25..0.75);
                 thread::sleep(Duration::from_secs_f32(sleep_time));
             }
             info!("[BACKGROUND {}] Fake work finished!", entity);
