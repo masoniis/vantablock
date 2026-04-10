@@ -17,7 +17,7 @@ use crate::simulation::{
         simulation_tick::run_fixed_update_schedule, world_clock::update_world_clock_system,
     },
 };
-use crate::state::SimulationState;
+use crate::lifecycle::state::SimulationState;
 use bevy::{
     app::{App, FixedUpdate, Plugin, PreUpdate, Update},
     ecs::prelude::*,

@@ -1,5 +1,5 @@
 use crate::{
-    load::{SimulationWorldLoadingTaskComponent, TaskResultCallback},
+    lifecycle::load::{SimulationWorldLoadingTaskComponent, TaskResultCallback},
     prelude::*,
 };
 use bevy::ecs::system::Commands;

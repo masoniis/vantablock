@@ -6,7 +6,7 @@ pub use movement::*;
 //         camera plugin
 // -----------------------------
 
-use crate::state::ClientAppState;
+use shared::lifecycle::state::enums::AppState;
 use bevy::prelude::{App, IntoScheduleConfigs, Plugin, Startup, Update, in_state};
 use shared::simulation::player::initialize_camera::spawn_camera_system;
 
@@ -20,7 +20,7 @@ impl Plugin for CameraPlugin {
             Update,
             (camera_movement_system, update_camera_chunk_chord_system)
                 .chain()
-                .run_if(in_state(ClientAppState::Running)),
+                .run_if(in_state(AppState::Running)),
         );
     }
 }

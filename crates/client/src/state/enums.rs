@@ -1,24 +1,11 @@
-use bevy::prelude::{StateSet, States, SubStates};
-
-/// The state of the overall client app runtime.
-///
-/// This represents the wrapping program itself, unrelated to game logic.
-#[derive(States, Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ClientAppState {
-    /// The client is loading up essential data. The app loop has not started.
-    #[default]
-    StartingUp,
-    /// The main application loop is active and executing.
-    Running,
-    /// The application is performing cleanup operations before process termination.
-    ShuttingDown,
-}
+use bevy::prelude::{StateSet, SubStates};
+use shared::lifecycle::state::enums::AppState;
 
 /// A sub-state of `ClientAppState::Running`.
 ///
 /// Represents the game state and lifecycle.
 #[derive(SubStates, Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-#[source(ClientAppState = ClientAppState::Running)]
+#[source(AppState = AppState::Running)]
 pub enum ClientGameState {
     /// The user is navigating the main menu UI.
     #[default]

@@ -1,4 +1,4 @@
-use crate::load::LoadingTracker;
+use crate::lifecycle::load::LoadingTracker;
 use crate::prelude::*;
 use bevy::ecs::prelude::*;
 

@@ -10,7 +10,7 @@ use bevy::{
 };
 use crossbeam::channel::unbounded;
 use shared::{
-    load::{SimulationWorldLoadingTaskComponent, TaskResultCallback},
+    lifecycle::load::{SimulationWorldLoadingTaskComponent, TaskResultCallback},
     simulation::block::BlockRegistry,
 };
 use utils::PersistentPaths;

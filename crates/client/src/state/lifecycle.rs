@@ -1,8 +1,9 @@
-use crate::state::enums::{ClientAppState, ClientGameState};
+use crate::state::enums::ClientGameState;
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
+use shared::lifecycle::state::enums::AppState;
 use shared::{
-    load::{
+    lifecycle::load::{
         master_finalize_loading_system, reset_loading_tracker_system, LoadingTracker,
         OnLoadComplete,
     },
@@ -15,7 +16,7 @@ impl Plugin for ClientLifecyclePlugin {
     fn build(&self, app: &mut App) {
         // load cleanup to run after transitions
         app.add_systems(
-            OnExit(ClientAppState::StartingUp),
+            OnExit(AppState::StartingUp),
             reset_loading_tracker_system,
         );
 
@@ -41,16 +42,16 @@ impl Plugin for ClientLifecyclePlugin {
         app.add_systems(
             Update,
             (
-                master_finalize_loading_system::<ClientAppState>,
+                master_finalize_loading_system::<AppState>,
                 master_finalize_loading_system::<ClientGameState>,
                 show_window_when_ready,
             )
-                .run_if(in_state(ClientAppState::StartingUp)),
+                .run_if(in_state(AppState::StartingUp)),
         );
 
         // initial startup loading state should take us from loading
         // to running/playing once they finish.
-        app.insert_resource(OnLoadComplete::new(ClientAppState::Running))
+        app.insert_resource(OnLoadComplete::new(AppState::Running))
             .insert_resource(OnLoadComplete::new(ClientGameState::Playing));
     }
 }

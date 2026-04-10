@@ -1,8 +1,8 @@
-use crate::load::{
+use crate::lifecycle::load::{
     OnLoadComplete, master_finalize_loading_system, poll_simulation_loading_tasks,
     reset_loading_tracker_system, start_fake_work_system,
 };
-use crate::state::SimulationState;
+use crate::lifecycle::state::SimulationState;
 use bevy::prelude::{
     App, AppExtStates, IntoScheduleConfigs, OnExit, Plugin, Startup, Update, in_state,
 };

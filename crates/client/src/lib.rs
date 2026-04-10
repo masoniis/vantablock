@@ -23,6 +23,7 @@ pub struct ClientPlugins;
 impl PluginGroup for ClientPlugins {
     fn build(self) -> PluginGroupBuilder {
         PluginGroupBuilder::start::<Self>()
+            .add(state::StatePlugin)
             .add(state::ClientLifecyclePlugin)
             .add(load::ClientLoadPlugin)
             .add(input::InputModulePlugin)

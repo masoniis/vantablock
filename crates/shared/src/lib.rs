@@ -1,8 +1,7 @@
-pub mod load;
+pub mod lifecycle;
 pub mod network;
 pub mod prelude;
 pub mod simulation;
-pub mod state;
 
 pub use prelude::*;
 
@@ -19,8 +18,7 @@ pub struct SharedPlugins;
 impl PluginGroup for SharedPlugins {
     fn build(self) -> PluginGroupBuilder {
         PluginGroupBuilder::start::<Self>()
-            .add(load::LoadPlugin)
-            .add(state::SimulationLifecyclePlugin)
+            .add_group(lifecycle::SharedLifecyclePlugins)
             .add(network::NetworkPlugin)
             .add(simulation::asset::AssetPlugin)
             .add(simulation::biome::BiomePlugin)

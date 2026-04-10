@@ -25,7 +25,10 @@ pub enum AppState {
 #[derive(States, Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum SimulationState {
     #[default]
+    /// The simulation is preparing to start.
     Loading,
+    /// The simulation is active and ticking.
     Running,
+    /// The simulation is paused.
     Paused,
 }

@@ -1,4 +1,4 @@
-use crate::state::enums::AppState;
+use crate::lifecycle::state::enums::AppState;
 use bevy::prelude::{StateSet, SubStates};
 
 /// An enum representing the networking mode of the server module.
