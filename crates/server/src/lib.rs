@@ -1,3 +1,5 @@
+pub mod network;
+pub mod simulation;
 pub mod state;
 
 use bevy::app::PluginGroupBuilder;
@@ -9,5 +11,7 @@ pub struct ServerPlugins;
 impl PluginGroup for ServerPlugins {
     fn build(self) -> PluginGroupBuilder {
         PluginGroupBuilder::start::<Self>()
+            .add(network::ServerNetworkPlugin)
+            .add(simulation::ServerSimulationPlugin)
     }
 }

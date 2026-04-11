@@ -6,7 +6,7 @@ use bevy::dev_tools::fps_overlay::{FpsOverlayConfig, FpsOverlayPlugin};
 use bevy::{
     app::{App, PostUpdate},
     log::LogPlugin,
-    prelude::{AssetPlugin, DefaultPlugins, PluginGroup, Window, WindowPlugin, default, info},
+    prelude::{default, info, AssetPlugin, DefaultPlugins, PluginGroup, Window, WindowPlugin},
     window::WindowResolution,
 };
 use client::{lifecycle::scheduling::RenderPrepSet, prelude::*};
@@ -52,7 +52,7 @@ fn main() {
     app.configure_sets(PostUpdate, RenderPrepSet);
 
     // initialize simulation and renderer
-    app.add_plugins((shared::SharedPlugins, client::ClientPlugins));
+    app.add_plugins(client::ClientPlugins);
 
     app.run();
     info!("App exited safely!");
