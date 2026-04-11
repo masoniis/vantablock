@@ -1,4 +1,4 @@
-use crate::lifecycle::state::ClientGameState;
+use crate::lifecycle::state::ClientState;
 use bevy::prelude::*;
 
 #[derive(Component)]
@@ -21,7 +21,7 @@ pub fn spawn_main_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
                 ..Default::default()
             },
             MainMenuUiRoot,
-            DespawnOnExit(ClientGameState::MainMenu),
+            DespawnOnExit(ClientState::MainMenu),
         ))
         .with_children(|parent| {
             // title
@@ -73,15 +73,15 @@ pub fn main_menu_button_interaction_system(
         (&Interaction, &mut BackgroundColor, &mut BorderColor),
         (Changed<Interaction>, With<Button>),
     >,
-    mut next_state: ResMut<NextState<ClientGameState>>,
+    mut next_state: ResMut<NextState<ClientState>>,
 ) {
     for (interaction, mut color, mut border_color) in interaction_query.iter_mut() {
         match *interaction {
             Interaction::Pressed => {
                 *color = BackgroundColor(Color::LinearRgba(LinearRgba::new(0.3, 0.3, 0.3, 1.0)));
                 *border_color = BorderColor::all(Color::WHITE);
-                // transition to playing state
-                next_state.set(ClientGameState::Playing);
+                // Transition to InGame state
+                next_state.set(ClientState::InGame);
             }
             Interaction::Hovered => {
                 *color = BackgroundColor(Color::LinearRgba(LinearRgba::new(0.2, 0.2, 0.2, 0.9)));

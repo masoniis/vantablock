@@ -6,7 +6,7 @@ pub use sets::RenderPrepSet;
 //         plugin definition
 // ---------------------------------
 
-use crate::lifecycle::ClientGameState;
+use crate::lifecycle::state::ClientState;
 use bevy::prelude::*;
 
 pub struct ClientSchedulingPlugin;
@@ -15,9 +15,7 @@ impl Plugin for ClientSchedulingPlugin {
     fn build(&self, app: &mut App) {
         app.configure_sets(
             PostUpdate,
-            RenderPrepSet.run_if(
-                in_state(ClientGameState::Playing).or(in_state(ClientGameState::Connecting)),
-            ),
+            RenderPrepSet.run_if(in_state(ClientState::InGame)),
         );
     }
 }

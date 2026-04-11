@@ -1,29 +1,36 @@
 use bevy::prelude::{StateSet, SubStates};
 use shared::lifecycle::state::enums::AppState;
 
-/// A sub-state of `ClientAppState::Running`.
-///
-/// Represents the game state and lifecycle.
+/// High-level client state.
+/// Sub-state of `AppState::Running`.
 #[derive(SubStates, Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[source(AppState = AppState::Running)]
-pub enum ClientGameState {
-    /// The client is currently launching and loading data before hitting the main menu.
+pub enum ClientState {
+    /// Initial asset loading, shader compilation, and warmup.
     #[default]
     Loading,
-    /// The user is navigating the main menu UI.
+    /// User is in the main menu.
     MainMenu,
-    /// The client is attempting to establish a connection to a server.
-    Connecting,
-    /// A server connection is formed but the client is waiting for initial chunk data
-    /// to arrive.
-    WorldLoading,
-    /// The client is actively connected and in a game session.
-    Playing,
-    /// The pause menu is open. In single-player, this stops the clock. In multiplayer,
-    /// it doesn't.
-    Paused,
-    /// Disconnect requested, clean up world/meshes, serialization, etc.
-    Disconnecting,
-    /// An error occurred (kick reason, connection failure)
+    /// A world session is active (local or remote).
+    InGame,
+    /// Terminal state for fatal errors/disconnects to clean up the session.
     Error,
+}
+
+/// Detailed session lifecycle.
+/// Sub-state of `ClientState::InGame`.
+#[derive(SubStates, Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[source(ClientState = ClientState::InGame)]
+pub enum InGameState {
+    /// Establishing network connection or initializing local server.
+    #[default]
+    Connecting,
+    /// Receiving initial chunks and generating voxel meshes.
+    WorldLoading,
+    /// Active gameplay.
+    Playing,
+    /// Logic/Physics paused (single-player).
+    Paused,
+    /// Tearing down the world, closing sockets, and clearing VRAM.
+    Disconnecting,
 }

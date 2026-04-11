@@ -12,18 +12,19 @@ use bevy::{
     prelude::{App, Plugin},
     state::app::AppExtStates,
 };
-use shared::{
-    FixedUpdateSet,
-    lifecycle::load::{AppStartupLoadingPhase, cleanup_orphaned_tasks},
-    lifecycle::state::{SimulationState, enums::AppState},
-};
 use shared::transition_to;
+use shared::{
+    lifecycle::load::{cleanup_orphaned_tasks, AppStartupLoadingPhase},
+    lifecycle::state::{enums::AppState, SimulationState},
+    FixedUpdateSet,
+};
 
 pub struct ClientStatePlugin;
 
 impl Plugin for ClientStatePlugin {
     fn build(&self, app: &mut App) {
-        app.add_sub_state::<ClientGameState>();
+        app.add_sub_state::<ClientState>();
+        app.add_sub_state::<InGameState>();
 
         // INFO: -----------------------
         //         async loading
@@ -34,8 +35,8 @@ impl Plugin for ClientStatePlugin {
             Update,
             (
                 // transition from loading to main menu once simulation is ready
-                transition_to(ClientGameState::MainMenu)
-                    .run_if(in_state(ClientGameState::Loading))
+                transition_to(ClientState::MainMenu)
+                    .run_if(in_state(ClientState::Loading))
                     .run_if(in_state(SimulationState::Running)),
             )
                 .run_if(in_state(AppState::Running)),
@@ -50,9 +51,8 @@ impl Plugin for ClientStatePlugin {
         // configure system sets to be state-bound
         app.configure_sets(
             FixedUpdate,
-            (FixedUpdateSet::PreUpdate, FixedUpdateSet::MainLogic).run_if(
-                in_state(ClientGameState::Playing).or(in_state(ClientGameState::Connecting)),
-            ),
+            (FixedUpdateSet::PreUpdate, FixedUpdateSet::MainLogic)
+                .run_if(in_state(ClientState::InGame)),
         );
 
         // INFO: ---------------------------
