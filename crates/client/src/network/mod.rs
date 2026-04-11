@@ -1,3 +1,4 @@
+pub mod local_connection;
 pub mod message_handler;
 
 // INFO: ---------------------------
