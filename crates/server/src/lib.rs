@@ -1,9 +1,15 @@
+//! # The Vantablock Server Library
+
 pub mod network;
+pub mod prelude;
 pub mod simulation;
 pub mod state;
 
-use bevy::app::PluginGroupBuilder;
-use bevy::prelude::PluginGroup;
+pub use prelude::*;
+
+// INFO: ---------------------------
+//         plugin definition
+// ---------------------------------
 
 /// Server-side simulation and orchestration plugins.
 pub struct ServerPlugins;

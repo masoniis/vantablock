@@ -14,6 +14,16 @@ resources = ["../../assets", "../../readme.md"]
 icons = ["../../assets/client/icon.png"]
 binaries = [{ path = "game", main = true }]
 
+[[bin]]
+name = "game"
+path = "src/bin/game.rs"
+required-features = ["unified"]
+
+[[bin]]
+name = "server"
+path = "src/bin/server.rs"
+required-features = ["dedicated"]
+
 [features]
 # binary features
 default = ["unified"]
@@ -24,6 +34,7 @@ dedicated = ["server"]                                  # For headless hosting
 dev = ["client?/dev"]
 tracy = ["client?/tracy"]
 distribution = ["client?/distribution"]
+
 
 [dependencies]
 client = { package = "vantablock-client", path = "../client", optional = true }
@@ -38,13 +49,3 @@ bevy = { workspace = true, features = [
   "bevy_asset",
 ] }
 tracing = { workspace = true }
-
-[[bin]]
-name = "game"
-path = "src/bin/game.rs"
-required-features = ["unified"]
-
-[[bin]]
-name = "server"
-path = "src/bin/server.rs"
-required-features = ["dedicated"]
