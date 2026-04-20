@@ -8,7 +8,7 @@ pub use render::BoundingBoxNode;
 //         plugin definition
 // ---------------------------------
 
-use crate::{VantablockNode, render::passes::bounding_box::queue::queue_wireframe_system};
+use crate::render::{VantablockNode, passes::bounding_box::queue::queue_wireframe_system};
 use bevy::{
     core_pipeline::core_3d,
     prelude::{App, IntoScheduleConfigs, Plugin},

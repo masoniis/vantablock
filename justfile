@@ -4,6 +4,7 @@ set shell := ["bash", "-c"]
 project := "vantablock"
 client  := "vantablock-client"
 server  := "vantablock-server"
+runner  := "vantablock-runner"
 
 # where to place wsl windows builds
 wsl_target := "C:/temp/vantablock-build"
@@ -24,20 +25,20 @@ default: run
 
 # runs the client via debug profile
 run *args:
-    cargo run -p {{client}} {{args}}
+    cargo run -p {{runner}} --bin game {{args}}
 
 # runs the server via debug profile
 server *args:
-    cargo run -p {{server}} {{args}}
+    cargo run -p {{runner}} --bin server {{args}}
 
 # runs the client via max-optimization release profile
 release *args:
-    cargo run -p {{client}} --profile distribution --features {{client}}/distribution {{args}}
+    cargo run -p {{runner}} --bin game --profile distribution --features distribution {{args}}
 
 # compiles and runs the client natively on Windows from within WSL
 wsl *args:
     @WSL_PATH=$(wslpath -w .)
-    @powershell.exe -Command "if (!(Test-Path '{{wsl_target}}')) { New-Item -ItemType Directory -Force -Path '{{wsl_target}}' }; cd '$WSL_PATH'; \$env:CARGO_TARGET_DIR='{{wsl_target}}'; cargo run -p {{client}} {{args}}"
+    @powershell.exe -Command "if (!(Test-Path '{{wsl_target}}')) { New-Item -ItemType Directory -Force -Path '{{wsl_target}}' }; cd '$WSL_PATH'; \$env:CARGO_TARGET_DIR='{{wsl_target}}'; cargo run -p {{runner}} --bin game {{args}}"
 
 alias run-fast := release
 
@@ -67,6 +68,7 @@ clean:
 	rm -rf target/
 	rm -rf .dev_data/
 
+alias lint := check
 alias clip := clippy
 
 # INFO: ------------------------------
@@ -100,8 +102,8 @@ ready *args:
 
 # packages the client for distribution
 package profile="distribution":
-    cargo build -p client --profile {{profile}} --features distribution
-    cargo packager -p client --profile {{ if profile == "dev" { "debug" } else { profile } }}
+    cargo build -p {{runner}} --bin game --profile {{profile}} --features distribution
+    cargo packager -p {{runner}} --bin game --profile {{ if profile == "dev" { "debug" } else { profile } }}
 
 # runs the texture processor utility
 texture:
@@ -118,7 +120,7 @@ sign:
 # Shows the ASM associated with a rust file.
 # requires https://crates.io/crates/cargo-show-asm
 asm path:
-    cargo asm -p {{client}} --color {{path}}
+    cargo asm -p {{runner}} --bin game --color {{path}}
 
 # launch tracy if it isn't already running
 trace *args:
@@ -130,15 +132,15 @@ trace *args:
         TRACY_ENABLE_MEMORY=1
         tracy &
     fi
-    cargo run -p {{client}} --features {{client}}/tracy {{args}}
+    cargo run -p {{runner}} --bin game --features tracy {{args}}
 
 # runs the client with Bevy-specific debug features
 debug_bevy *args:
-    cargo run -p {{client}} --features bevy/trace,bevy/track_location,bevy/debug {{args}}
+    cargo run -p {{runner}} --bin game --features bevy/trace,bevy/track_location,bevy/debug {{args}}
 
 # runs the client with verbose wgpu logging
 debug_wgpu *args:
-    RUST_LOG=wgpu=trace cargo run -p {{client}} {{args}}
+    RUST_LOG=wgpu=trace cargo run -p {{runner}} --bin game {{args}}
 
 # targeted tracing, call without args to list targets found in source.
 debug *args:
@@ -161,4 +163,4 @@ debug *args:
     done
     export RUST_LOG="${log_targets%,},{{project}}=info"
     echo -e "\033[1;32mRunning with RUST_LOG=\033[0m$RUST_LOG"
-    cargo run -p {{client}}
+    cargo run -p {{runner}} --bin game

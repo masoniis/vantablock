@@ -7,10 +7,14 @@ pub mod message_handler;
 
 use bevy::prelude::*;
 use lightyear::prelude::client::ClientPlugins;
+use local_connection::setup_client;
+use shared::simulation::input::{resources::ActionStateResource, types::SimulationAction};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
     time::Duration,
 };
+
+use crate::network::local_connection::check_connection_state;
 
 pub const FIXED_TIMESTEP_HZ: f64 = 60.0;
 
@@ -23,6 +27,16 @@ impl Plugin for ClientNetworkPlugin {
         app.add_plugins(ClientPlugins {
             tick_duration: Duration::from_secs_f64(1.0 / FIXED_TIMESTEP_HZ),
         });
+
+        app.add_systems(
+            Update,
+            (
+                setup_client.run_if(|action_state: Res<ActionStateResource>| {
+                    action_state.just_happened(SimulationAction::ToggleChunkBorders)
+                }),
+                check_connection_state,
+            ),
+        );
 
         // app.register_message() server message
         // app.add_plugins(ClientMessageHandlerPlugin);

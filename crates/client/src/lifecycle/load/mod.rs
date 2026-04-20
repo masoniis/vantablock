@@ -1,5 +1,9 @@
 pub mod registries;
 
+// INFO: ---------------------------
+//         plugin definition
+// ---------------------------------
+
 use bevy::app::{App, Plugin};
 use bevy::prelude::OnEnter;
 use registries::start_async_registry_initialization;

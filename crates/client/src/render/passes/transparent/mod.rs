@@ -12,7 +12,7 @@ use startup::TransparentPipeline;
 // ---------------------------------
 
 use crate::{
-    VantablockNode,
+    render::VantablockNode,
     render::passes::transparent::{
         prepare::prepare_transparent_meshes_system, queue::queue_and_prepare_transparent_system,
     },

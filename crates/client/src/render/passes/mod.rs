@@ -7,19 +7,17 @@ pub mod transparent;
 //         plugin definition
 // ---------------------------------
 
-use crate::{
+use crate::render::{
     VantablockNode,
-    render::{
-        passes::{
-            bounding_box::WireframeRenderPassPlugin, opaque::OpaqueRenderPassPlugin,
-            shadow::ShadowRenderPassPlugin, transparent::TransparentRenderPassPlugin,
-        },
-        resources::{
-            CentralCameraViewBindGroupLayout, CentralCameraViewUniform, EnvironmentBindGroupLayout,
-            EnvironmentUniforms, TextureArrayBindGroupLayout, prepare_texture_array_system,
-            update_camera_view_buffer_system, update_environment_uniform_buffer_system,
-            world_uniforms::{ChunkStorageBindGroupLayout, ChunkStorageManager},
-        },
+    passes::{
+        bounding_box::WireframeRenderPassPlugin, opaque::OpaqueRenderPassPlugin,
+        shadow::ShadowRenderPassPlugin, transparent::TransparentRenderPassPlugin,
+    },
+    resources::{
+        CentralCameraViewBindGroupLayout, CentralCameraViewUniform, EnvironmentBindGroupLayout,
+        EnvironmentUniforms, TextureArrayBindGroupLayout, prepare_texture_array_system,
+        update_camera_view_buffer_system, update_environment_uniform_buffer_system,
+        world_uniforms::{ChunkStorageBindGroupLayout, ChunkStorageManager},
     },
 };
 use bevy::prelude::IntoScheduleConfigs;

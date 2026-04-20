@@ -3,7 +3,6 @@ name = "vantablock-server"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
-default-run = "server"
 
 [lints]
 workspace = true
@@ -11,10 +10,6 @@ workspace = true
 [lib]
 name = "server"
 path = "src/lib.rs"
-
-[[bin]]
-name = "server"
-path = "src/main.rs"
 
 [dependencies]
 utils = { workspace = true }

@@ -15,10 +15,10 @@ use protocol::NetworkProtoclPlugin;
 
 use crate::network::state::NetworkingMode;
 
-pub struct NetworkPlugin;
+pub struct SharedNetworkPlugin;
 
 /// A plugin that defines sets up the shared network stuff
-impl Plugin for NetworkPlugin {
+impl Plugin for SharedNetworkPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(NetworkProtoclPlugin);
 

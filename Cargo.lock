@@ -7872,6 +7872,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "vantablock-runner"
+version = "0.0.1"
+dependencies = [
+ "bevy",
+ "tracing",
+ "vantablock-client",
+ "vantablock-server",
+ "vantablock-shared",
+ "vantablock-utils",
+]
+
+[[package]]
 name = "vantablock-server"
 version = "0.0.1"
 dependencies = [
