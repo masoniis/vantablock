@@ -27,4 +27,9 @@ tracing-subscriber = { workspace = true }
 # --------------------------------
 
 bevy = { workspace = true }
-lightyear = { workspace = true }
+lightyear = { workspace = true, features = [
+  # extra features for server
+  "server",  # server plugins
+  "udp",     # needed for Dedicated/LAN listening
+  "netcode", # needed to manage distinct player connections
+] }

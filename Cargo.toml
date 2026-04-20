@@ -74,7 +74,16 @@ bevy = { version = "0.18.1", default-features = false, features = [
   "default_app", # core app/ecs/etc
   "bevy_state",  # state machines
 ] }
-lightyear = "0.26.4"
+lightyear = { version = "0.26.4", default-features = false, features = [
+	# subset of original defaults
+	"replication",   # allows replicating components between server and client
+	"interpolation", # smooths out remote players walking around
+	"prediction",    # essential for smooth local player movement
+	# extras
+	"input_native",  # input support with built-in rollback
+	"udp",           # needed for dedicated/lan
+	"netcode",       # needed to manage distinct conns
+]}
 futures-lite = "2.6.1" # future utils
 
 # util deps
