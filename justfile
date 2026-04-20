@@ -105,6 +105,10 @@ package profile="distribution":
     cargo build -p {{runner}} --bin game --profile {{profile}} --features distribution
     cargo packager -p {{runner}} --bin game --profile {{ if profile == "dev" { "debug" } else { profile } }}
 
+# packages the server for distribution
+server-package profile="distribution":
+    cargo build -p {{runner}} --bin server --profile {{profile}}
+
 # runs the texture processor utility
 texture:
     cargo run -p {{client}} --bin texture_processor

@@ -5,12 +5,12 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
-[lints]
-workspace = true
-
 [lib]
 name = "client"
 path = "src/lib.rs"
+
+[lints]
+workspace = true
 
 [[bench]]
 name = "generation_benchmarks"
