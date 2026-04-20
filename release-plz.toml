@@ -18,9 +18,9 @@ pr_body = """
 {{ releases[0].changelog }}
 """
 
-# client package is the main release entrypoint
+# runner package is the main release entrypoint
 [[package]]
-name = "vantablock-client"
+name = "vantablock-runner"
 release = true
 # TODO: can't get git_only to work, https://github.com/release-plz/release-plz/issues/2595
 # waiting on https://github.com/release-plz/release-plz/pull/2652 to be merged, seems like the fix

@@ -60,7 +60,7 @@ jobs:
     needs: [release-plz-release]
     permissions:
       contents: write
-    if: ${{ contains(needs.release-plz-release.outputs.releases, '"package_name":"vantablock-client"') }}
+    if: ${{ contains(needs.release-plz-release.outputs.releases, '"package_name":"vantablock-runner"') }}
     strategy:
       fail-fast: false
       matrix:
@@ -87,46 +87,68 @@ jobs:
         with:
           tool: cargo-packager
 
-      - name: Build and Package
+      - name: Build and Package Game
         run: |
-          cargo build -p client --profile distribution --features distribution
-          cargo packager -p client --profile distribution
+          cargo build -p vantablock-runner --bin game --profile distribution --features distribution
+          cargo packager -p vantablock-runner --bin game --profile distribution
 
-      - name: Extract Client Release Tag
-        id: client_tag
+      - name: Build and Package Server
         shell: bash
         run: |
-          # extract tag from package_name='client' to append release assets to
-          TAG=$(echo '${{ needs.release-plz-release.outputs.releases }}' | jq -r '.[] | select(.package_name == "vantablock-client") | .tag')
+          cargo build -p vantablock-runner --bin server --profile distribution
+          
+          # Create server archive
+          mkdir -p target/distribution/server
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            cp target/distribution/server.exe target/distribution/server/VantablockServer.exe
+            cd target/distribution/server
+            7z a ../VantablockServer-windows-x86_64.zip VantablockServer.exe
+          else
+            cp target/distribution/server target/distribution/server/VantablockServer
+            cd target/distribution/server
+            tar -czf ../VantablockServer-${{ matrix.os == 'macos-latest' && 'macos' || 'linux' }}-x86_64.tar.gz VantablockServer
+          fi
+
+      - name: Extract Release Tag
+        id: release_tag
+        shell: bash
+        run: |
+          TAG=$(echo '${{ needs.release-plz-release.outputs.releases }}' | jq -r '.[] | select(.package_name == "vantablock-runner") | .tag')
           if [ -z "$TAG" ] || [ "$TAG" == "null" ]; then
-            echo "Error: Could not find tag for client package."
+            echo "Error: Could not find tag for runner package."
             exit 1
           fi
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-      - name: Rename client assets to Vantablock
+      - name: Rename and Filter assets
         shell: bash
         run: |
           cd target/distribution/ || exit 0
 
-          # loop through all files starting with "client" and change to "Vantablock"
-          for file in client*; do
+          # Rename game assets
+          for file in game*; do
             if [[ -f "$file" ]]; then
-              mv "$file" "${file/client/Vantablock}"
+              mv "$file" "${file/game/Vantablock}"
             fi
           done
+
+          # Remove non-functional Windows exe (we want the installer)
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            rm -f Vantablock.exe
+          fi
 
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.client_tag.outputs.tag }}
+          tag_name: ${{ steps.release_tag.outputs.tag }}
           files: |
             target/distribution/Vantablock*.dmg
+            target/distribution/Vantablock*.msi
             target/distribution/Vantablock*.exe
-            target/distribution/Vantablock*.AppImage
-            target/distribution/Vantablock*.tar.gz
-            target/distribution/Vantablock*.pkg
             target/distribution/Vantablock*.deb
+            target/distribution/Vantablock*.AppImage
+            target/distribution/VantablockServer*.tar.gz
+            target/distribution/VantablockServer*.zip
           fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
