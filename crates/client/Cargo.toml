@@ -68,7 +68,12 @@ bevy = { workspace = true, features = [
   "ui_bevy_render",   # additional bevy ui render support
   "bevy_asset",
 ] }
-lightyear = { workspace = true }
+lightyear = { workspace = true, features = [
+  # extra features for client
+  "client",  # client plugins
+  "udp",     # needed for Dedicated/LAN listening
+  "netcode", # needed to manage distinct player connections
+] }
 futures-lite = { workspace = true } # future utils
 
 # INFO: ---------------

@@ -96,7 +96,7 @@ jobs:
         shell: bash
         run: |
           cargo build -p vantablock-runner --bin server --profile distribution
-          
+
           # Create server archive
           mkdir -p target/distribution/server
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
