@@ -17,12 +17,15 @@ pub use prelude::*;
 use bevy::app::PluginGroupBuilder;
 use bevy::prelude::PluginGroup;
 
-/// A group containing all client-side plugins.
+/// A plugin group containing every default client-side plugin.
 pub struct ClientPlugins;
 
 impl PluginGroup for ClientPlugins {
     fn build(self) -> PluginGroupBuilder {
         PluginGroupBuilder::start::<Self>()
+            // external crate plugins
+            .add_group(shared::SharedPlugins)
+            // internal crate plugins
             .add(input::InputModulePlugin)
             .add_group(lifecycle::LifecyclePlugins)
             .add(network::ClientNetworkPlugin)
@@ -30,9 +33,5 @@ impl PluginGroup for ClientPlugins {
             .add(render::VantablockRenderPlugin)
             .add(showcase::ShowcasePlugin)
             .add(ui::VantablockUiPlugin)
-            // NOTE: shared plugins must come after client network plugin
-            // since the protocol must be added after the lightyear `ClientPlugins`
-            // https://docs.rs/lightyear/0.26.4/lightyear/prelude/client/struct.ClientPlugins.html
-            .add_group(shared::SharedPlugins)
     }
 }
