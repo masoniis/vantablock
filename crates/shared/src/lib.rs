@@ -1,3 +1,5 @@
+//! # The Vantablock Shared Library
+
 pub mod lifecycle;
 pub mod network;
 pub mod prelude;

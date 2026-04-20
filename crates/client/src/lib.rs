@@ -1,3 +1,5 @@
+//! # The Vantablock Client Library
+
 pub mod input;
 pub mod lifecycle;
 pub mod network;
@@ -13,9 +15,6 @@ pub use prelude::*;
 // INFO: -----------------------------
 //         client plugin group
 // -----------------------------------
-
-use bevy::app::PluginGroupBuilder;
-use bevy::prelude::PluginGroup;
 
 /// A plugin group containing every default client-side plugin.
 pub struct ClientPlugins;
