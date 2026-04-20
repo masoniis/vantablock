@@ -14,9 +14,9 @@ use bevy::{
 };
 use shared::transition_to;
 use shared::{
-    lifecycle::load::{cleanup_orphaned_tasks, AppStartupLoadingPhase},
-    lifecycle::state::{enums::AppState, SimulationState},
     FixedUpdateSet,
+    lifecycle::load::{AppStartupLoadingPhase, cleanup_orphaned_tasks},
+    lifecycle::state::{SimulationState, enums::AppState},
 };
 
 pub struct ClientStatePlugin;

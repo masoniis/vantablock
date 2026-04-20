@@ -1,0 +1,50 @@
+[package]
+name = "vantablock-runner"
+description = "binaries for vantablock"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+default-run = "game"
+
+[package.metadata.packager]
+product-name = "Vantablock"
+identifier = "com.masoniis.vantablock"
+resources = ["../../assets", "../../readme.md"]
+icons = ["../../assets/client/icon.png"]
+binaries = [{ path = "game", main = true }]
+
+[features]
+# binary features
+default = ["unified"]
+unified = ["client", "server", "bevy/default_platform"] # For playing the game
+dedicated = ["server"]                                  # For headless hosting
+
+# development features
+dev = ["client?/dev"]
+tracy = ["client?/tracy"]
+distribution = ["client?/distribution"]
+
+[dependencies]
+client = { package = "vantablock-client", path = "../client", optional = true }
+server = { package = "vantablock-server", path = "../server", optional = true }
+shared = { package = "vantablock-shared", path = "../shared" }
+utils = { package = "vantablock-utils", path = "../utils" }
+
+bevy = { workspace = true, features = [
+  "default_platform", # core OS features, windowing, input, etc
+  "3d_bevy_render",   # bevy 3d render pass/graph and subapp
+  "ui_bevy_render",   # additional bevy ui render support
+  "bevy_asset",
+] }
+tracing = { workspace = true }
+
+[[bin]]
+name = "game"
+path = "src/bin/game.rs"
+required-features = ["unified"]
+
+[[bin]]
+name = "server"
+path = "src/bin/server.rs"
+required-features = ["dedicated"]

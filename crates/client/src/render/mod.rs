@@ -9,6 +9,7 @@ pub mod texture;
 pub mod types;
 
 pub use data::*;
+pub use scheduling::VantablockNode;
 
 // INFO: --------------------------------
 //         render world interface

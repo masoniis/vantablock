@@ -3,6 +3,7 @@ pub mod scheduling;
 pub mod state;
 
 pub use load::*;
+pub use scheduling::*;
 pub use state::*;
 
 // INFO: ---------------------------
@@ -10,7 +11,6 @@ pub use state::*;
 // ---------------------------------
 
 use bevy::{app::PluginGroupBuilder, prelude::PluginGroup};
-use scheduling::ClientSchedulingPlugin;
 
 /// A plugin group containing client lifecycle stuff.
 pub struct LifecyclePlugins;

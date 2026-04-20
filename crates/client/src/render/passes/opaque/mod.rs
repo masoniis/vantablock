@@ -3,15 +3,17 @@ pub mod render;
 pub mod skybox;
 
 pub use mesh::*;
-pub use render::OpaquePassRenderNode;
 
 // INFO: ---------------------------
 //         plugin definition
 // ---------------------------------
 
-use crate::{
+use crate::render::{
     VantablockNode,
-    render::passes::opaque::{mesh::pipeline::Opaque3dPipeline, skybox::OpaqueSkyboxPipeline},
+    passes::opaque::{
+        mesh::pipeline::Opaque3dPipeline, render::OpaquePassRenderNode,
+        skybox::OpaqueSkyboxPipeline,
+    },
 };
 use bevy::{
     prelude::{App, IntoScheduleConfigs, Plugin},

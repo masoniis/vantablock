@@ -4,7 +4,7 @@
 // INFO: -----------------------
 //         crate imports
 // -----------------------------
-pub use crate::render::scheduling::*;
+pub use crate::lifecycle::RenderPrepSet;
 pub use crate::settings::ClientSettings;
 pub use utils::*;
 
