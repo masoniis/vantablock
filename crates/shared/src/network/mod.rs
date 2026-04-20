@@ -24,6 +24,12 @@ impl Plugin for SharedNetworkPlugin {
 
         // add states
         app.add_sub_state::<NetworkingMode>();
+    }
+
+    fn finish(&self, app: &mut App) {
+        // Since the protocol must be added after the lightyear `ClientPlugins` we do lightyear
+        // channel registration in the finish method, not the build method.
+        // https://docs.rs/lightyear/0.26.4/lightyear/prelude/client/struct.ClientPlugins.html
 
         // add channels
         app.add_channel::<PlayerMovement>(ChannelSettings {
