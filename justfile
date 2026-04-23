@@ -1,4 +1,15 @@
+# platform-specific configuration
 set shell := ["bash", "-c"]
+set windows-shell := ["powershell.exe", "-NoProfile", "-Command"]
+
+os_family := os()
+open_cmd := if os_family == "macos" { \
+    "open" \
+} else if os_family == "windows" { \
+    "explorer.exe" \
+} else { \
+    "xdg-open" \
+}
 
 # crate names
 project := "vantablock"
@@ -8,14 +19,6 @@ runner  := "vantablock-runner"
 
 # where to place wsl windows builds
 wsl_target := "C:/temp/vantablock-build"
-
-open_cmd := if os() == "macos" { \
-    "open" \
-} else if os() == "windows" { \
-    "explorer.exe" \
-} else { \
-    "xdg-open" \
-}
 
 default: run
 
@@ -36,6 +39,9 @@ release *args:
     cargo run -p {{runner}} --bin game --profile distribution --features distribution {{args}}
 
 # compiles and runs the client natively on Windows from within WSL
+# requires cargo and just on Windows host:
+# - winget install just
+# - winget install rustup
 wsl *args:
     @WSL_PATH=$(wslpath -w .)
     @powershell.exe -Command "if (!(Test-Path '{{wsl_target}}')) { New-Item -ItemType Directory -Force -Path '{{wsl_target}}' }; cd '$WSL_PATH'; \$env:CARGO_TARGET_DIR='{{wsl_target}}'; cargo run -p {{runner}} --bin game {{args}}"
