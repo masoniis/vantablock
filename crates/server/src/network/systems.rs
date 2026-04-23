@@ -1,10 +1,14 @@
 use crate::prelude::*;
 use bevy::ecs::{observer::On, system::Commands};
 use lightyear::prelude::{Connect, Link, Server};
+use shared::network::NETWORK_DEFAULT_PORT;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 pub fn start_server(mut commands: Commands) {
-    let server_addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 5000));
+    let server_addr = SocketAddr::V4(SocketAddrV4::new(
+        Ipv4Addr::UNSPECIFIED,
+        NETWORK_DEFAULT_PORT,
+    ));
     info!("Starting server listening on {}...", server_addr);
 
     let server_entity = commands.spawn((Server::default(), Link::default())).id();

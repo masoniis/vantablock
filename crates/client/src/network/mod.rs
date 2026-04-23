@@ -1,8 +1,6 @@
 pub mod local_connection;
 pub mod message_handler;
 
-pub const FIXED_TIMESTEP_HZ: f64 = 60.0;
-
 // INFO: ---------------------------
 //         plugin definition
 // ---------------------------------
@@ -12,6 +10,7 @@ use crate::lifecycle::state::InGameState;
 use bevy::prelude::*;
 use lightyear::prelude::client::ClientPlugins;
 use local_connection::setup_client;
+use shared::network::NETWORK_TICK_DURATION;
 use shared::simulation::input::types::SimulationAction;
 use std::time::Duration;
 
@@ -22,7 +21,7 @@ pub struct ClientNetworkPlugin;
 impl Plugin for ClientNetworkPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(ClientPlugins {
-            tick_duration: Duration::from_secs_f64(1.0 / FIXED_TIMESTEP_HZ),
+            tick_duration: Duration::from_secs_f64(NETWORK_TICK_DURATION),
         });
 
         app.add_systems(
