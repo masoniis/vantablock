@@ -1,11 +1,11 @@
 use super::climate_buffer_pool::CLIMATE_BUFFERS;
-use shared::simulation::chunk::{ChunkCoord, ChunkLod};
 use crate::simulation::terrain::{
     ClimateGenerator,
     climate::{ClimateData, ClimateMapComponent},
 };
 use bevy::ecs::prelude::Resource;
 use noise::MultiFractal;
+use shared::simulation::chunk::{ChunkCoord, ChunkLod};
 
 #[derive(Resource)]
 pub struct ClimateNoiseGenerator {

@@ -1,13 +1,5 @@
-use bevy::{
-    MinimalPlugins,
-    app::ScheduleRunnerPlugin,
-    asset::AssetPlugin,
-    prelude::{App, PluginGroup, default},
-    state::app::StatesPlugin,
-};
-use server::ServerPlugins;
-use shared::SharedPlugins;
-use std::time::Duration;
+use bevy::prelude::App;
+use server::DefaultServerPlugins;
 use tracing::info;
 
 /// This is the entrypoint for a dedicated server. The server logic is also used
@@ -16,31 +8,17 @@ fn main() {
     // initialize logging
     utils::attach_logger();
 
-    // setup headless bevy app
-    let mut app = App::new();
-
     info!("Building server app...");
 
-    // resolve platform paths for initial plugin configuration
-    let persistent_paths = utils::PersistentPaths::resolve();
+    // setup server app
+    let mut app = App::new();
 
-    app.add_plugins(
-        MinimalPlugins.set(ScheduleRunnerPlugin::run_loop(Duration::from_secs_f64(
-            1.0 / 60.0,
-        ))),
-    );
+    // server app only has server plugins, running headless with no client
+    app.add_plugins(DefaultServerPlugins);
 
-    app.add_plugins(StatesPlugin);
-    app.add_plugins(AssetPlugin {
-        file_path: persistent_paths.assets_dir.to_string_lossy().to_string(),
-        ..default()
-    });
-
-    // add server-side and shared plugins
-    app.add_plugins(ServerPlugins);
-    app.add_plugins(SharedPlugins);
-
-    info!("App built! Running the server");
+    info!("App built! Running the event loop.");
 
     app.run();
+
+    info!("App exited safely!");
 }

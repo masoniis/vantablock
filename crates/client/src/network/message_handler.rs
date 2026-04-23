@@ -15,7 +15,7 @@ impl Plugin for ClientMessageHandlerPlugin {
     }
 }
 
-fn handle_server_messages(
+pub fn handle_server_messages(
     mut commands: Commands,
     mut query: Query<&mut MessageReceiver<ServerMessage>>,
     mut chunk_manager: ResMut<ChunkStateManager>,
@@ -30,9 +30,15 @@ fn handle_server_messages(
                     info!("Welcome message received! Spawn pos: {:?}", spawn_pos);
                 }
                 ServerMessage::ChunkData { coord, data } => {
-                    trace!("Received chunk data for {:?}", coord);
-                    if !chunk_manager.is_chunk_present_or_loading(coord.pos) {
-                        let blocks = ChunkBlocksComponent::from_vec(ChunkLod(0), data);
+                    info!("Received chunk data for {:?}", coord);
+                    let blocks = ChunkBlocksComponent::from_vec(ChunkLod(0), data);
+
+                    if let Some(ent) = chunk_manager.get_entity(coord.pos) {
+                        // use existing entity if present
+                        commands.entity(ent).insert(blocks);
+                        chunk_manager.mark_as_data_ready(coord.pos, ent);
+                    } else {
+                        // fallback if client didn't know about it
                         let ent = commands.spawn((blocks, coord.clone())).id();
                         chunk_manager.mark_as_data_ready(coord.pos, ent);
                     }

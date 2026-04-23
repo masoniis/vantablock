@@ -1,6 +1,11 @@
 use bevy::ecs::prelude::World;
-use server::prelude::*;
 use criterion::{Criterion, criterion_group, criterion_main};
+use server::prelude::*;
+use server::simulation::terrain::{
+    BasicBiomeGenerator, BiomeGenerator, BiomeMapComponent, BiomeResultBuilder, ClimateGenerator,
+    ClimateNoiseGenerator, PaintResultBuilder, ShapeResultBuilder, SimpleSurfacePainter,
+    SinwaveShaper, TerrainPainter, TerrainShaper,
+};
 use shared::lifecycle::PersistentPathsResource;
 use shared::simulation::{
     biome::biome_registry::BiomeRegistryResource,
@@ -9,11 +14,6 @@ use shared::simulation::{
         components::{ChunkBlocksComponent, ChunkCoord},
         types::ChunkLod,
     },
-};
-use server::simulation::terrain::{
-    BasicBiomeGenerator, BiomeGenerator, BiomeMapComponent, BiomeResultBuilder,
-    ClimateGenerator, ClimateNoiseGenerator, PaintResultBuilder, ShapeResultBuilder,
-    SimpleSurfacePainter, SinwaveShaper, TerrainPainter, TerrainShaper,
 };
 use utils::PersistentPaths;
 

@@ -7893,6 +7893,8 @@ name = "vantablock-runner"
 version = "0.0.1"
 dependencies = [
  "bevy",
+ "crossbeam-channel",
+ "lightyear",
  "tracing",
  "vantablock-client",
  "vantablock-server",

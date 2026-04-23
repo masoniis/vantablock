@@ -5,10 +5,8 @@ use criterion::{Criterion, criterion_group, criterion_main};
 use shared::simulation::{
     block::{BlockRegistry, SOLID_BLOCK_ID},
     chunk::{
-        ChunkDataOption, NeighborLODs, PaddedChunk,
-        components::ChunkBlocksComponent,
-        thread_buffer_pool::acquire_buffer,
-        types::ChunkLod,
+        ChunkDataOption, NeighborLODs, PaddedChunk, components::ChunkBlocksComponent,
+        thread_buffer_pool::acquire_buffer, types::ChunkLod,
     },
 };
 use utils::PersistentPaths;

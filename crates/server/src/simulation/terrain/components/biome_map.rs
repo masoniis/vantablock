@@ -1,6 +1,6 @@
+use bevy::prelude::{Component, Deref, DerefMut};
 use shared::simulation::biome::biome_registry::BiomeId;
 use shared::simulation::chunk::types::{ChunkLod, ChunkVolumeData};
-use bevy::prelude::{Component, Deref, DerefMut};
 
 #[derive(Component, Clone, Deref, DerefMut)]
 pub struct BiomeMapComponent(pub ChunkVolumeData<BiomeId>);

@@ -2,33 +2,42 @@ use crate::prelude::*;
 use crate::simulation::chunk_loading::ClientChunkTracker;
 use bevy::ecs::{observer::On, system::Commands};
 use bevy::prelude::{Component, Entity, Transform};
-use lightyear::prelude::{Connect, Link, MessageSender, Server};
-use shared::network::NETWORK_DEFAULT_PORT;
+use lightyear::netcode::NetcodeServer;
+use lightyear::prelude::server::{NetcodeConfig, ServerUdpIo, Start};
+use lightyear::prelude::{Connect, LocalAddr, MessageSender};
 use shared::network::protocol::server::ServerMessage;
+use shared::network::NETWORK_DEFAULT_PORT;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
-
-pub fn start_server(mut commands: Commands) {
-    let server_addr = SocketAddr::V4(SocketAddrV4::new(
-        Ipv4Addr::UNSPECIFIED,
-        NETWORK_DEFAULT_PORT,
-    ));
-    info!("Starting server listening on {}...", server_addr);
-
-    let server_entity = commands.spawn((Server::default(), Link::default())).id();
-
-    // start listening
-    commands.trigger(lightyear::prelude::server::Start {
-        entity: server_entity,
-    });
-}
 
 #[derive(Component)]
 pub struct ClientConnection {
     pub client_entity: Entity,
 }
 
-#[derive(Component)]
-pub struct SentWelcome;
+/// Starts a udp server listening on an available local addr
+///
+/// https://cbournhonesque.github.io/lightyear/book/tutorial/build_client_server.html#server
+pub fn start_udp_server(mut commands: Commands) {
+    let server_addr = SocketAddr::V4(SocketAddrV4::new(
+        Ipv4Addr::UNSPECIFIED,
+        NETWORK_DEFAULT_PORT,
+    ));
+
+    info!("Starting server listening on {}...", server_addr);
+
+    let server_entity = commands
+        .spawn((
+            NetcodeServer::new(NetcodeConfig::default()),
+            LocalAddr(server_addr),
+            ServerUdpIo::default(),
+        ))
+        .id();
+
+    // start listening
+    commands.trigger(Start {
+        entity: server_entity,
+    });
+}
 
 pub fn handle_connections(trigger: On<Connect>, mut commands: Commands) {
     let client_entity = trigger.entity;

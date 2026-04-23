@@ -1,10 +1,10 @@
 use crate::prelude::*;
+use crate::simulation::terrain::BiomeMapComponent;
 use shared::simulation::{
     biome::BiomeRegistryResource,
     block::{BlockId, BlockRegistry},
     chunk::{ChunkBlocksComponent, ChunkCoord, ChunkMetadata, VolumeDataWriter},
 };
-use crate::simulation::terrain::BiomeMapComponent;
 use std::fmt::Debug;
 
 // INFO: -------------------------

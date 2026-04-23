@@ -6,11 +6,12 @@ pub mod chunk;
 pub mod chunk_loading;
 pub mod terrain;
 
+#[cfg(test)]
+mod chunk_loading_test;
+
 use bevy::prelude::*;
 use chunk::{poll_chunk_generation_tasks, start_pending_generation_tasks_system};
-use chunk_loading::{
-    manage_player_chunk_loading_system, send_welcome_system, sync_chunk_data_to_clients_system,
-};
+use chunk_loading::{manage_player_chunk_loading_system, sync_chunk_data_to_clients_system};
 use shared::network::state::NetworkingMode;
 use terrain::TerrainGenerationPlugin;
 
@@ -23,7 +24,6 @@ impl Plugin for ServerSimulationPlugin {
         app.add_systems(
             Update,
             (
-                send_welcome_system,
                 manage_player_chunk_loading_system,
                 sync_chunk_data_to_clients_system,
             )

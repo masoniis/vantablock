@@ -1,9 +1,9 @@
 use crate::prelude::*;
-use shared::simulation::biome::BiomeRegistryResource;
 use crate::simulation::terrain::{
     climate::{ClimateData, ClimateMapComponent},
     generators::biome::{BiomeGenerator, BiomeResultBuilder},
 };
+use shared::simulation::biome::BiomeRegistryResource;
 
 #[derive(Debug, Default)]
 pub struct MultiNoiseBiomeGenerator;

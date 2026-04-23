@@ -66,7 +66,7 @@ pub struct ClientSettingsPlugin;
 
 impl Plugin for ClientSettingsPlugin {
     fn build(&self, app: &mut App) {
-        // If paths isn't already there, this will trigger the resolve (via PathsPlugin being added before this)
+        // if paths isn't already there, this will trigger the resolve (via PathsPlugin being added before this)
         let paths = app
             .world()
             .get_resource::<PersistentPathsResource>()

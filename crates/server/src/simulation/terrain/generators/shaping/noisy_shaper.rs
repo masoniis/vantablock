@@ -1,11 +1,11 @@
 use super::realistic_shaper::REALISTIC_SEA_LEVEL;
 use crate::prelude::*;
-use shared::simulation::chunk::CHUNK_SIDE_LENGTH;
 use crate::simulation::terrain::climate::ClimateMapComponent;
 use crate::simulation::terrain::generators::shaping::{
     ChunkUniformity, ShapeResultBuilder, TerrainShaper,
 };
 use noise::{Fbm, MultiFractal, NoiseFn, Perlin};
+use shared::simulation::chunk::CHUNK_SIDE_LENGTH;
 
 #[derive(Debug, Clone)]
 pub struct NoisyShaper {

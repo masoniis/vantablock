@@ -52,3 +52,7 @@ utils = { package = "vantablock-utils", path = "../utils" }
 
 bevy = { workspace = true, features = ["bevy_asset"] }
 tracing = { workspace = true }
+
+[dev-dependencies]
+lightyear = { workspace = true }
+crossbeam-channel = "0.5"

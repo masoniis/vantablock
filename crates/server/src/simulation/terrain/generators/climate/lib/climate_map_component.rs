@@ -1,5 +1,5 @@
-use shared::simulation::chunk::{ChunkColumnData, types::ChunkLod};
 use bevy::prelude::{Component, Deref, DerefMut};
+use shared::simulation::chunk::{ChunkColumnData, types::ChunkLod};
 
 // INFO: --------------------------------
 //         Biome gen climate data

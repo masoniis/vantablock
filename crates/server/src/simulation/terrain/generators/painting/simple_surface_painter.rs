@@ -1,9 +1,9 @@
 use crate::prelude::*;
-use shared::simulation::biome::BiomeRegistryResource;
-use shared::simulation::block::BlockRegistry;
 use crate::simulation::terrain::BiomeMapComponent;
 use crate::simulation::terrain::generators::painting::{PaintResultBuilder, TerrainPainter};
 use crate::simulation::terrain::shaping::realistic_shaper::REALISTIC_SEA_LEVEL;
+use shared::simulation::biome::BiomeRegistryResource;
+use shared::simulation::block::BlockRegistry;
 
 #[derive(Debug, Clone)]
 pub struct SimpleSurfacePainter;

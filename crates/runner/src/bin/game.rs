@@ -1,57 +1,34 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-#[cfg(feature = "dev")]
-use bevy::dev_tools::fps_overlay::{FpsOverlayConfig, FpsOverlayPlugin};
-
 use bevy::{
     app::{App, PostUpdate},
-    log::LogPlugin,
-    prelude::{AssetPlugin, DefaultPlugins, PluginGroup, Window, WindowPlugin, default, info},
-    window::WindowResolution,
+    prelude::info,
 };
 use client::{lifecycle::scheduling::RenderPrepSet, prelude::*};
-use utils::{PersistentPaths, attach_logger};
+use utils::attach_logger;
 
-#[instrument(skip_all, fields(name = "main"))]
 /// The main entrypoint for the entire game.
+#[instrument(skip_all, fields(name = "main"))]
 fn main() {
     attach_logger();
 
-    // setup default bevy app
+    info!("Building client app...");
+
     let mut app = App::new();
 
-    // resolve platform paths for initial plugin configuration
-    let persistent_paths = PersistentPaths::resolve();
+    // config of default plugins
+    //
+    // the client can act as both a client and a server so it gets
+    // the server core as well
+    app.add_plugins(client::DefaultClientPlugins);
+    app.add_plugins(server::ServerCoreLogicPlugins);
 
-    // config of default bevy plugins
-    app.add_plugins((
-        DefaultPlugins
-            .set(WindowPlugin {
-                primary_window: Some(Window {
-                    title: format!("Vantablock v{}", env!("CARGO_PKG_VERSION")),
-                    resolution: WindowResolution::new(1280, 720),
-                    visible: false,
-                    ..default()
-                }),
-                ..default()
-            })
-            .set(AssetPlugin {
-                file_path: persistent_paths.assets_dir.to_string_lossy().to_string(),
-                ..default()
-            })
-            .disable::<LogPlugin>(),
-        #[cfg(feature = "dev")]
-        FpsOverlayPlugin {
-            config: FpsOverlayConfig { ..default() },
-        },
-    ));
-
+    // set ordering
     app.configure_sets(PostUpdate, RenderPrepSet);
 
-    // initialize simulation and renderer
-    app.add_plugins(client::ClientPlugins);
-    app.add_plugins(server::ServerPlugins);
+    info!("App built! Running the event loop.");
 
     app.run();
+
     info!("App exited safely!");
 }

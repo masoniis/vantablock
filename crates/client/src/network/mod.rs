@@ -16,8 +16,6 @@ use shared::network::NETWORK_TICK_DURATION;
 use shared::simulation::input::types::SimulationAction;
 use std::time::Duration;
 
-use crate::network::local_connection::check_connection_state;
-
 pub struct ClientNetworkPlugin;
 
 impl Plugin for ClientNetworkPlugin {
@@ -34,7 +32,6 @@ impl Plugin for ClientNetworkPlugin {
                 setup_client.run_if(|action_state: Res<ActionStateResource>| {
                     action_state.just_happened(SimulationAction::ToggleChunkBorders)
                 }),
-                check_connection_state,
             ),
         );
 

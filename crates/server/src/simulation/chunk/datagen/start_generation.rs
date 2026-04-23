@@ -62,13 +62,10 @@ pub fn start_pending_generation_tasks_system(
         // check if the chunk is empty according to the terrain generator
         match terrain_generator.0.determine_chunk_uniformity(coord.pos) {
             ChunkUniformity::Empty => {
-                trace!(
-                    target: "chunk_loading",
-                    "Chunk {} is empty according to terrain generator. Skipping generation.",
-                    coord
-                );
-                commands.entity(entity).despawn();
-                chunk_manager.mark_as_loaded_but_empty(coord.pos);
+                let chunk_blocks = ChunkBlocksComponent::new_uniform_empty(lod);
+
+                commands.entity(entity).insert(chunk_blocks);
+                chunk_manager.mark_as_data_ready(coord.pos, entity);
                 continue;
             }
             ChunkUniformity::Solid => {

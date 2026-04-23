@@ -1,13 +1,13 @@
-use crate::network::systems::{ClientConnection, SentWelcome};
+use crate::network::systems::ClientConnection;
 use crate::prelude::*;
 use crate::simulation::chunk::NeedsGenerating;
 use bevy::prelude::*;
 use lightyear::prelude::MessageSender;
-use shared::network::channel::{ChatAndSystem, ChunkData as ChunkChannel};
+use shared::network::channel::ChunkData;
 use shared::network::protocol::server::ServerMessage;
 use shared::simulation::chunk::{
-    ChunkBlocksComponent, ChunkCoord, ChunkLod, ChunkStateManager, LOAD_DISTANCE, WORLD_MAX_Y_CHUNK,
-    WORLD_MIN_Y_CHUNK,
+    ChunkBlocksComponent, ChunkCoord, ChunkLod, ChunkStateManager, LOAD_DISTANCE,
+    WORLD_MAX_Y_CHUNK, WORLD_MIN_Y_CHUNK,
 };
 use std::collections::HashSet;
 
@@ -15,23 +15,6 @@ use std::collections::HashSet;
 #[derive(Component, Default)]
 pub struct ClientChunkTracker {
     pub sent_chunks: HashSet<IVec3>,
-}
-
-pub fn send_welcome_system(
-    mut commands: Commands,
-    mut player_query: Query<(Entity, &ClientConnection, &Transform), Without<SentWelcome>>,
-    mut sender_query: Query<&mut MessageSender<ServerMessage>>,
-) {
-    for (player_ent, connection, transform) in player_query.iter_mut() {
-        if let Ok(mut sender) = sender_query.get_mut(connection.client_entity) {
-            debug!("Sending welcome to {:?}", connection.client_entity);
-            sender.send::<ChatAndSystem>(ServerMessage::Welcome {
-                entity_id: player_ent,
-                spawn_pos: transform.translation,
-            });
-            commands.entity(player_ent).insert(SentWelcome);
-        }
-    }
 }
 
 /// Determines which chunks each player needs and starts loading them.
@@ -43,7 +26,15 @@ pub fn manage_player_chunk_loading_system(
     mut chunk_manager: ResMut<ChunkStateManager>,
     mut commands: Commands,
 ) {
-    for (transform, _player_ent) in player_query.iter() {
+    let count = player_query.iter().count();
+    if count > 0 {
+        trace!(target:"server_chunk_loading", "Managing chunk loading for {} players", count);
+    } else {
+        // only log occasionally to avoid spam
+    }
+
+    for (transform, player_ent) in player_query.iter() {
+        trace!(target:"server_chunk_loading", "Processing player {:?} at {:?}", player_ent, transform.translation);
         let player_pos = transform.translation;
         let player_chunk_pos = ChunkCoord::world_to_chunk_pos(player_pos);
 
@@ -54,7 +45,7 @@ pub fn manage_player_chunk_loading_system(
                     let coord = IVec3::new(player_chunk_pos.x + x, y, player_chunk_pos.z + z);
 
                     if !chunk_manager.is_chunk_present_or_loading(coord) {
-                        debug!(target:"server_chunk_loading","Server: Marking chunk needs-generation at {:?}", coord);
+                        info!(target:"server_chunk_loading","Server: Marking chunk needs-generation at {:?}", coord);
                         let ent = commands
                             .spawn((
                                 NeedsGenerating { lod: ChunkLod(0) },
@@ -79,6 +70,7 @@ pub fn sync_chunk_data_to_clients_system(
 ) {
     for (transform, connection, mut tracker) in client_query.iter_mut() {
         let Ok(mut sender) = sender_query.get_mut(connection.client_entity) else {
+            warn!("No MessageSender for client {:?}", connection.client_entity);
             continue;
         };
 
@@ -98,18 +90,22 @@ pub fn sync_chunk_data_to_clients_system(
                     // check if chunk is generated
                     if let Some(state) = chunk_manager.get_state(coord)
                         && state.is_generated()
-                        && let Some(chunk_ent) = chunk_manager.get_entity(coord)
-                        && let Ok((_coord, blocks)) = chunk_query.get(chunk_ent)
                     {
-                        let data = extract_block_data(blocks);
+                        if let Some(chunk_ent) = chunk_manager.get_entity(coord)
+                            && let Ok((_coord, blocks)) = chunk_query.get(chunk_ent)
+                        {
+                            let data = extract_block_data(blocks);
 
-                        debug!(target:"server_chunk_loading", "Sending chunk {:?} to client {:?}", coord, connection.client_entity);
-                        sender.send::<ChunkChannel>(ServerMessage::ChunkData {
-                            coord: ChunkCoord { pos: coord },
-                            data,
-                        });
+                            info!(target:"server_chunk_loading", "Sending chunk {:?} to client {:?}", coord, connection.client_entity);
+                            sender.send::<ChunkData>(ServerMessage::ChunkData {
+                                coord: ChunkCoord { pos: coord },
+                                data,
+                            });
 
-                        tracker.sent_chunks.insert(coord);
+                            tracker.sent_chunks.insert(coord);
+                        } else {
+                            trace!("Chunk {:?} is generated but has no entity or blocks", coord);
+                        }
                     }
                 }
             }

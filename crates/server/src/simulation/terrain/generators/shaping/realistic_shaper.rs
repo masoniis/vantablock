@@ -1,10 +1,10 @@
 use crate::prelude::*;
-use shared::simulation::chunk::CHUNK_SIDE_LENGTH;
 use crate::simulation::terrain::climate::ClimateMapComponent;
 use crate::simulation::terrain::generators::shaping::{
     ChunkUniformity, ShapeResultBuilder, TerrainShaper,
 };
 use noise::{NoiseFn, Simplex};
+use shared::simulation::chunk::CHUNK_SIDE_LENGTH;
 
 pub const REALISTIC_SEA_LEVEL: f64 = 64.0;
 
