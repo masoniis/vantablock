@@ -1,14 +1,11 @@
+use crate::input::resources::ActionStateResource;
 use bevy::{
     ecs::prelude::*,
     input::mouse::{MouseMotion, MouseWheel},
     math::EulerRot,
     prelude::{Camera, Camera3d, Projection, Quat, Transform},
 };
-use shared::simulation::{
-    chunk::ChunkCoord,
-    input::{resources::ActionStateResource, types::SimulationAction},
-    time::FrameClock,
-};
+use shared::simulation::{chunk::ChunkCoord, input::types::SimulationAction, time::FrameClock};
 use tracing::{debug, instrument, warn};
 
 /// The distance the near plane is set to for the camera frustum.

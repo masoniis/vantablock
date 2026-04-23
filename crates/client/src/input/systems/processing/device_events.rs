@@ -1,7 +1,7 @@
+use crate::input::resources::CursorMovement;
 use crate::prelude::*;
 use bevy::ecs::prelude::{MessageReader, ResMut};
 use bevy::input::mouse::{MouseMotion, MouseScrollUnit, MouseWheel};
-use shared::simulation::input::resources::CursorMovement;
 use tracing::instrument;
 
 /// A system to handle Bevy's native mouse motion and wheel events,

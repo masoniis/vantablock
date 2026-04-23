@@ -1,8 +1,8 @@
-use bevy::ecs::system::{Res, ResMut};
-use bevy::prelude::{ButtonInput, KeyCode, MouseButton};
-use shared::simulation::input::resources::{
+use crate::input::resources::{
     InputActionMapResource, action::ActionStateResource, input_action_map::Input,
 };
+use bevy::ecs::system::{Res, ResMut};
+use bevy::prelude::{ButtonInput, KeyCode, MouseButton};
 use tracing::instrument;
 
 /// A system that translates the raw state from Bevy's native input resources into abstract,

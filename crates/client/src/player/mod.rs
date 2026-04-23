@@ -10,10 +10,10 @@ pub use targeted_block::TargetedBlock;
 //         player plugin
 // -----------------------------
 
+use crate::input::resources::ActionStateResource;
 use bevy::app::{App, FixedUpdate, Plugin, Update};
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::Res;
-use shared::simulation::input::resources::ActionStateResource;
 use shared::simulation::input::types::simulation_action::SimulationAction;
 
 pub struct PlayerPlugin;

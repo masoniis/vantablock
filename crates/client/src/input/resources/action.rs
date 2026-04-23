@@ -1,5 +1,5 @@
-use crate::simulation::input::types::simulation_action::SimulationAction;
 use bevy::ecs::prelude::Resource;
+use shared::simulation::input::types::SimulationAction;
 use std::collections::HashSet;
 
 /// A resource for central mapping of input to actions
@@ -34,33 +34,32 @@ impl ActionStateResource {
         self.just_happened.insert(action);
     }
 
-    /// Marks an action as held.
+    /// Marks an action as ongoing (held down).
     pub fn hold(&mut self, action: SimulationAction) {
         self.ongoing.insert(action);
     }
 
     /// Marks an action as released.
     pub fn release(&mut self, action: SimulationAction) {
-        if self.ongoing.remove(&action) {
-            self.ended.insert(action);
-        }
+        self.ongoing.remove(&action);
+        self.ended.insert(action);
     }
 
-    // INFO: -----------------------
-    //        State checking
-    // -----------------------------
+    // INFO: ---------------------------
+    //        State interrogation
+    // ---------------------------------
 
-    /// Was the key associated with this action just pressed this frame?
+    /// Checks if an action was just initiated this frame.
     pub fn just_happened(&self, action: SimulationAction) -> bool {
         self.just_happened.contains(&action)
     }
 
-    /// Is the key associated with this action being held?
+    /// Checks if an action is currently ongoing (held down).
     pub fn is_ongoing(&self, action: SimulationAction) -> bool {
         self.ongoing.contains(&action)
     }
 
-    /// Was the key associated with this action just released?
+    /// Checks if an action was just terminated this frame.
     pub fn just_ended(&self, action: SimulationAction) -> bool {
         self.ended.contains(&action)
     }

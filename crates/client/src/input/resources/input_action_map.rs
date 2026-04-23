@@ -1,6 +1,6 @@
-use crate::simulation::input::types::simulation_action::SimulationAction;
 use bevy::ecs::prelude::Resource;
 use bevy::prelude::{KeyCode, MouseButton};
+use shared::simulation::input::types::SimulationAction;
 use std::collections::hash_map::{HashMap, Iter};
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
