@@ -13,7 +13,6 @@ use shared::{
     lifecycle::{PersistentPathsResource, load::{AppStartupLoadingPhase, LoadingTaskComponent}},
     simulation::block::BlockRegistry,
 };
-use utils::PersistentPaths;
 
 /// A system that starts the asynchronous initialization of texture and block registries
 pub fn start_async_registry_initialization(

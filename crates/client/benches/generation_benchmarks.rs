@@ -4,6 +4,7 @@ use client::render::chunk::meshing::build_chunk_mesh;
 use client::render::{block::BlockRenderDataRegistry, texture::VoxelTextureProcessor};
 use client::settings::ClientSettings;
 use criterion::{Criterion, criterion_group, criterion_main};
+use shared::lifecycle::PersistentPathsResource;
 use shared::simulation::{
     biome::biome_registry::BiomeRegistryResource,
     block::{BlockRegistry, SOLID_BLOCK_ID},
@@ -35,7 +36,7 @@ fn bench_chunk_generation(c: &mut Criterion) {
     let block_registry = BlockRegistry::load_from_disk(&persistent_paths);
 
     let mut world = World::new();
-    world.insert_resource(persistent_paths.clone());
+    world.insert_resource(PersistentPathsResource(persistent_paths.clone()));
     world.insert_resource(block_registry.clone());
     world.init_resource::<BiomeRegistryResource>();
 
