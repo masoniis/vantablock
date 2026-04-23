@@ -11,7 +11,7 @@ pub enum ServerMessage {
     /// Bulk data for a chunk, typically compressed or encoded from ChunkVolumeData.
     ChunkData {
         coord: ChunkCoord,
-        data: Vec<u16>, // TODO: may want a more efficient encoding
+        data: Vec<u8>, // u8 matches BlockId
     },
     /// Synchronizes the authoritative game time across all clients.
     SyncTime { game_time: f32, tick: u64 },

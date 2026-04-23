@@ -1,6 +1,9 @@
 use crate::prelude::*;
+use crate::simulation::chunk_loading::ClientChunkTracker;
 use bevy::ecs::{observer::On, system::Commands};
-use lightyear::prelude::{Connect, Link, Server};
+use bevy::prelude::{Component, Entity, Transform};
+use lightyear::prelude::{Connect, Link, MessageSender, Server};
+use shared::network::protocol::server::ServerMessage;
 use shared::network::NETWORK_DEFAULT_PORT;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
@@ -19,11 +22,33 @@ pub fn start_server(mut commands: Commands) {
     });
 }
 
+#[derive(Component)]
+pub struct ClientConnection {
+    pub client_entity: Entity,
+}
+
+#[derive(Component)]
+pub struct SentWelcome;
+
 pub fn handle_connections(trigger: On<Connect>, mut commands: Commands) {
     let client_entity = trigger.entity;
     info!("Client connected with entity: {:?}", client_entity);
 
     // spawn a player entity for the client
-    let player_entity = commands.spawn_empty().id();
+    let spawn_pos = Vec3::new(0.0, 60.0, 0.0);
+
+    // ensure client entity has MessageSender
+    commands
+        .entity(client_entity)
+        .insert(MessageSender::<ServerMessage>::default());
+
+    let player_entity = commands
+        .spawn((
+            ClientConnection { client_entity },
+            ClientChunkTracker::default(),
+            Transform::from_translation(spawn_pos),
+        ))
+        .id();
+
     info!("Player ent spawned {:?}", player_entity);
 }
