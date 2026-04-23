@@ -78,8 +78,9 @@ lightyear = { version = "0.26.4", default-features = false, features = [
   "prediction",    # essential for smooth local player movement
   # extras
   "input_native", # input support with built-in rollback
-  "udp",          # needed for dedicated/lan
+  "crossbeam",    # enables crossbeam as an IO layer (for client as the host on same machine)
   "netcode",      # needed to manage distinct conns
+  "udp",          # needed for dedicated/lan
 ] }
 futures-lite = "2.6.1" # future utils
 
