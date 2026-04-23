@@ -29,7 +29,7 @@ run *args:
 
 # runs the server via debug profile
 server *args:
-    cargo run -p {{runner}} --bin server {{args}}
+    cargo run -p {{runner}} --bin server --no-default-features --features dedicated {{args}}
 
 # runs the client via max-optimization release profile
 release *args:
@@ -107,7 +107,7 @@ package profile="distribution":
 
 # packages the server for distribution
 server-package profile="distribution":
-    cargo build -p {{runner}} --bin server --profile {{profile}}
+    cargo build -p {{runner}} --bin server --no-default-features --features dedicated --profile {{profile}}
 
 # runs the texture processor utility
 texture:
