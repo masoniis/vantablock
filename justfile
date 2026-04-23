@@ -48,16 +48,15 @@ alias run-fast := release
 
 # runs cargo check across the workspace
 check *args:
-    cargo check {{args}}
-    cargo check --benches
+    cargo check --all-targets {{args}}
 
 # runs clippy across the workspace
 clippy *args:
     cargo clippy {{args}}
 
 # fix compiler-fixable issues
-fix:
-    cargo fix --allow-dirty
+fix *args:
+    cargo fix --all-targets --allow-dirty {{args}}
 
 # runs nix fmt (rustfmt + nixpkgs-fmt)
 fmt:
