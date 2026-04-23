@@ -3,8 +3,8 @@ use crate::simulation::chunk_loading::ClientChunkTracker;
 use bevy::ecs::{observer::On, system::Commands};
 use bevy::prelude::{Component, Entity, Transform};
 use lightyear::prelude::{Connect, Link, MessageSender, Server};
-use shared::network::protocol::server::ServerMessage;
 use shared::network::NETWORK_DEFAULT_PORT;
+use shared::network::protocol::server::ServerMessage;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 pub fn start_server(mut commands: Commands) {

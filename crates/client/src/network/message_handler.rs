@@ -33,9 +33,7 @@ fn handle_server_messages(
                     trace!("Received chunk data for {:?}", coord);
                     if !chunk_manager.is_chunk_present_or_loading(coord.pos) {
                         let blocks = ChunkBlocksComponent::from_vec(ChunkLod(0), data);
-                        let ent = commands
-                            .spawn((blocks, coord.clone()))
-                            .id();
+                        let ent = commands.spawn((blocks, coord.clone())).id();
                         chunk_manager.mark_as_data_ready(coord.pos, ent);
                     }
                 }
