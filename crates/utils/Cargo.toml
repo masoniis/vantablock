@@ -27,12 +27,6 @@ tracing-subscriber = { workspace = true }
 tracy-client = { workspace = true, optional = true }
 tracing-tracy = { workspace = true, optional = true }
 
-# INFO: --------------------------
-#         simulation logic
-# --------------------------------
-
-bevy = { workspace = true }
-
 # INFO: ---------------
 #         utils
 # ---------------------

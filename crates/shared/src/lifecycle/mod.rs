@@ -1,8 +1,10 @@
 pub mod load;
+mod paths;
 pub mod scheduling;
 pub mod state;
 
 pub use load::*;
+pub use paths::{PathsPlugin, PersistentPathsResource};
 pub use scheduling::*;
 pub use state::*;
 
@@ -19,6 +21,7 @@ pub struct SharedLifecyclePlugins;
 impl PluginGroup for SharedLifecyclePlugins {
     fn build(self) -> PluginGroupBuilder {
         PluginGroupBuilder::start::<Self>()
+            .add(paths::PathsPlugin)
             .add(load::LoadPlugin)
             .add(scheduling::SharedSchedulingPlugin)
             .add(state::StatePlugin)

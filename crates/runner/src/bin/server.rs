@@ -6,7 +6,6 @@ use bevy::{
 use server::ServerPlugins;
 use shared::SharedPlugins;
 use std::time::Duration;
-use utils::PersistentPaths;
 
 /// This is the entrypoint for a dedicated server. The server logic is also used
 /// for a client running singleplayer, though not through the main entrypoint.
@@ -14,11 +13,11 @@ fn main() {
     // setup headless bevy app
     let mut app = App::new();
 
-    // resolve platform paths and initialize application paths
-    let persistent_paths = PersistentPaths::resolve();
+    // resolve platform paths for initial plugin configuration
+    let persistent_paths = utils::PersistentPaths::resolve();
 
     app.add_plugins(DefaultPlugins.set(AssetPlugin {
-        file_path: "assets".to_string(),
+        file_path: persistent_paths.assets_dir.to_string_lossy().to_string(),
         ..default()
     }));
 
@@ -26,10 +25,7 @@ fn main() {
         1.0 / 60.0,
     )));
 
-    // load config & loading trackers into main world
-    app.insert_resource(persistent_paths);
-
-    // add server-side and shared plugins
+    // add server-side and shared plugins (handles resource insertion via plugins)
     app.add_plugins(ServerPlugins);
     app.add_plugins(SharedPlugins);
 

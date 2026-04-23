@@ -10,7 +10,7 @@ use bevy::{
     tasks::AsyncComputeTaskPool,
 };
 use shared::{
-    lifecycle::load::{AppStartupLoadingPhase, LoadingTaskComponent},
+    lifecycle::{PersistentPathsResource, load::{AppStartupLoadingPhase, LoadingTaskComponent}},
     simulation::block::BlockRegistry,
 };
 use utils::PersistentPaths;
@@ -19,12 +19,12 @@ use utils::PersistentPaths;
 pub fn start_async_registry_initialization(
     mut commands: Commands,
     client_settings: Res<ClientSettings>,
-    persistent_paths: Res<PersistentPaths>,
+    persistent_paths: Res<PersistentPathsResource>,
 ) {
     info!("Starting asynchronous simulation registry initialization...");
 
     let settings = client_settings.clone();
-    let paths = persistent_paths.clone();
+    let paths = persistent_paths.0.clone();
 
     let task = AsyncComputeTaskPool::get().spawn(async move {
         info!("Initializing simulation registries in background...");

@@ -1,4 +1,5 @@
 use crate::{
+    lifecycle::PersistentPathsResource,
     prelude::*,
     simulation::biome::biome_definition::{BiomeDefinition, load_biome_from_str},
 };
@@ -21,8 +22,8 @@ pub struct BiomeRegistryResource {
 impl FromWorld for BiomeRegistryResource {
     fn from_world(world: &mut World) -> Self {
         let persistent_paths = world
-            .get_resource::<PersistentPaths>()
-            .cloned()
+            .get_resource::<PersistentPathsResource>()
+            .map(|r| r.0.clone())
             .unwrap_or_else(PersistentPaths::resolve);
         Self::load_from_disk(&persistent_paths)
     }
@@ -151,7 +152,7 @@ impl BiomeRegistryResource {
 pub fn initialize_biome_registry_system(
     mut commands: Commands,
     _asset_server: Res<AssetServer>,
-    persistent_paths: Res<PersistentPaths>,
+    persistent_paths: Res<PersistentPathsResource>,
 ) {
     let registry = BiomeRegistryResource::load_from_disk(&persistent_paths);
     commands.insert_resource(registry);

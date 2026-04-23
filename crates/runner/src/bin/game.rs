@@ -6,11 +6,11 @@ use bevy::dev_tools::fps_overlay::{FpsOverlayConfig, FpsOverlayPlugin};
 use bevy::{
     app::{App, PostUpdate},
     log::LogPlugin,
-    prelude::{AssetPlugin, DefaultPlugins, PluginGroup, Window, WindowPlugin, default, info},
+    prelude::{default, info, AssetPlugin, DefaultPlugins, PluginGroup, Window, WindowPlugin},
     window::WindowResolution,
 };
 use client::{lifecycle::scheduling::RenderPrepSet, prelude::*};
-use utils::{PersistentPaths, attach_logger};
+use utils::{attach_logger, PersistentPaths};
 
 #[instrument(skip_all, fields(name = "main"))]
 /// The main entrypoint for the entire game.
@@ -20,7 +20,7 @@ fn main() {
     // setup default bevy app
     let mut app = App::new();
 
-    // resolve platform paths
+    // resolve platform paths for initial plugin configuration
     let persistent_paths = PersistentPaths::resolve();
 
     // config of default bevy plugins
@@ -45,10 +45,6 @@ fn main() {
             config: FpsOverlayConfig { ..default() },
         },
     ));
-
-    // load config & loading trackers into main world
-    app.insert_resource(ClientSettings::load_or_create(&persistent_paths));
-    app.insert_resource(persistent_paths);
 
     app.configure_sets(PostUpdate, RenderPrepSet);
 

@@ -25,6 +25,7 @@ impl PluginGroup for ClientPlugins {
             // external crate plugins
             .add_group(shared::SharedPlugins)
             // internal crate plugins
+            .add(settings::ClientSettingsPlugin)
             .add(input::InputModulePlugin)
             .add_group(lifecycle::LifecyclePlugins)
             .add(network::ClientNetworkPlugin)
