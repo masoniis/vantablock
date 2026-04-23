@@ -11,10 +11,7 @@ pub use public::*;
 //         terrain gen plugin
 // ----------------------------------
 
-use crate::simulation::input::resources::ActionStateResource;
-use crate::simulation::input::types::SimulationAction;
-use bevy::app::{App, Plugin, Update};
-use bevy::ecs::prelude::{IntoScheduleConfigs, Res};
+use bevy::app::{App, Plugin};
 pub use systems::{TerrainGeneratorLibrary, cycle_active_generator};
 
 pub struct TerrainGenerationPlugin;
@@ -27,16 +24,5 @@ impl Plugin for TerrainGenerationPlugin {
             .insert_resource(ActiveTerrainGenerator::default())
             .insert_resource(ActiveTerrainPainter::default())
             .init_resource::<TerrainGeneratorLibrary>();
-
-        // INFO: -------------------------------
-        //         keybind-based actions
-        // -------------------------------------
-
-        app.add_systems(
-            Update,
-            cycle_active_generator.run_if(|action_state: Res<ActionStateResource>| {
-                action_state.just_happened(SimulationAction::CycleActiveTerrainGenerator)
-            }),
-        );
     }
 }

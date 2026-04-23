@@ -1,3 +1,4 @@
+use crate::player::TargetedBlock;
 use crate::{
     input::systems::toggle_chunk_borders::ChunkBoundsToggle,
     prelude::*,
@@ -20,10 +21,7 @@ use bevy::{
         view::{ExtractedView, Msaa},
     },
 };
-use shared::simulation::{
-    block::TargetedBlock,
-    chunk::consts::{CHUNK_DEPTH, CHUNK_HEIGHT, CHUNK_WIDTH},
-};
+use shared::simulation::chunk::consts::{CHUNK_DEPTH, CHUNK_HEIGHT, CHUNK_WIDTH};
 
 #[derive(Component, Default, Debug)]
 pub struct BoundingBoxPhase {

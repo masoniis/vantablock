@@ -1,8 +1,9 @@
 use super::{OpaqueMeshData, TransparentMeshData};
 use crate::prelude::*;
+use crate::render::block::texture_registry::TextureId;
 use crate::render::chunk::meshing::packed_face::PackedFace;
 use shared::simulation::{
-    block::{BlockId, BlockRegistry, texture_registry::TextureId},
+    block::{BlockId, BlockRegistry},
     chunk::{NeighborLODs, PaddedChunk, types::ChunkLod},
 };
 use std::sync::Arc;

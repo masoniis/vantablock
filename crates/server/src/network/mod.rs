@@ -7,9 +7,8 @@ use bevy::{
     app::Startup,
     ecs::{observer::On, system::Commands},
     prelude::Plugin,
-    ui::widget::Text,
 };
-use lightyear::prelude::{server::ServerPlugins, Connect, Link, Server};
+use lightyear::prelude::{Connect, Link, Server, server::ServerPlugins};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
     time::Duration,
@@ -49,6 +48,6 @@ fn handle_connections(trigger: On<Connect>, mut commands: Commands) {
     info!("Client connected with entity: {:?}", client_entity);
 
     // spawn a player entity for the client
-    let player_entity = commands.spawn(Text::new("Player")).id();
+    let player_entity = commands.spawn_empty().id();
     info!("Player ent spawned {:?}", player_entity);
 }

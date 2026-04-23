@@ -1,6 +1,8 @@
 pub mod movement;
+pub mod spawn;
 
 pub use movement::*;
+pub use spawn::*;
 
 // INFO: -----------------------
 //         camera plugin
@@ -8,7 +10,6 @@ pub use movement::*;
 
 use bevy::prelude::{App, IntoScheduleConfigs, Plugin, Startup, Update, in_state};
 use shared::lifecycle::state::enums::AppState;
-use shared::simulation::player::initialize_camera::spawn_camera_system;
 
 pub struct CameraPlugin;
 

@@ -15,24 +15,14 @@ pub use types::*;
 // ------------------------------------
 
 use crate::FixedUpdateSet;
-use bevy::app::{App, FixedUpdate, Plugin, PreUpdate};
+use bevy::app::{App, FixedUpdate, Plugin};
 use bevy::ecs::prelude::*;
-use bevy::prelude::{Camera, Camera3d};
 
 pub struct ChunkLoadingPlugin;
 
 impl Plugin for ChunkLoadingPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(ChunkStateManager::default());
-
-        app.add_systems(
-            PreUpdate,
-            (manage_distance_based_chunk_loading_targets_system).run_if(
-                |q: Query<(&Camera, &ChunkCoord), (With<Camera3d>, Changed<ChunkCoord>)>| {
-                    q.iter().any(|(c, _)| c.is_active)
-                },
-            ),
-        );
 
         app.add_systems(
             FixedUpdate,

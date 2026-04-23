@@ -17,6 +17,7 @@ pub use scheduling::VantablockNode;
 
 use crate::input::systems::toggle_chunk_borders::ChunkBoundsToggle;
 use crate::input::systems::toggle_opaque_wireframe::OpaqueRenderMode;
+use crate::player::TargetedBlock;
 use crate::prelude::*;
 use crate::render::{
     chunk::{OpaqueMeshComponent, TransparentMeshComponent},
@@ -36,7 +37,6 @@ use bevy::{
 };
 #[cfg(feature = "dev")]
 use bevy::{camera::ClearColor, color::Color};
-use shared::simulation::block::TargetedBlock;
 
 /// Plugin responsible for attaching custom render logic to Bevy's native RenderApp
 pub struct VantablockRenderPlugin;

@@ -1,8 +1,7 @@
 use bevy::{
-    MinimalPlugins,
-    app::{App, ScheduleRunnerPlugin},
+    app::ScheduleRunnerPlugin,
     asset::AssetPlugin,
-    prelude::{PluginGroup, default, info},
+    prelude::{App, DefaultPlugins, PluginGroup, default, info},
 };
 use server::ServerPlugins;
 use shared::SharedPlugins;
@@ -18,17 +17,14 @@ fn main() {
     // resolve platform paths and initialize application paths
     let persistent_paths = PersistentPaths::resolve();
 
-    app.add_plugins(
-        MinimalPlugins.set(ScheduleRunnerPlugin::run_loop(Duration::from_secs_f64(
-            1.0 / 60.0,
-        ))),
-    );
-
-    // AssetServer is required for registry logic to function in a standardized way.
-    app.add_plugins(AssetPlugin {
+    app.add_plugins(DefaultPlugins.set(AssetPlugin {
         file_path: "assets".to_string(),
         ..default()
-    });
+    }));
+
+    app.add_plugins(ScheduleRunnerPlugin::run_loop(Duration::from_secs_f64(
+        1.0 / 60.0,
+    )));
 
     // load config & loading trackers into main world
     app.insert_resource(persistent_paths);

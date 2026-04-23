@@ -1,4 +1,4 @@
-use shared::simulation::block::texture_registry::TextureId;
+use crate::render::block::texture_registry::TextureId;
 
 /// Optimized hot block data required for meshing and rendering.
 #[derive(Debug, Clone)]
@@ -48,6 +48,7 @@ impl<T: Clone> BlockFaceTextures<T> {
 
 pub mod plugin;
 pub mod registry;
+pub mod texture_registry;
 
 pub use plugin::BlockRenderPlugin;
 pub use registry::BlockRenderDataRegistry;

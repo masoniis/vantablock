@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use crate::render::block::texture_registry::{TextureId, TextureRegistryResource};
 use crate::render::texture::error::TextureLoadError;
 use bevy::asset::RenderAssetUsages;
 use bevy::prelude::Image;
@@ -6,7 +7,6 @@ use bevy::render::render_resource::{
     Extent3d, TextureDimension, TextureFormat, TextureViewDescriptor, TextureViewDimension,
 };
 use image::RgbaImage;
-use shared::simulation::block::texture_registry::{TextureId, TextureRegistryResource};
 use std::collections::HashMap;
 use std::path::PathBuf;
 

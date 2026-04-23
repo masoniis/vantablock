@@ -1,5 +1,4 @@
 use crate::prelude::*;
-use crate::simulation::block::TargetedBlock;
 use crate::simulation::chunk::ChunkStateManager;
 use crate::simulation::{
     block::block_registry::SOLID_BLOCK_ID,
@@ -8,26 +7,14 @@ use crate::simulation::{
         components::{ChunkBlocksComponent, ChunkCoord, ChunkMeshDirty},
     },
 };
+use bevy::ecs::prelude::Res;
 use bevy::ecs::prelude::{Commands, Message, MessageReader, Query};
-use bevy::ecs::prelude::{MessageWriter, Res};
 
 /// An event that is sent when a voxel should be placed.
 #[derive(Message, Clone)]
 pub struct PlaceVoxelEvent {
     /// The world position to place a voxel.
     pub target_pos: IVec3,
-}
-
-/// Fires a `PlaceVoxelEvent` for the currently targeted block.
-pub fn place_targeted_voxel_system(
-    targeted_block: Res<TargetedBlock>,
-    mut place_voxel_writer: MessageWriter<PlaceVoxelEvent>,
-) {
-    if let (Some(voxel_pos), Some(normal)) = (targeted_block.position, targeted_block.normal) {
-        place_voxel_writer.write(PlaceVoxelEvent {
-            target_pos: voxel_pos + normal,
-        });
-    }
 }
 
 /// A system that handles the `PlaceVoxelEvent`.

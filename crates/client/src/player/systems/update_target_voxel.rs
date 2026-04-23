@@ -1,12 +1,13 @@
+use crate::player::TargetedBlock;
 use crate::prelude::*;
-use crate::simulation::chunk::{ChunkCoord, ChunkState, chunk_blocks::ChunkView};
-use crate::simulation::{
-    block::{TargetedBlock, block_registry::AIR_BLOCK_ID},
-    chunk::{ChunkBlocksComponent, ChunkStateManager},
-};
 use bevy::ecs::prelude::{Query, Res, ResMut, With};
 use bevy::prelude::{Camera, Camera3d};
 use bevy::transform::components::Transform;
+use shared::simulation::chunk::{ChunkCoord, ChunkState, chunk_blocks::ChunkView};
+use shared::simulation::{
+    block::block_registry::AIR_BLOCK_ID,
+    chunk::{ChunkBlocksComponent, ChunkStateManager},
+};
 
 /// Max raycast traverse distance in blocks
 const RAYCAST_MAX_DIST: f32 = 8.0;
