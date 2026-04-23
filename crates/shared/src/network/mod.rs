@@ -2,6 +2,9 @@ pub mod channel;
 pub mod protocol;
 pub mod state;
 
+pub const NETWORK_TICK_DURATION: f64 = 1.0 / 60.0;
+pub const NETWORK_DEFAULT_PORT: u16 = 5000;
+
 // INFO: ---------------------------
 //         plugin definition
 // ---------------------------------
