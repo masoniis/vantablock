@@ -26,9 +26,12 @@ tracing-subscriber = { workspace = true }
 #         simulation logic
 # --------------------------------
 
-bevy = { workspace = true }
+bevy = { workspace = true, features = [
+  "bevy_asset", # asset management
+  "bevy_state", # state machines
+] }
 lightyear = { workspace = true, features = [
-  # extra features for server
+  # extends default lightyear features in workspace
   "server",  # server plugins
   "udp",     # needed for Dedicated/LAN listening
   "netcode", # needed to manage distinct player connections
