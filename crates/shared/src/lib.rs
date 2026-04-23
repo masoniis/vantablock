@@ -26,7 +26,6 @@ impl PluginGroup for SharedPlugins {
             .add(simulation::biome::BiomePlugin)
             .add(simulation::block::BlockPlugin)
             .add(simulation::chunk::ChunkLoadingPlugin)
-            .add(simulation::terrain::TerrainGenerationPlugin)
             .add(simulation::time::TimeControlPlugin)
     }
 }

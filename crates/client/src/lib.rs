@@ -31,7 +31,7 @@ impl PluginGroup for ClientPlugins {
             .add(network::ClientNetworkPlugin)
             .add(player::PlayerPlugin)
             .add(render::VantablockRenderPlugin)
-            .add(showcase::ShowcasePlugin)
+            // .add(showcase::ShowcasePlugin)
             .add(ui::VantablockUiPlugin)
     }
 }

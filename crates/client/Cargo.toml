@@ -13,7 +13,7 @@ path = "src/lib.rs"
 workspace = true
 
 [[bench]]
-name = "generation_benchmarks"
+name = "meshing_benchmarks"
 harness = false
 
 [features]

@@ -68,32 +68,5 @@ impl Plugin for InputModulePlugin {
                     action_state.just_happened(SimulationAction::ToggleChunkBorders)
                 }),
             );
-
-        // terrain generation cycling
-        app.add_systems(
-            Update,
-            shared::simulation::terrain::cycle_active_generator.run_if(
-                |action_state: Res<ActionStateResource>| {
-                    action_state.just_happened(SimulationAction::CycleActiveTerrainGenerator)
-                },
-            ),
-        );
-
-        // world clock controls
-        app.add_systems(
-            Update,
-            (
-                shared::simulation::time::world_clock::jump_world_clock_backwards_system.run_if(
-                    |action_state: Res<ActionStateResource>| {
-                        action_state.just_happened(SimulationAction::JumpGameTimeBackward)
-                    },
-                ),
-                shared::simulation::time::world_clock::jump_world_clock_forward_system.run_if(
-                    |action_state: Res<ActionStateResource>| {
-                        action_state.just_happened(SimulationAction::JumpGameTimeForward)
-                    },
-                ),
-            ),
-        );
     }
 }

@@ -1,11 +1,13 @@
 use crate::network::systems::{ClientConnection, SentWelcome};
+use crate::prelude::*;
+use crate::simulation::chunk::NeedsGenerating;
 use bevy::prelude::*;
 use lightyear::prelude::MessageSender;
 use shared::network::channel::{ChatAndSystem, ChunkData as ChunkChannel};
 use shared::network::protocol::server::ServerMessage;
 use shared::simulation::chunk::{
-    ChunkBlocksComponent, ChunkCoord, ChunkLod, ChunkStateManager, LOAD_DISTANCE, NeedsGenerating,
-    WORLD_MAX_Y_CHUNK, WORLD_MIN_Y_CHUNK,
+    ChunkBlocksComponent, ChunkCoord, ChunkLod, ChunkStateManager, LOAD_DISTANCE, WORLD_MAX_Y_CHUNK,
+    WORLD_MIN_Y_CHUNK,
 };
 use std::collections::HashSet;
 
@@ -76,12 +78,12 @@ pub fn sync_chunk_data_to_clients_system(
     mut sender_query: Query<&mut MessageSender<ServerMessage>>,
 ) {
     for (transform, connection, mut tracker) in client_query.iter_mut() {
-        let player_pos = transform.translation;
-        let player_chunk_pos = ChunkCoord::world_to_chunk_pos(player_pos);
-
         let Ok(mut sender) = sender_query.get_mut(connection.client_entity) else {
             continue;
         };
+
+        let player_pos = transform.translation;
+        let player_chunk_pos = ChunkCoord::world_to_chunk_pos(player_pos);
 
         // find chunks within load distance that haven't been sent yet
         for y in WORLD_MIN_Y_CHUNK..=WORLD_MAX_Y_CHUNK {
@@ -125,6 +127,7 @@ fn extract_block_data(blocks: &ChunkBlocksComponent) -> Vec<u8> {
             data.resize(size * size * size, block_id);
         }
         shared::simulation::chunk::ChunkView::Dense(volume_view) => {
+            // Optimally structured loop (X, Z, Y)
             for x in 0..size {
                 for z in 0..size {
                     for y in 0..size {

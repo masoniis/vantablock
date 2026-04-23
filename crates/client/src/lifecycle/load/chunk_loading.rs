@@ -3,7 +3,7 @@ use bevy::ecs::prelude::*;
 use bevy::math::IVec3;
 use bevy::prelude::{Camera, Camera3d};
 use shared::simulation::chunk::{
-    ChunkCoord, ChunkLod, ChunkState, ChunkStateManager, LOAD_DISTANCE, NeedsGenerating,
+    ChunkCoord, ChunkState, ChunkStateManager, LOAD_DISTANCE,
     WORLD_MAX_Y_CHUNK, WORLD_MIN_Y_CHUNK,
 };
 use std::collections::HashSet;
@@ -80,16 +80,15 @@ pub fn manage_distance_based_chunk_loading_targets_system(
     }
 
     // INFO: --------------------------------------------
-    //         load new chunks (start generation)
+    //         load new chunks
     // --------------------------------------------------
 
     // if any desired chunks are not currently loaded or loading, spawn a new chunk entity and mark it as needs-generation
     for coord in desired_load_chunks {
         if !chunk_manager.is_chunk_present_or_loading(coord) {
-            debug!(target:"chunk_loading","Marking chunk needs-generation at {:?}", coord);
+            debug!(target:"chunk_loading","Marking chunk as requested at {:?}", coord);
             let ent = commands
                 .spawn((
-                    NeedsGenerating { lod: ChunkLod(0) },
                     ChunkCoord { pos: coord },
                 ))
                 .id();
