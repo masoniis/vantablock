@@ -1,9 +1,16 @@
+use crate::network::resources::ConnectionSettings;
 use bevy::prelude::*;
 use lightyear::prelude::*;
-use std::net::{Ipv4Addr, SocketAddr};
+use std::net::SocketAddr;
 
-pub fn setup_client(mut commands: Commands) {
-    let server_addr = SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 5000);
+pub fn setup_client(mut commands: Commands, settings: Res<ConnectionSettings>) {
+    let server_addr: SocketAddr = settings.server_addr.parse().unwrap_or_else(|_| {
+        error!(
+            "Failed to parse server address \"{}\". Falling back to 127.0.0.1:5000",
+            settings.server_addr
+        );
+        "127.0.0.1:5000".parse().unwrap()
+    });
 
     let client_entity = commands
         .spawn((
@@ -16,7 +23,7 @@ pub fn setup_client(mut commands: Commands) {
         ))
         .id();
 
-    info!("Trigging client spawn/connect",);
+    info!("Trigging client spawn/connect to {}", server_addr);
     commands.trigger(Connect {
         entity: client_entity,
     });

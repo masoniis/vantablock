@@ -35,7 +35,10 @@ impl Plugin for VantablockUiPlugin {
         )
         .add_systems(
             Update,
-            systems::main_menu::main_menu_button_interaction_system
+            (
+                systems::main_menu::main_menu_button_interaction_system,
+                systems::main_menu::main_menu_text_input_system,
+            )
                 .run_if(in_state(ClientState::MainMenu)),
         );
     }

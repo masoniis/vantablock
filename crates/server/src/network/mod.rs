@@ -7,6 +7,7 @@ pub mod systems;
 use bevy::prelude::*;
 use lightyear::prelude::server::ServerPlugins;
 use shared::network::NETWORK_TICK_DURATION;
+use shared::network::state::NetworkingMode;
 use std::time::Duration;
 use systems::{handle_connections, start_server};
 
@@ -18,7 +19,7 @@ impl Plugin for ServerNetworkPlugin {
             tick_duration: Duration::from_secs_f64(NETWORK_TICK_DURATION),
         });
 
-        app.add_systems(Startup, start_server)
+        app.add_systems(OnEnter(NetworkingMode::Internal), start_server)
             .add_observer(handle_connections);
     }
 }

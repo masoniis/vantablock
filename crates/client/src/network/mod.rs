@@ -1,5 +1,6 @@
 pub mod local_connection;
 pub mod message_handler;
+pub mod resources;
 
 // INFO: ---------------------------
 //         plugin definition
@@ -7,6 +8,7 @@ pub mod message_handler;
 
 use crate::input::resources::ActionStateResource;
 use crate::lifecycle::state::InGameState;
+use crate::network::resources::ConnectionSettings;
 use bevy::prelude::*;
 use lightyear::prelude::client::ClientPlugins;
 use local_connection::setup_client;
@@ -20,6 +22,8 @@ pub struct ClientNetworkPlugin;
 
 impl Plugin for ClientNetworkPlugin {
     fn build(&self, app: &mut App) {
+        app.init_resource::<ConnectionSettings>();
+
         app.add_plugins(ClientPlugins {
             tick_duration: Duration::from_secs_f64(NETWORK_TICK_DURATION),
         });
