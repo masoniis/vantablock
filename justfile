@@ -1,4 +1,7 @@
-# platform-specific configuration
+# INFO: -----------------------
+#         configuration
+# -----------------------------
+
 set shell := ["bash", "-c"]
 set windows-shell := ["powershell.exe", "-NoProfile", "-Command"]
 
@@ -17,14 +20,12 @@ client  := "vantablock-client"
 server  := "vantablock-server"
 runner  := "vantablock-runner"
 
-# where to place wsl windows builds
-wsl_target := "C:/temp/vantablock-build"
 
 default: run
 
-# INFO: -------------------------
-#          core execution
-# -------------------------------
+# INFO: ------------------------
+#         core execution
+# ------------------------------
 
 # runs the client via debug profile
 run *args:
@@ -38,13 +39,6 @@ server *args:
 release *args:
     cargo run -p {{runner}} --bin game --profile distribution --features distribution {{args}}
 
-# compiles and runs the client natively on Windows from within WSL
-# requires cargo and just on Windows host:
-# - winget install just
-# - winget install rustup
-wsl *args:
-    @WSL_PATH=$(wslpath -w .)
-    @powershell.exe -Command "if (!(Test-Path '{{wsl_target}}')) { New-Item -ItemType Directory -Force -Path '{{wsl_target}}' }; cd '$WSL_PATH'; \$env:CARGO_TARGET_DIR='{{wsl_target}}'; cargo run -p {{runner}} --bin game {{args}}"
 
 alias run-fast := release
 
@@ -174,3 +168,24 @@ debug *args:
     export RUST_LOG="${log_targets%,},{{project}}=info"
     echo -e "\033[1;32mRunning with RUST_LOG=\033[0m$RUST_LOG"
     cargo run -p {{runner}} --bin game
+
+# INFO: ---------------------------------
+#         advanced/niche commands
+# ---------------------------------------
+
+# target wsl -> windows builds to happen in the windows temp dir
+windows_temp := if os_family == "windows" { "" \
+} else { \
+    `cd /mnt/c && cmd.exe /c "echo %TEMP%" 2>/dev/null | tr -d '\r\n'` \
+}
+windows_wsl_target_dir := windows_temp + "\\vantablock-target"
+
+# compiles and runs the client natively on Windows from within WSL
+# requires cargo, just, and VS build tools on Windows host:
+# - winget install just
+# - winget install rustup
+# - winget install --id Microsoft.VisualStudio.2022.BuildTools --override "--passive --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+wsl *args:
+    @echo "Compiling Windows target ({{windows_wsl_target_dir}})"
+    @WSL_PATH=$(wslpath -w .)
+    @powershell.exe -Command "if (!(Test-Path '{{windows_wsl_target_dir}}')) { New-Item -ItemType Directory -Force -Path '{{windows_wsl_target_dir}}' }; cd '$WSL_PATH'; \$env:CARGO_TARGET_DIR='{{windows_wsl_target_dir}}'; just {{args}}"
