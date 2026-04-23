@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use lightyear::prelude::MessageReceiver;
 use shared::network::protocol::server::ServerMessage;
 
 pub struct ClientMessageHandlerPlugin;
@@ -9,20 +10,22 @@ impl Plugin for ClientMessageHandlerPlugin {
     }
 }
 
-fn handle_server_messages(mut messages: MessageReader<ServerMessage>) {
-    for message in messages.read() {
-        match message {
-            ServerMessage::Welcome {
-                entity_id: _,
-                spawn_pos,
-            } => {
-                info!("Welcome message received! Spawn pos: {:?}", spawn_pos);
-            }
-            ServerMessage::ChunkData { coord, data: _ } => {
-                trace!("Received chunk data for {:?}", coord);
-            }
-            _ => {
-                warn!("Unhandled message recieved: {:?}", message);
+fn handle_server_messages(mut query: Query<&mut MessageReceiver<ServerMessage>>) {
+    for mut receiver in query.iter_mut() {
+        for message in receiver.receive() {
+            match message {
+                ServerMessage::Welcome {
+                    entity_id: _,
+                    spawn_pos,
+                } => {
+                    info!("Welcome message received! Spawn pos: {:?}", spawn_pos);
+                }
+                ServerMessage::ChunkData { coord, data: _ } => {
+                    trace!("Received chunk data for {:?}", coord);
+                }
+                _ => {
+                    warn!("Unhandled message received");
+                }
             }
         }
     }

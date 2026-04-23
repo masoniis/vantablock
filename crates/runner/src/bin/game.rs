@@ -50,6 +50,7 @@ fn main() {
 
     // initialize simulation and renderer
     app.add_plugins(client::ClientPlugins);
+    app.add_plugins(server::ServerPlugins);
 
     app.run();
     info!("App exited safely!");

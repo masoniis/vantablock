@@ -1,30 +1,26 @@
 pub mod local_connection;
 pub mod message_handler;
 
+pub const FIXED_TIMESTEP_HZ: f64 = 60.0;
+
 // INFO: ---------------------------
 //         plugin definition
 // ---------------------------------
 
 use crate::input::resources::ActionStateResource;
+use crate::lifecycle::state::InGameState;
 use bevy::prelude::*;
 use lightyear::prelude::client::ClientPlugins;
 use local_connection::setup_client;
 use shared::simulation::input::types::SimulationAction;
-use std::{
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
-    time::Duration,
-};
+use std::time::Duration;
 
 use crate::network::local_connection::check_connection_state;
-
-pub const FIXED_TIMESTEP_HZ: f64 = 60.0;
 
 pub struct ClientNetworkPlugin;
 
 impl Plugin for ClientNetworkPlugin {
     fn build(&self, app: &mut App) {
-        let _server_addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 5000));
-
         app.add_plugins(ClientPlugins {
             tick_duration: Duration::from_secs_f64(1.0 / FIXED_TIMESTEP_HZ),
         });
@@ -39,15 +35,8 @@ impl Plugin for ClientNetworkPlugin {
             ),
         );
 
-        // app.register_message() server message
-        // app.add_plugins(ClientMessageHandlerPlugin);
+        app.add_systems(OnEnter(InGameState::Connecting), setup_client);
 
-        // app.add_systems(
-        //     OnEnter(InGameState::Connecting),
-        //     |mut commands: Commands| {
-        //         info!("Starting client connection...");
-        //         commands.connect();
-        //     },
-        // );
+        app.add_plugins(message_handler::ClientMessageHandlerPlugin);
     }
 }
