@@ -6,11 +6,11 @@ use bevy::dev_tools::fps_overlay::{FpsOverlayConfig, FpsOverlayPlugin};
 use bevy::{
     app::{App, PostUpdate},
     log::LogPlugin,
-    prelude::{default, info, AssetPlugin, DefaultPlugins, PluginGroup, Window, WindowPlugin},
+    prelude::{AssetPlugin, DefaultPlugins, PluginGroup, Window, WindowPlugin, default, info},
     window::WindowResolution,
 };
 use client::{lifecycle::scheduling::RenderPrepSet, prelude::*};
-use utils::{attach_logger, PersistentPaths};
+use utils::{PersistentPaths, attach_logger};
 
 #[instrument(skip_all, fields(name = "main"))]
 /// The main entrypoint for the entire game.

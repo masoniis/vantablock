@@ -10,7 +10,10 @@ use bevy::{
     tasks::AsyncComputeTaskPool,
 };
 use shared::{
-    lifecycle::{PersistentPathsResource, load::{AppStartupLoadingPhase, LoadingTaskComponent}},
+    lifecycle::{
+        PersistentPathsResource,
+        load::{AppStartupLoadingPhase, LoadingTaskComponent},
+    },
     simulation::block::BlockRegistry,
 };
 

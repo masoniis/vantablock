@@ -1,9 +1,11 @@
+pub mod resources;
 pub mod systems;
 
 // INFO: -----------------------------
 //         input module plugin
 // -----------------------------------
 
+use crate::input::resources::{ActionStateResource, CursorMovement, InputActionMapResource};
 use crate::input::systems::toggle_opaque_wireframe::OpaqueRenderMode;
 use crate::input::systems::{
     toggle_chunk_borders::ChunkBoundsToggle, toggle_chunk_borders_system, toggle_cursor_system,
@@ -12,9 +14,6 @@ use crate::input::systems::{
 use bevy::app::{App, Plugin, PreUpdate, Update};
 use bevy::ecs::{schedule::IntoScheduleConfigs, system::Res};
 use bevy::render::extract_resource::ExtractResourcePlugin;
-use shared::simulation::input::resources::{
-    ActionStateResource, CursorMovement, InputActionMapResource,
-};
 use shared::simulation::input::types::SimulationAction;
 use systems::processing;
 

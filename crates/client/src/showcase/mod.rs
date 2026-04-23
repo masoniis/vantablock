@@ -1,8 +1,8 @@
 pub mod systems;
 
+use crate::input::resources::ActionStateResource;
 use bevy::app::{App, Plugin, Startup, Update};
 use bevy::ecs::prelude::{IntoScheduleConfigs, Res};
-use shared::simulation::input::resources::ActionStateResource;
 use shared::simulation::input::types::SimulationAction;
 use systems::{apply_default_showcase_system, apply_showcase_system};
 

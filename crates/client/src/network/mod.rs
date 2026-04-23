@@ -5,10 +5,11 @@ pub mod message_handler;
 //         plugin definition
 // ---------------------------------
 
+use crate::input::resources::ActionStateResource;
 use bevy::prelude::*;
 use lightyear::prelude::client::ClientPlugins;
 use local_connection::setup_client;
-use shared::simulation::input::{resources::ActionStateResource, types::SimulationAction};
+use shared::simulation::input::types::SimulationAction;
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
     time::Duration,
