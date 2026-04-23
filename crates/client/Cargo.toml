@@ -63,10 +63,12 @@ offset-allocator = { workspace = true } # gpu buffer allocation
 # --------------------------------
 
 bevy = { workspace = true, features = [
+  "default_app",      # core app (input, window, state, etc)
   "default_platform", # core OS features, windowing, input, etc
   "3d_bevy_render",   # bevy 3d render pass/graph and subapp
   "ui_bevy_render",   # additional bevy ui render support
-  "bevy_asset",
+  "bevy_asset",       # asset management
+  "bevy_state",       # state machines
 ] }
 lightyear = { workspace = true, features = [
   # extra features for client
