@@ -10,14 +10,14 @@ use tracing::instrument;
 pub fn device_events_system(
     mut motion_events: MessageReader<MouseMotion>,
     mut wheel_events: MessageReader<MouseWheel>,
-    // State to modify (output)
+    // state to modify (output)
     mut movement: ResMut<CursorMovement>,
 ) {
-    // Clear previous stale state (without this mouse movement would "accumulate")
+    // clear previous stale state
     movement.reset_deltas();
 
     for event in motion_events.read() {
-        movement.adjust_mouse_delta(event.delta.into());
+        movement.adjust_mouse_delta(event.delta);
     }
 
     for event in wheel_events.read() {
