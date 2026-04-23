@@ -176,7 +176,7 @@ debug *args:
 # target wsl -> windows builds to happen in the windows temp dir
 windows_temp := if os_family == "windows" { "" \
 } else { \
-    `cd /mnt/c && cmd.exe /c "echo %TEMP%" 2>/dev/null | tr -d '\r\n'` \
+    `if [ -d /mnt/c ]; then cd /mnt/c && cmd.exe /c "echo %TEMP%" 2>/dev/null | tr -d '\r\n'; fi` \
 }
 windows_wsl_target_dir := windows_temp + "\\vantablock-target"
 
