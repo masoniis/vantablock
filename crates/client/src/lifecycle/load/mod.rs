@@ -17,8 +17,8 @@ use registries::start_async_registry_initialization;
 use shared::lifecycle::state::enums::AppState;
 use shared::simulation::chunk::ChunkCoord;
 use shared::{
-    cleanup_orphaned_tasks, loading_is_complete, poll_tasks, start_fake_work_system, transition_to,
-    SimulationLoadingPhase,
+    SimulationLoadingPhase, cleanup_orphaned_tasks, loading_is_complete, poll_tasks,
+    start_fake_work_system, transition_to,
 };
 
 use crate::lifecycle::SimulationState;

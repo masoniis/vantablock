@@ -1,9 +1,9 @@
-use crate::lifecycle::state::ClientState;
 use crate::lifecycle::SessionTopology;
+use crate::lifecycle::state::ClientState;
 use crate::network::resources::{ConnectType, ConnectionSettings};
+use bevy::ecs::prelude::MessageWriter;
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::prelude::*;
-use bevy::ecs::prelude::MessageWriter;
 use shared::events::RequestSingleplayerSession;
 
 #[derive(Component)]

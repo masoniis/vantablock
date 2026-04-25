@@ -18,6 +18,7 @@ pub use bevy::math::{
     vec4,
 };
 pub use derive_more::{Deref, DerefMut};
+pub use lightyear::prelude::client as lightyear_client;
 pub use std::f32::consts::{FRAC_PI_2, PI};
 pub use std::sync::Arc;
 pub use tracing::{debug, error, info, info_span, instrument, trace, warn};

@@ -5,8 +5,8 @@ use bevy::prelude::{Component, Entity, Transform};
 use lightyear::netcode::NetcodeServer;
 use lightyear::prelude::server::{NetcodeConfig, ServerUdpIo, Start};
 use lightyear::prelude::{Connect, LocalAddr, MessageSender};
-use shared::network::protocol::server::ServerMessage;
 use shared::network::NETWORK_DEFAULT_PORT;
+use shared::network::protocol::server::ServerMessage;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 #[derive(Component)]
@@ -41,6 +41,7 @@ pub fn start_udp_server(mut commands: Commands) {
 
 pub fn handle_connections(trigger: On<Connect>, mut commands: Commands) {
     let client_entity = trigger.entity;
+    println!("DEBUG: handle_connections called for entity {:?}", client_entity);
     info!("Client connected with entity: {:?}", client_entity);
 
     // spawn a player entity for the client

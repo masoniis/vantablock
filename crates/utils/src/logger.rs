@@ -1,15 +1,15 @@
 use time::macros::format_description;
 use tracing::{Event, Level, Subscriber};
 use tracing_subscriber::{
+    Registry,
     filter::EnvFilter,
     fmt::{
-        self, format::Writer, time::FormatTime, time::LocalTime, FmtContext, FormatEvent,
-        FormatFields,
+        self, FmtContext, FormatEvent, FormatFields, format::Writer, time::FormatTime,
+        time::LocalTime,
     },
     layer::SubscriberExt,
     prelude::*,
     registry::LookupSpan,
-    Registry,
 };
 
 pub fn attach_logger() {

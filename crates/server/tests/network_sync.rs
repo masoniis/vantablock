@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use lightyear::prelude::MessageSender;
 use server::network::systems::ClientConnection;
-use server::simulation::chunk_loading::{sync_chunk_data_to_clients_system, ClientChunkTracker};
+use server::simulation::chunk_loading::{ClientChunkTracker, sync_chunk_data_to_clients_system};
 use shared::network::protocol::server::ServerMessage;
 use shared::simulation::chunk::{ChunkBlocksComponent, ChunkCoord, ChunkLod, ChunkStateManager};
 

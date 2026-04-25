@@ -19,7 +19,7 @@ fn main() {
 
     // config of default plugins
     app.add_plugins(client::DefaultClientPlugins);
-    
+
     // the orchestrator will handle spinning up a background server if requested
     app.add_plugins(OrchestratorPlugin);
 

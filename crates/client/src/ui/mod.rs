@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use shared::lifecycle::state::enums::AppState;
 
-use crate::lifecycle::{state::ClientState, SimulationState};
+use crate::lifecycle::{SimulationState, state::ClientState};
 pub mod systems;
 
 // INFO: -------------------

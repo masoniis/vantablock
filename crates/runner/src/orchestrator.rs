@@ -1,10 +1,10 @@
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 
 use bevy::prelude::*;
-use server::lifecycle::state::ServerState;
 use server::DefaultServerPlugins;
+use server::lifecycle::state::ServerState;
 use shared::events::RequestSingleplayerSession;
 use tracing::info;
 
