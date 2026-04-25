@@ -1,8 +1,10 @@
 use crate::lifecycle::state::ClientState;
+use crate::lifecycle::SessionTopology;
 use crate::network::resources::{ConnectType, ConnectionSettings};
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::prelude::*;
-use shared::network::state::NetworkingMode;
+use bevy::ecs::prelude::MessageWriter;
+use shared::events::RequestSingleplayerSession;
 
 #[derive(Component)]
 pub struct MainMenuUiRoot;
@@ -166,9 +168,10 @@ pub fn main_menu_button_interaction_system(
         ),
         (Changed<Interaction>, With<Button>),
     >,
-    mut next_state: ResMut<NextState<ClientState>>,
-    mut next_net_mode: ResMut<NextState<NetworkingMode>>,
+    mut client_state: ResMut<NextState<ClientState>>,
+    mut session_topology: ResMut<NextState<SessionTopology>>,
     mut settings: ResMut<ConnectionSettings>,
+    mut ev_request_session: MessageWriter<RequestSingleplayerSession>,
 ) {
     for (interaction, mut color, mut border_color, action) in interaction_query.iter_mut() {
         match *interaction {
@@ -176,19 +179,20 @@ pub fn main_menu_button_interaction_system(
                 *color = BackgroundColor(Color::LinearRgba(LinearRgba::new(0.3, 0.3, 0.3, 1.0)));
                 *border_color = BorderColor::all(Color::WHITE);
 
+                // Transition to InGame state
+                client_state.set(ClientState::InGame);
+
                 match action {
                     MainMenuButtonAction::Singleplayer => {
                         settings.connect_type = ConnectType::Singleplayer;
-                        next_net_mode.set(NetworkingMode::Internal);
+                        session_topology.set(SessionTopology::Internal);
+                        ev_request_session.write(RequestSingleplayerSession);
                     }
                     MainMenuButtonAction::Multiplayer => {
                         settings.connect_type = ConnectType::Multiplayer;
-                        next_net_mode.set(NetworkingMode::External);
+                        session_topology.set(SessionTopology::External);
                     }
                 }
-
-                // Transition to InGame state
-                next_state.set(ClientState::InGame);
             }
             Interaction::Hovered => {
                 *color = BackgroundColor(Color::LinearRgba(LinearRgba::new(0.2, 0.2, 0.2, 0.9)));

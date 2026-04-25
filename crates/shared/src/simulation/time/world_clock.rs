@@ -1,6 +1,5 @@
 use crate::prelude::*;
-use crate::simulation::time::simulation_tick::SimulationTick;
-use bevy::ecs::prelude::*;
+use bevy::prelude::*;
 use std::time::Duration;
 
 /// Number of seconds it takes for a day/night cycle to complete
@@ -40,16 +39,15 @@ impl WorldClockResource {
 //         update world clock
 // ----------------------------------
 
-/// A system that runs every tick to advance the in-game calendar.
+/// A system that runs every fixed tick to advance the in-game calendar.
 #[instrument(skip_all)]
 pub fn update_world_clock_system(
     // Input
-    sim_tick: Res<SimulationTick>,
-
+    time: Res<Time<Fixed>>,
     // Output
     mut world_clock: ResMut<WorldClockResource>,
 ) {
-    world_clock.time_of_day += sim_tick.tick_duration;
+    world_clock.time_of_day += time.delta();
 
     if world_clock.time_of_day >= world_clock.day_duration {
         let day_dur = world_clock.day_duration;

@@ -77,11 +77,11 @@ where
         #[allow(unused_assignments)]
         let mut prefix = "";
 
-        if target.starts_with("server") {
+        if target.contains("server") {
             prefix = "\x1b[35m[SERVER]\x1b[0m "; // magenta
-        } else if target.starts_with("client") {
+        } else if target.contains("client") {
             prefix = "\x1b[36m[CLIENT]\x1b[0m "; // cyan
-        } else if target.starts_with("shared") {
+        } else if target.contains("shared") {
             prefix = "\x1b[33m[SHARED]\x1b[0m "; // yellow
         } else {
             prefix = "\x1b[37m[EXTERN]\x1b[0m "; // gray
@@ -99,7 +99,7 @@ where
             Level::WARN => ("W", "\x1b[33m"),  // yellow
             Level::ERROR => ("E", "\x1b[31m"), // red
         };
-        write!(writer, "{}{}{}\x1b[0m ", target, level_color, level_char)?;
+        write!(writer, "{}{}\x1b[0m ", level_color, level_char)?;
 
         // final message
         ctx.format_fields(writer.by_ref(), event)?;

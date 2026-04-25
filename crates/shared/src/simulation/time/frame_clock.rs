@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 const FPS_SMOOTHING_FACTOR: f32 = 0.025;
 
 // INFO: ------------------------
-//         Clock resource
+//         clock resource
 // ------------------------------
 
 /// A resource that tracks frame timing information.
@@ -87,7 +87,7 @@ impl FrameClock {
 }
 
 // INFO: -----------------------
-//         Update system
+//         update system
 // -----------------------------
 
 /// A system that updates the `FrameClock` resource every frame.

@@ -26,13 +26,6 @@ pub fn manage_player_chunk_loading_system(
     mut chunk_manager: ResMut<ChunkStateManager>,
     mut commands: Commands,
 ) {
-    let count = player_query.iter().count();
-    if count > 0 {
-        trace!(target:"server_chunk_loading", "Managing chunk loading for {} players", count);
-    } else {
-        // only log occasionally to avoid spam
-    }
-
     for (transform, player_ent) in player_query.iter() {
         trace!(target:"server_chunk_loading", "Processing player {:?} at {:?}", player_ent, transform.translation);
         let player_pos = transform.translation;

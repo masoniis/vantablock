@@ -1,9 +1,9 @@
 //! # The Vantablock Server Library
 
+pub mod lifecycle;
 pub mod network;
 pub mod prelude;
 pub mod simulation;
-pub mod state;
 
 pub use prelude::*;
 
@@ -24,6 +24,7 @@ pub struct ServerCoreLogicPlugins;
 impl PluginGroup for ServerCoreLogicPlugins {
     fn build(self) -> PluginGroupBuilder {
         PluginGroupBuilder::start::<Self>()
+            .add_group(lifecycle::ServerLifecyclePlugins)
             .add(network::ServerNetworkPlugin)
             .add(simulation::ServerSimulationPlugin)
     }

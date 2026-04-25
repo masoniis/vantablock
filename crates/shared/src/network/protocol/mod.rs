@@ -18,7 +18,7 @@ impl Plugin for NetworkProtoclPlugin {
     fn build(&self, _app: &mut App) {}
 
     fn finish(&self, app: &mut App) {
-        // Since the protocol must be added after the lightyear `ClientPlugins` we do lightyear
+        // since the protocol must be added after the lightyear `ClientPlugins` we do lightyear
         // protocl registration in the finish method, not the build method.
         // https://docs.rs/lightyear/0.26.4/lightyear/prelude/client/struct.ClientPlugins.html
         app.register_message::<ClientMessage>()

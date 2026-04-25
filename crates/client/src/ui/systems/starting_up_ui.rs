@@ -1,5 +1,6 @@
 use bevy::prelude::*;
-use shared::lifecycle::state::SimulationState;
+
+use crate::lifecycle::SimulationState;
 
 #[derive(Component)]
 pub struct StartingUpUiRoot;
