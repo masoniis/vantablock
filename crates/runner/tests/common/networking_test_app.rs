@@ -1,22 +1,20 @@
-use bevy::prelude::*;
-use bevy::ecs::system::RunSystemOnce;
-use ::client::network::ClientNetworkPlugin;
-use ::server::network::ServerNetworkPlugin;
-use shared::network::SharedNetworkPlugin;
-use lightyear::prelude::*;
-use lightyear::prelude::client::*;
-use lightyear::prelude::server::*;
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use bevy::{ecs::system::RunSystemOnce, prelude::*};
+use std::time::{Duration, Instant};
+use {
+    client::network::{ClientNetworkPlugin, local_connection::setup_client},
+    server::network::{ServerNetworkPlugin, systems::start_udp_server},
+    shared::network::SharedNetworkPlugin,
+};
 
-pub struct TestEnvironment {
+pub struct UdpClientServerTestEnvironment {
     pub server_app: App,
     pub client_app: App,
-    pub server_entity: Entity,
-    pub client_entity: Entity,
 }
 
-impl Default for TestEnvironment {
+impl Default for UdpClientServerTestEnvironment {
     fn default() -> Self {
+        utils::attach_logger();
+
         let mut server_app = App::new();
         let mut client_app = App::new();
 
@@ -30,83 +28,27 @@ impl Default for TestEnvironment {
         client_app.add_plugins(SharedNetworkPlugin);
         client_app.add_plugins(ClientNetworkPlugin);
 
-        // Initialize states so that run_if(in_state(...)) systems work
-        server_app.insert_state(shared::lifecycle::state::enums::AppState::Running);
-        server_app.insert_state(::server::lifecycle::state::ServerState::Running);
+        // start udp server
+        server_app
+            .world_mut()
+            .run_system_once(start_udp_server)
+            .expect("Failed to run start_udp_server system");
 
-        client_app.insert_state(shared::lifecycle::state::enums::AppState::Running);
-        client_app.insert_state(::client::lifecycle::state::enums::ClientState::InGame);
-        client_app.insert_state(::client::lifecycle::state::enums::InGameState::Playing);
-
-        // 1. START UDP SERVER
-        let server_entity = server_app.world_mut().run_system_once(|mut commands: Commands| {
-            let server_addr = SocketAddr::V4(SocketAddrV4::new(
-                Ipv4Addr::LOCALHOST,
-                shared::network::NETWORK_DEFAULT_PORT,
-            ));
-
-            let server_entity = commands
-                .spawn((
-                    NetcodeServer::new(lightyear::prelude::server::NetcodeConfig::default()),
-                    LocalAddr(server_addr),
-                    ServerUdpIo::default(),
-                ))
-                .id();
-
-            // start listening
-            commands.trigger(Start {
-                entity: server_entity,
-            });
-            server_entity
-        }).expect("Failed to run start_udp_server system");
-
-        // 2. SETUP CLIENT
-        let client_entity = client_app.world_mut().run_system_once(|mut commands: Commands| {
-            let server_addr = SocketAddr::V4(SocketAddrV4::new(
-                Ipv4Addr::LOCALHOST,
-                shared::network::NETWORK_DEFAULT_PORT,
-            ));
-            let client_addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0));
-
-            // netcode auth
-            let auth = Authentication::Manual {
-                server_addr,
-                client_id: 1,
-                private_key: lightyear::netcode::Key::default(),
-                protocol_id: 0,
-            };
-
-            // main client ent
-            let client_entity = commands
-                .spawn((
-                    lightyear::prelude::client::Client::default(),
-                    Link::default(),
-                    LocalAddr(client_addr),
-                    PeerAddr(server_addr),
-                    NetcodeClient::new(auth, lightyear::prelude::client::NetcodeConfig::default())
-                        .expect("CRITICAL: Failed to create NetcodeClient!"),
-                    lightyear::prelude::UdpIo::default(),
-                ))
-                .id();
-
-            // trigger connection
-            commands.trigger(Connect {
-                entity: client_entity,
-            });
-            client_entity
-        }).expect("Failed to run setup_client system");
+        // setup client
+        client_app
+            .world_mut()
+            .run_system_once(setup_client)
+            .expect("Failed to run setup_client system");
 
         Self {
             server_app,
             client_app,
-            server_entity,
-            client_entity,
         }
     }
 }
 
-impl TestEnvironment {
-    /// Helper to tick both apps so packets actually process
+impl UdpClientServerTestEnvironment {
+    /// Helper to tick both apps
     pub fn step(&mut self) {
         use std::time::Duration;
         let delta = Duration::from_secs_f32(1.0 / 60.0);
@@ -121,11 +63,23 @@ impl TestEnvironment {
         self.client_app.update();
     }
 
-    /// Step multiple times to allow for handshakes and message propagation
-    pub fn step_frames(&mut self, frames: usize) {
-        for _ in 0..frames {
+    /// Steps the environment until a condition is met, or panics if it times out.
+    pub fn wait_until<F>(&mut self, mut condition: F, timeout: Duration)
+    where
+        F: FnMut(&mut Self) -> bool,
+    {
+        let start = Instant::now();
+
+        while !condition(self) {
+            if start.elapsed() > timeout {
+                panic!("wait_until timed out after {:?}", timeout);
+            }
+
+            // step both apps
             self.step();
+
+            // wait in between
+            std::thread::sleep(Duration::from_millis(2));
         }
     }
 }
-

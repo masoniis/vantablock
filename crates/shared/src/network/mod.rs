@@ -1,6 +1,8 @@
 pub mod channel;
 pub mod protocol;
 
+pub use protocol::*;
+
 pub const NETWORK_TICK_DURATION: f64 = 1.0 / 60.0;
 pub const NETWORK_DEFAULT_PORT: u16 = 5000;
 
@@ -13,7 +15,6 @@ use channel::{
     BlockUpdates, ChatAndSystem, ChunkData, EntityLifecycle, ModStateSync, PlayerMovement,
 };
 use lightyear::prelude::{AppChannelExt, ChannelMode, ChannelSettings, ReliableSettings};
-use protocol::NetworkProtoclPlugin;
 
 pub struct SharedNetworkPlugin;
 

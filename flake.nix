@@ -37,6 +37,7 @@
               pkgs-unstable.tracy-glfw
               pkgs-unstable.rust-analyzer
               pkgs-unstable.wgsl-analyzer
+              pkgs-unstable.cargo-nextest
               rustup
 
               # utils

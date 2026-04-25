@@ -11,8 +11,8 @@ use bevy::{
 };
 use shared::{
     lifecycle::{
-        PersistentPathsResource,
         load::{AppStartupLoadingPhase, LoadingTaskComponent},
+        PersistentPathsResource,
     },
     simulation::block::BlockRegistry,
 };
@@ -35,7 +35,7 @@ pub fn start_async_registry_initialization(
         let (texture_array_image, texture_registry) =
             VoxelTextureProcessor::new(paths.assets_dir.clone(), &settings.texture_pack)
                 .load_and_stitch()
-                .expect("Failed to load and stitch textures");
+                .expect("Failed to load and stitch voxel textures!");
 
         // independent simulation block loading
         let block_registry = BlockRegistry::load_from_disk(&paths);

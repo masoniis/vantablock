@@ -38,7 +38,7 @@ pub fn manage_player_chunk_loading_system(
                     let coord = IVec3::new(player_chunk_pos.x + x, y, player_chunk_pos.z + z);
 
                     if !chunk_manager.is_chunk_present_or_loading(coord) {
-                        info!(target:"server_chunk_loading","Server: Marking chunk needs-generation at {:?}", coord);
+                        trace!(target:"server_chunk_loading","Server: Marking chunk needs-generation at {:?}", coord);
                         let ent = commands
                             .spawn((
                                 NeedsGenerating { lod: ChunkLod(0) },
@@ -89,7 +89,7 @@ pub fn sync_chunk_data_to_clients_system(
                         {
                             let data = extract_block_data(blocks);
 
-                            info!(target:"server_chunk_loading", "Sending chunk {:?} to client {:?}", coord, connection.client_entity);
+                            trace!(target:"server_chunk_loading", "Sending chunk {:?} to client {:?}", coord, connection.client_entity);
                             sender.send::<ChunkData>(ServerMessage::ChunkData {
                                 coord: ChunkCoord { pos: coord },
                                 data,

@@ -78,9 +78,9 @@ pub fn manage_distance_based_chunk_loading_targets_system(
         chunk_manager.mark_as_unloaded(coord);
     }
 
-    // INFO: --------------------------------------------
+    // INFO: -------------------------
     //         load new chunks
-    // --------------------------------------------------
+    // -------------------------------
 
     // if any desired chunks are not currently loaded or loading, spawn a new chunk entity and mark it as needs-generation
     for coord in desired_load_chunks {

@@ -11,7 +11,7 @@ pub use server::ServerMessage;
 use bevy::prelude::*;
 use lightyear::prelude::{AppMessageExt, NetworkDirection};
 
-pub struct NetworkProtoclPlugin;
+pub(crate) struct NetworkProtoclPlugin;
 
 /// A plugin that defines the shared client-server networking protocols
 impl Plugin for NetworkProtoclPlugin {

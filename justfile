@@ -76,7 +76,7 @@ alias clip := clippy
 
 # runs all workspace tests
 test *args:
-    cargo test {{args}}
+    cargo nextest run {{args}}
 
 # compiles benchmarks as tests to check for runtime errors
 test-bench:
