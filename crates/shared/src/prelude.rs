@@ -2,6 +2,7 @@
 //         crate imports
 // -----------------------------
 
+pub use crate::events::*;
 pub use crate::lifecycle::*;
 pub use utils::*;
 

@@ -20,15 +20,3 @@ pub enum AppState {
     /// be done during this state, as it is their last chance.
     ShuttingDown,
 }
-
-/// A state representing whether the server simulation is currently loading, paused or executing.
-#[derive(States, Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub enum SimulationState {
-    #[default]
-    /// The simulation is preparing to start.
-    Loading,
-    /// The simulation is active and ticking.
-    Running,
-    /// The simulation is paused.
-    Paused,
-}

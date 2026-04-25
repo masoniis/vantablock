@@ -7,6 +7,10 @@ publish.workspace = true
 
 default-run = "game"
 
+[lib]
+name = "vantablock_runner"
+path = "src/lib.rs"
+
 [package.metadata.packager]
 product-name = "Vantablock"
 identifier = "com.masoniis.vantablock"

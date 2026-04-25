@@ -6,6 +6,7 @@ use bevy::{
 };
 use client::{lifecycle::scheduling::RenderPrepSet, prelude::*};
 use utils::attach_logger;
+use vantablock_runner::orchestrator::OrchestratorPlugin;
 
 /// The main entrypoint for the entire game.
 #[instrument(skip_all, fields(name = "main"))]
@@ -17,11 +18,10 @@ fn main() {
     let mut app = App::new();
 
     // config of default plugins
-    //
-    // the client can act as both a client and a server so it gets
-    // the server core as well
     app.add_plugins(client::DefaultClientPlugins);
-    app.add_plugins(server::ServerCoreLogicPlugins);
+    
+    // the orchestrator will handle spinning up a background server if requested
+    app.add_plugins(OrchestratorPlugin);
 
     // set ordering
     app.configure_sets(PostUpdate, RenderPrepSet);

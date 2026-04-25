@@ -14,17 +14,19 @@ use bevy::{
 };
 use shared::transition_to;
 use shared::{
+    lifecycle::load::{cleanup_orphaned_tasks, AppStartupLoadingPhase},
+    lifecycle::state::enums::AppState,
     FixedUpdateSet,
-    lifecycle::load::{AppStartupLoadingPhase, cleanup_orphaned_tasks},
-    lifecycle::state::{SimulationState, enums::AppState},
 };
 
 pub struct ClientStatePlugin;
 
 impl Plugin for ClientStatePlugin {
     fn build(&self, app: &mut App) {
+        app.init_state::<SimulationState>();
         app.add_sub_state::<ClientState>();
         app.add_sub_state::<InGameState>();
+        app.add_sub_state::<SessionTopology>();
 
         // INFO: -----------------------
         //         async loading
