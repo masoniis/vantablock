@@ -5,8 +5,8 @@ use bevy::{
     prelude::{Component, Entity, Transform},
 };
 use lightyear::netcode::NetcodeServer;
-use lightyear::prelude::server::{NetcodeConfig, ServerUdpIo, Start};
-use lightyear::prelude::{Connected, LocalAddr, MessageSender};
+use lightyear::prelude::server::{NetcodeConfig, Server, ServerUdpIo, Start};
+use lightyear::prelude::{Connected, Link, LocalAddr, MessageSender};
 use shared::network::{NETWORK_DEFAULT_PORT, ServerMessage};
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
@@ -20,7 +20,7 @@ pub struct ClientConnection {
 /// https://cbournhonesque.github.io/lightyear/book/tutorial/build_client_server.html#server
 pub fn start_udp_server(mut commands: Commands) {
     let server_addr = SocketAddr::V4(SocketAddrV4::new(
-        Ipv4Addr::UNSPECIFIED,
+        Ipv4Addr::LOCALHOST,
         NETWORK_DEFAULT_PORT,
     ));
 
@@ -28,6 +28,8 @@ pub fn start_udp_server(mut commands: Commands) {
 
     let server_entity = commands
         .spawn((
+            Server::default(),
+            Link::default(),
             NetcodeServer::new(NetcodeConfig::default()),
             LocalAddr(server_addr),
             ServerUdpIo::default(),

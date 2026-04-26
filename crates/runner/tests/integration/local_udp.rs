@@ -37,18 +37,23 @@ fn sending_a_message() {
     env.server_app
         .world_mut()
         .run_system_once(
-            |mut sender_query: Query<&mut MessageSender<ServerMessage>>| {
+            |mut sender_query: Query<(Entity, &mut MessageSender<ServerMessage>)>| {
+                for (entity, _) in sender_query.iter() {
+                    info!("Server MessageSender entity: {:?}", entity);
+                }
+
                 let test_msg = ServerMessage::SyncTime {
                     game_time: 42.0,
-                    tick: 100,
+                    tick: 0,
                 };
 
-                let mut sender = sender_query
+                let (entity, mut sender) = sender_query
                     .single_mut()
-                    .expect("Server should have a sender but it doesn't exist");
+                    .expect("Server should have exactly one sender but it doesn't!");
 
-                info!("Sending test message from server...");
+                info!("Sending test message from server via entity {:?}...", entity);
                 sender.send::<ChatAndSystem>(test_msg.clone());
+                info!("Message sent (queued)");
             },
         )
         .unwrap();
@@ -71,7 +76,7 @@ fn sending_a_message() {
                     info_once!("Message received: {:?}", message);
                     if let ServerMessage::SyncTime { game_time, tick } = message {
                         assert_eq!(game_time, 42.0);
-                        assert_eq!(tick, 100);
+                        assert_eq!(tick, 0);
                         found = true;
                     }
                 }
