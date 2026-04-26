@@ -3,18 +3,20 @@ name = "vantablock-server"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
-default-run = "server"
-
-[lints]
-workspace = true
 
 [lib]
 name = "server"
 path = "src/lib.rs"
 
-[[bin]]
-name = "server"
-path = "src/main.rs"
+[[bench]]
+name = "generation_benchmarks"
+harness = false
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+criterion = { workspace = true }
 
 [dependencies]
 utils = { workspace = true }
@@ -31,4 +33,15 @@ tracing-subscriber = { workspace = true }
 #         simulation logic
 # --------------------------------
 
-bevy = { workspace = true }
+bevy = { workspace = true, features = [
+  "bevy_asset", # asset management
+  "bevy_state", # state machines
+] }
+crossbeam = { workspace = true }
+noise = { workspace = true }
+lightyear = { workspace = true, features = [
+  # extends default lightyear features in workspace
+  "server",  # server plugins
+  "udp",     # needed for Dedicated/LAN listening
+  "netcode", # needed to manage distinct player connections
+] }

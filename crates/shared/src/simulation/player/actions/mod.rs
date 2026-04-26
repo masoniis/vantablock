@@ -6,48 +6,25 @@ pub use voxel::*;
 //         actions module plugin
 // -------------------------------------
 
-use crate::simulation::{
-    input::resources::ActionStateResource, input::types::simulation_action::SimulationAction,
-};
-use bevy::app::{App, FixedUpdate, Plugin, Update};
-use bevy::ecs::{message::Messages, schedule::IntoScheduleConfigs, system::Res};
+use bevy::app::{App, Plugin, Update};
+use bevy::ecs::message::Messages;
 
 pub struct ActionPlugin;
 
 impl Plugin for ActionPlugin {
     fn build(&self, app: &mut App) {
-        // update targeted block
-        app.add_systems(
-            FixedUpdate,
-            voxel::update_target_voxel::update_targeted_block_system,
-        );
-
-        // break voxel on click
+        // handle break voxel events
         app.init_resource::<Messages<voxel::break_targeted_voxel::BreakVoxelEvent>>()
             .add_systems(
                 Update,
-                (
-                    voxel::break_targeted_voxel::handle_break_voxel_events_system,
-                    voxel::break_targeted_voxel::break_targeted_voxel_system.run_if(
-                        |action_state: Res<ActionStateResource>| {
-                            action_state.just_happened(SimulationAction::BreakVoxel)
-                        },
-                    ),
-                ),
+                voxel::break_targeted_voxel::handle_break_voxel_events_system,
             );
 
-        // add voxel on right click
+        // handle place voxel events
         app.init_resource::<Messages<voxel::place_voxel_at_target::PlaceVoxelEvent>>()
             .add_systems(
                 Update,
-                (
-                    voxel::place_voxel_at_target::handle_place_voxel_events_system,
-                    voxel::place_voxel_at_target::place_targeted_voxel_system.run_if(
-                        |action_state: Res<ActionStateResource>| {
-                            action_state.just_happened(SimulationAction::PlaceVoxel)
-                        },
-                    ),
-                ),
+                voxel::place_voxel_at_target::handle_place_voxel_events_system,
             );
     }
 }

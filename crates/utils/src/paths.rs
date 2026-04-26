@@ -1,4 +1,3 @@
-use bevy::prelude::Resource;
 use directories::ProjectDirs;
 use std::{fs, path::PathBuf};
 
@@ -8,7 +7,7 @@ use std::{fs, path::PathBuf};
 /// - macOS: `~/Library/Application Support/com.masoniis.vantablock/`
 /// - Windows: `%AppData%\Roaming\masoniis\vantablock\` (Config) and `%AppData%\Local\masoniis\vantablock\` (Data)
 /// - Linux: `~/.config/vantablock/` and `~/.local/share/vantablock/`
-#[derive(Resource, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct PersistentPaths {
     /// Standard location for game assets (textures, models, configs).
     pub assets_dir: PathBuf,

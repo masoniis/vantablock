@@ -1,0 +1,62 @@
+[package]
+name = "vantablock-runner"
+description = "binaries for vantablock"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+default-run = "game"
+
+[lib]
+name = "vantablock_runner"
+path = "src/lib.rs"
+
+[package.metadata.packager]
+product-name = "Vantablock"
+identifier = "com.masoniis.vantablock"
+resources = ["../../assets", "../../readme.md"]
+icons = ["../../assets/client/icon.png"]
+binaries = [{ path = "game", main = true }]
+
+[[bin]]
+name = "game"
+path = "src/bin/game.rs"
+required-features = ["standalone"]
+
+[[bin]]
+name = "server"
+path = "src/bin/server.rs"
+required-features = ["dedicated"]
+
+[features]
+# binary features
+default = ["standalone"]
+# for playing the game and hosting
+standalone = [
+  "dep:client",
+  "dep:server",
+  "bevy/default_platform",
+  "bevy/3d_bevy_render",
+  "bevy/ui_bevy_render",
+]
+# for headless hosting
+dedicated = ["dep:server"]
+
+# development features
+dev = ["client?/dev"]
+tracy = ["client?/tracy"]
+distribution = ["client?/distribution"]
+
+
+[dependencies]
+client = { package = "vantablock-client", path = "../client", optional = true }
+server = { package = "vantablock-server", path = "../server", optional = true }
+shared = { package = "vantablock-shared", path = "../shared" }
+utils = { package = "vantablock-utils", path = "../utils" }
+
+bevy = { workspace = true, features = ["bevy_asset"] }
+tracing = { workspace = true }
+
+[dev-dependencies]
+lightyear = { workspace = true }
+crossbeam-channel = "0.5"

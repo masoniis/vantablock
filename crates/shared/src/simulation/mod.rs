@@ -4,6 +4,4 @@ pub mod block;
 pub mod chunk;
 pub mod input;
 pub mod player;
-pub mod scheduling;
-pub mod terrain;
 pub mod time;

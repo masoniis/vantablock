@@ -1,7 +1,7 @@
-use crate::state::ClientAppState;
 use bevy::prelude::*;
-use shared::state::SimulationState;
+use shared::lifecycle::state::enums::AppState;
 
+use crate::lifecycle::{SimulationState, state::ClientState};
 pub mod systems;
 
 // INFO: -------------------
@@ -13,11 +13,11 @@ pub struct VantablockUiPlugin;
 impl Plugin for VantablockUiPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
-            OnEnter(ClientAppState::Running),
+            OnEnter(AppState::Running),
             systems::spawning::spawn_ui_system,
         )
         .add_systems(
-            OnExit(ClientAppState::Running),
+            OnExit(AppState::Running),
             systems::spawning::despawn_ui_system,
         );
 
@@ -25,10 +25,20 @@ impl Plugin for VantablockUiPlugin {
         app.add_systems(
             OnEnter(SimulationState::Loading),
             systems::starting_up_ui::spawn_starting_up_ui,
+        );
+
+        // main menu ui
+        app.add_systems(
+            OnEnter(ClientState::MainMenu),
+            systems::main_menu::spawn_main_menu,
         )
         .add_systems(
-            OnExit(SimulationState::Loading),
-            systems::starting_up_ui::despawn_starting_up_ui,
+            Update,
+            (
+                systems::main_menu::main_menu_button_interaction_system,
+                systems::main_menu::main_menu_text_input_system,
+            )
+                .run_if(in_state(ClientState::MainMenu)),
         );
     }
 }

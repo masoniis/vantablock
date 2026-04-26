@@ -94,9 +94,9 @@ impl BlockRegistry {
         descriptions_vec.push(placeholder_desc);
         name_to_id.insert("stone".to_string(), SOLID_BLOCK_ID);
 
-        // INFO: ------------------------------------------
+        // INFO: ----------------------------------------
         //         parse block from shared assets
-        // ------------------------------------------------
+        // ----------------------------------------------
 
         let mut stone_was_loaded = false;
         let full_path = persistent_paths.assets_dir.join("shared/block");

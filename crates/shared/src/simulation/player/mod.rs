@@ -1,2 +1,2 @@
 pub mod actions;
-pub mod initialize_camera;
+pub mod components;

@@ -1,5 +1,7 @@
+use serde::{Deserialize, Serialize};
+
 /// Defines
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum SimulationAction {
     // Core player movement
     MoveForward,

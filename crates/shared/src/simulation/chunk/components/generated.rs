@@ -1,4 +1,4 @@
-use crate::simulation::{block::BlockId, chunk::ChunkBlocksComponent, terrain::BiomeMapComponent};
+use crate::simulation::block::BlockId;
 use bevy::ecs::prelude::Component;
 
 /// Contains all metadata calculated during generation.
@@ -28,14 +28,4 @@ impl ChunkMetadata {
     pub fn new() -> Self {
         Self::default()
     }
-}
-
-// INFO: -----------------------
-//         bundled types
-// -----------------------------
-
-pub struct GeneratedChunkComponentBundle {
-    pub chunk_blocks: Option<ChunkBlocksComponent>,
-    pub chunk_metadata: Option<ChunkMetadata>,
-    pub biome_map: BiomeMapComponent,
 }

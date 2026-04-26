@@ -1,43 +1,44 @@
+# INFO: -----------------------
+#         configuration
+# -----------------------------
+
 set shell := ["bash", "-c"]
+set windows-shell := ["powershell.exe", "-NoProfile", "-Command"]
 
-# crate names
-project := "vantablock"
-client  := "vantablock-client"
-server  := "vantablock-server"
-
-# where to place wsl windows builds
-wsl_target := "C:/temp/vantablock-build"
-
-open_cmd := if os() == "macos" { \
+os_family := os()
+open_cmd := if os_family == "macos" { \
     "open" \
-} else if os() == "windows" { \
+} else if os_family == "windows" { \
     "explorer.exe" \
 } else { \
     "xdg-open" \
 }
 
+# crate names
+project := "vantablock"
+client  := "vantablock-client"
+server  := "vantablock-server"
+runner  := "vantablock-runner"
+
+
 default: run
 
-# INFO: -------------------------
-#          core execution
-# -------------------------------
+# INFO: ------------------------
+#         core execution
+# ------------------------------
 
 # runs the client via debug profile
 run *args:
-    cargo run -p {{client}} {{args}}
+    cargo run -p {{runner}} --bin game {{args}}
 
 # runs the server via debug profile
 server *args:
-    cargo run -p {{server}} {{args}}
+    cargo run -p {{runner}} --bin server --no-default-features --features dedicated {{args}}
 
 # runs the client via max-optimization release profile
 release *args:
-    cargo run -p {{client}} --profile distribution --features {{client}}/distribution {{args}}
+    cargo run -p {{runner}} --bin game --profile distribution --features distribution {{args}}
 
-# compiles and runs the client natively on Windows from within WSL
-wsl *args:
-    @WSL_PATH=$(wslpath -w .)
-    @powershell.exe -Command "if (!(Test-Path '{{wsl_target}}')) { New-Item -ItemType Directory -Force -Path '{{wsl_target}}' }; cd '$WSL_PATH'; \$env:CARGO_TARGET_DIR='{{wsl_target}}'; cargo run -p {{client}} {{args}}"
 
 alias run-fast := release
 
@@ -47,16 +48,15 @@ alias run-fast := release
 
 # runs cargo check across the workspace
 check *args:
-    cargo check {{args}}
-    cargo check --benches
+    cargo check --all-targets {{args}}
 
 # runs clippy across the workspace
 clippy *args:
     cargo clippy {{args}}
 
 # fix compiler-fixable issues
-fix:
-    cargo fix --allow-dirty
+fix *args:
+    cargo fix --all-targets --allow-dirty {{args}}
 
 # runs nix fmt (rustfmt + nixpkgs-fmt)
 fmt:
@@ -65,7 +65,9 @@ fmt:
 # cleans ephemeral dirs
 clean:
 	rm -rf target/
+	rm -rf .dev_data/
 
+alias lint := check
 alias clip := clippy
 
 # INFO: ------------------------------
@@ -74,7 +76,7 @@ alias clip := clippy
 
 # runs all workspace tests
 test *args:
-    cargo test {{args}}
+    cargo nextest run {{args}}
 
 # compiles benchmarks as tests to check for runtime errors
 test-bench:
@@ -99,8 +101,12 @@ ready *args:
 
 # packages the client for distribution
 package profile="distribution":
-    cargo build -p client --profile {{profile}} --features distribution
-    cargo packager -p client --profile {{ if profile == "dev" { "debug" } else { profile } }}
+    cargo build -p {{runner}} --bin game --profile {{profile}} --features distribution
+    cargo packager -p {{runner}} --bin game --profile {{ if profile == "dev" { "debug" } else { profile } }}
+
+# packages the server for distribution
+server-package profile="distribution":
+    cargo build -p {{runner}} --bin server --no-default-features --features dedicated --profile {{profile}}
 
 # runs the texture processor utility
 texture:
@@ -117,7 +123,7 @@ sign:
 # Shows the ASM associated with a rust file.
 # requires https://crates.io/crates/cargo-show-asm
 asm path:
-    cargo asm -p {{client}} --color {{path}}
+    cargo asm -p {{runner}} --bin game --color {{path}}
 
 # launch tracy if it isn't already running
 trace *args:
@@ -129,15 +135,15 @@ trace *args:
         TRACY_ENABLE_MEMORY=1
         tracy &
     fi
-    cargo run -p {{client}} --features {{client}}/tracy {{args}}
+    cargo run -p {{runner}} --bin game --features tracy {{args}}
 
 # runs the client with Bevy-specific debug features
 debug_bevy *args:
-    cargo run -p {{client}} --features bevy/trace,bevy/track_location,bevy/debug {{args}}
+    cargo run -p {{runner}} --bin game --features bevy/trace,bevy/track_location,bevy/debug {{args}}
 
 # runs the client with verbose wgpu logging
 debug_wgpu *args:
-    RUST_LOG=wgpu=trace cargo run -p {{client}} {{args}}
+    RUST_LOG=wgpu=trace cargo run -p {{runner}} --bin game {{args}}
 
 # targeted tracing, call without args to list targets found in source.
 debug *args:
@@ -146,7 +152,7 @@ debug *args:
     set -- {{args}}
     if [ "$#" -eq 0 ]; then
         echo -e "\033[1;33mNo debug targets specified. Available targets are:\033[0m"
-        rg --no-heading -o --replace '$f:$1' 'target\s*:\s*"([^"]+)"' crates/{{client}}/src/ \
+        rg --no-heading -o --replace '$f:$1' 'target\s*:\s*"([^"]+)"' crates/ \
             | awk -F: '{print $NF}' | sort | uniq -c | sort -rn \
             | while read -r count target; do
                 printf '  - \033[1;35m%s\033[0m (%sx)\n' "$target" "$count"
@@ -160,4 +166,25 @@ debug *args:
     done
     export RUST_LOG="${log_targets%,},{{project}}=info"
     echo -e "\033[1;32mRunning with RUST_LOG=\033[0m$RUST_LOG"
-    cargo run -p {{client}}
+    cargo run -p {{runner}} --bin game
+
+# INFO: ---------------------------------
+#         advanced/niche commands
+# ---------------------------------------
+
+# target wsl -> windows builds to happen in the windows temp dir
+windows_temp := if os_family == "windows" { "" \
+} else { \
+    `if [ -d /mnt/c ]; then cd /mnt/c && cmd.exe /c "echo %TEMP%" 2>/dev/null | tr -d '\r\n'; fi` \
+}
+windows_wsl_target_dir := windows_temp + "\\vantablock-target"
+
+# compiles and runs the client natively on Windows from within WSL
+# requires cargo, just, and VS build tools on Windows host:
+# - winget install just
+# - winget install rustup
+# - winget install --id Microsoft.VisualStudio.2022.BuildTools --override "--passive --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+wsl *args:
+    @echo "Compiling Windows target ({{windows_wsl_target_dir}})"
+    @WSL_PATH=$(wslpath -w .)
+    @powershell.exe -Command "if (!(Test-Path '{{windows_wsl_target_dir}}')) { New-Item -ItemType Directory -Force -Path '{{windows_wsl_target_dir}}' }; cd '$WSL_PATH'; \$env:CARGO_TARGET_DIR='{{windows_wsl_target_dir}}'; just {{args}}"

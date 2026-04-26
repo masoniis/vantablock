@@ -2,12 +2,13 @@ use crate::prelude::*;
 use crate::simulation::chunk::{CHUNK_DEPTH, CHUNK_HEIGHT, CHUNK_SIDE_LENGTH, CHUNK_WIDTH};
 use bevy::ecs::prelude::*;
 use derive_more::{Deref, DerefMut};
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 const BIT_SHIFT: i32 = CHUNK_SIDE_LENGTH.trailing_zeros() as i32;
 
 /// Stores the coordinate of the chunk an entity is currently in.
-#[derive(Component, Clone, Deref, DerefMut, Debug)]
+#[derive(Component, Serialize, Deserialize, Clone, Deref, DerefMut, Debug, PartialEq, Eq)]
 pub struct ChunkCoord {
     pub pos: IVec3,
 }

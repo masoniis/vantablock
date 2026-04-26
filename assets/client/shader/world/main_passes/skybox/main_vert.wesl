@@ -24,7 +24,7 @@ fn vs_main(
 
     let pos = vertices[in_vertex_index];
 
-    // the full screen quad is at the maximum distance (0.0 for inverse z)
+    // the full screen quad is at the maximum distance (z=0.0 for inverse z)
     out.clip_position = vec4<f32>(pos, 0.0, 1.0);
     out.clip_pos_for_unproject = out.clip_position;
 
