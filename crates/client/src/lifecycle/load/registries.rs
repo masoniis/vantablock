@@ -26,7 +26,7 @@ pub fn start_async_registry_initialization(
     info!("Starting asynchronous simulation registry initialization...");
 
     let settings = client_settings.clone();
-    let paths = persistent_paths.0.clone();
+    let paths = persistent_paths.clone();
 
     let task = AsyncComputeTaskPool::get().spawn(async move {
         info!("Initializing simulation registries in background...");
