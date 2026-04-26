@@ -3,8 +3,7 @@ use bevy::ecs::prelude::*;
 use bevy::math::{Quat, Vec3};
 use bevy::prelude::{Camera, Camera3d, Projection, Transform};
 use shared::simulation::input::types::SimulationAction;
-// use shared::simulation::terrain::{ActiveTerrainGenerator, TerrainGeneratorLibrary};
-use shared::simulation::time::{WorldClockResource, world_clock::SECONDS_IN_A_DAY};
+use shared::simulation::time::{world_clock::SECONDS_IN_A_DAY, WorldClockResource};
 use std::time::Duration;
 
 struct Showcase {

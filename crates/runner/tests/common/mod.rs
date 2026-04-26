@@ -1,2 +1,5 @@
-pub mod crossbeam_test_connection;
-pub mod networking_test_app;
+pub mod crossbeam_test_environment;
+pub mod local_udp_test_environment;
+
+pub use crossbeam_test_environment::CrossbeamClientServerTestEnvironment;
+pub use local_udp_test_environment::UdpClientServerTestEnvironment;

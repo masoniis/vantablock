@@ -23,16 +23,17 @@ pub fn setup_client(mut commands: Commands, settings: Res<ConnectionSettings>) {
         server_addr,
         client_id: 1,
         private_key: Key::default(),
-        protocol_id: 0, // must match server protocol id
+        protocol_id: 0,
     };
 
     // main client ent
     let client_entity = commands
         .spawn((
             Client::default(),
-            Link::default(),
             LocalAddr(client_addr),
             PeerAddr(server_addr),
+            Link::new(None),
+            ReplicationReceiver::default(),
             NetcodeClient::new(auth, NetcodeConfig::default())
                 .expect("CRITICAL: Failed to create NetcodeClient!"),
             UdpIo::default(),

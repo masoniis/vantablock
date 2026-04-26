@@ -5,19 +5,33 @@
 use crate::network::messages::{ReceivedChunkDataEvent, WelcomeEvent};
 use bevy::ecs::message::{MessageWriter, Messages};
 use bevy::prelude::*;
-use lightyear::prelude::MessageReceiver;
+use lightyear::prelude::{Connected, MessageReceiver};
 use shared::network::protocol::server::ServerMessage;
 
 pub struct ClientMessageHandlerPlugin;
 
 impl Plugin for ClientMessageHandlerPlugin {
     fn build(&self, app: &mut App) {
-        // Register the messages so Bevy knows about them
         app.init_resource::<Messages<WelcomeEvent>>()
             .init_resource::<Messages<ReceivedChunkDataEvent>>();
 
-        app.add_systems(Update, translate_server_messages);
+        app.add_systems(Update, translate_server_messages)
+            .add_observer(handle_connections);
     }
+}
+
+pub fn handle_connections(trigger: On<Add, Connected>, mut commands: Commands) {
+    let server_entity = trigger.entity;
+
+    // ensure server entity has MessageReceiver
+    commands
+        .entity(server_entity)
+        .insert(MessageReceiver::<ServerMessage>::default());
+
+    info!(
+        "Client listening for messages from server! (entity {:?})",
+        server_entity
+    );
 }
 
 pub fn translate_server_messages(
@@ -27,6 +41,7 @@ pub fn translate_server_messages(
 ) {
     for mut receiver in query.iter_mut() {
         for message in receiver.receive() {
+            info!("Received message in translate_server_messages: {:?}", message);
             match message {
                 ServerMessage::Welcome { spawn_pos, .. } => {
                     ev_welcome.write(WelcomeEvent { spawn_pos });

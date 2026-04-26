@@ -1,14 +1,12 @@
-mod common;
-
-use crate::common::networking_test_app::UdpClientServerTestEnvironment;
+use crate::common::UdpClientServerTestEnvironment;
 use bevy::ecs::system::RunSystemOnce;
 use bevy::prelude::*;
 use lightyear::prelude::*;
-use shared::network::{ServerMessage, channel::ChatAndSystem};
+use shared::network::{channel::ChatAndSystem, ServerMessage};
 use std::time::Duration;
 
 #[test]
-fn test_pure_connection() {
+fn sending_a_message() {
     let mut env = UdpClientServerTestEnvironment::default();
 
     // wait for connection to be established
@@ -20,10 +18,20 @@ fn test_pure_connection() {
         Duration::from_secs(5),
     );
 
-    env.client_app.update();
-    env.server_app.update();
-    env.client_app.update();
-    env.server_app.update();
+    env.step();
+
+    // ensure client has a receiver before sending server message
+    env.client_app
+        .world_mut()
+        .run_system_once(
+            |mut receiver_query: Query<&mut MessageReceiver<ServerMessage>>| {
+                receiver_query
+                    .single_mut()
+                    .expect("Client should have a receiver but it doesn't!");
+                info!("Client receiver exists!")
+            },
+        )
+        .unwrap();
 
     // server send message
     env.server_app
@@ -37,10 +45,9 @@ fn test_pure_connection() {
 
                 let mut sender = sender_query
                     .single_mut()
-                    .expect("Client sender doesn't exist");
+                    .expect("Server should have a sender but it doesn't exist");
 
                 info!("Sending test message from server...");
-
                 sender.send::<ChatAndSystem>(test_msg.clone());
             },
         )
@@ -55,11 +62,13 @@ fn test_pure_connection() {
                 .client_app
                 .world_mut()
                 .query::<&mut MessageReceiver<ServerMessage>>();
-            let mut found = false;
 
             // iter_mut requires passing the world in dynamically
+            let mut found = false;
             for mut receiver in query.iter_mut(e.client_app.world_mut()) {
+                info_once!("Checking client receiver for messages...");
                 for message in receiver.receive() {
+                    info_once!("Message received: {:?}", message);
                     if let ServerMessage::SyncTime { game_time, tick } = message {
                         assert_eq!(game_time, 42.0);
                         assert_eq!(tick, 100);
