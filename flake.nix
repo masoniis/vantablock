@@ -34,7 +34,7 @@
           mkShell {
             buildInputs = [
               # rust stuff
-              pkgs-unstable.tracy-glfw
+              tracy-glfw
               pkgs-unstable.rust-analyzer
               pkgs-unstable.wgsl-analyzer
               pkgs-unstable.cargo-nextest
