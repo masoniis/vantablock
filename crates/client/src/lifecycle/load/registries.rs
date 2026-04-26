@@ -11,13 +11,15 @@ use bevy::{
 };
 use shared::{
     lifecycle::{
-        load::{AppStartupLoadingPhase, LoadingTaskComponent},
         PersistentPathsResource,
+        load::{AppStartupLoadingPhase, LoadingTaskComponent},
     },
     simulation::block::BlockRegistry,
 };
 
 /// A system that starts the asynchronous initialization of texture and block registries
+// TODO: remove this function in favor of a more modular loading scheme that doesn't require
+// conjoined loading logic to be here
 pub fn start_async_registry_initialization(
     mut commands: Commands,
     client_settings: Res<ClientSettings>,

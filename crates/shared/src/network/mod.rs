@@ -21,7 +21,7 @@ pub struct SharedNetworkPlugin;
 /// A plugin that defines sets up the shared network stuff
 impl Plugin for SharedNetworkPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(NetworkProtoclPlugin);
+        app.add_plugins(NetworkProtocolPlugin);
     }
 
     fn finish(&self, app: &mut App) {

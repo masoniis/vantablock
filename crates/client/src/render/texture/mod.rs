@@ -1,7 +1,9 @@
 pub mod error;
 pub mod load_textures;
-pub mod voxel_texture_processor;
+pub mod voxel;
 
-pub use super::block::texture_registry::{BlockTextureArray, TextureRegistryResource};
 pub use error::TextureLoadError;
-pub use voxel_texture_processor::VoxelTextureProcessor;
+pub use voxel::{
+    voxel_texture_processor::VoxelTextureProcessor,
+    voxel_texture_registry::{BlockTextureArray, TextureId, TextureRegistryResource},
+};
