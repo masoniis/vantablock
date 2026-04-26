@@ -1,12 +1,8 @@
 pub mod registry;
 pub mod render_data;
-pub mod texture_registry;
 
 pub use registry::BlockRenderDataRegistry;
 pub use render_data::{BlockFaceTextures, BlockRenderData};
-pub use texture_registry::{
-    BlockTextureArray, TextureId, TextureLoadError, TextureRegistryResource,
-};
 
 // INFO: ---------------------------
 //         plugin definition

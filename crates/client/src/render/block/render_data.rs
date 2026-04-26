@@ -1,4 +1,4 @@
-use crate::render::block::texture_registry::TextureId;
+use crate::render::texture::TextureId;
 
 /// Optimized hot block data required for meshing and rendering.
 #[derive(Debug, Clone)]

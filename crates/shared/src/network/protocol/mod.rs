@@ -11,15 +11,15 @@ pub use server::ServerMessage;
 use bevy::prelude::*;
 use lightyear::prelude::{AppMessageExt, NetworkDirection};
 
-pub(crate) struct NetworkProtoclPlugin;
+pub(crate) struct NetworkProtocolPlugin;
 
 /// A plugin that defines the shared client-server networking protocols
-impl Plugin for NetworkProtoclPlugin {
+impl Plugin for NetworkProtocolPlugin {
     fn build(&self, _app: &mut App) {}
 
     fn finish(&self, app: &mut App) {
         // since the protocol must be added after the lightyear `ClientPlugins` we do lightyear
-        // protocl registration in the finish method, not the build method.
+        // protocol registration in the finish method, not the build method.
         // https://docs.rs/lightyear/0.26.4/lightyear/prelude/client/struct.ClientPlugins.html
         app.register_message::<ClientMessage>()
             .add_direction(NetworkDirection::ClientToServer);

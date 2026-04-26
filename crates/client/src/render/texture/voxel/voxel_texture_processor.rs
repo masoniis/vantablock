@@ -1,5 +1,5 @@
+use super::voxel_texture_registry::{TextureId, TextureRegistryResource};
 use crate::prelude::*;
-use crate::render::block::texture_registry::{TextureId, TextureRegistryResource};
 use crate::render::texture::error::TextureLoadError;
 use bevy::asset::RenderAssetUsages;
 use bevy::prelude::Image;
@@ -134,7 +134,7 @@ fn generate_missing_texture_image(width: u32, height: u32) -> RgbaImage {
         for x in 0..width {
             let checker_x = x / checker_size;
             let checker_y = y / checker_size;
-            let is_even = (checker_x + checker_y) % 2 == 0;
+            let is_even = (checker_x + checker_y).is_multiple_of(2);
 
             // defaults to transparent so that it works for both opaque and transparency
             let color = if is_even {

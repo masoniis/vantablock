@@ -1,6 +1,6 @@
-use super::texture_registry::{TextureId, TextureRegistryResource};
 use super::{BlockFaceTextures, BlockRenderData};
 use crate::prelude::*;
+use crate::render::texture::{TextureId, TextureRegistryResource};
 use bevy::prelude::*;
 use shared::simulation::block::{
     AIR_BLOCK_ID, BlockId, BlockRegistry, SOLID_BLOCK_ID, load_block_from_str,
