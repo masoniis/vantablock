@@ -41,7 +41,5 @@ crossbeam = { workspace = true }
 noise = { workspace = true }
 lightyear = { workspace = true, features = [
   # extends default lightyear features in workspace
-  "server",  # server plugins
-  "udp",     # needed for Dedicated/LAN listening
-  "netcode", # needed to manage distinct player connections
+  "server", # server plugins
 ] }

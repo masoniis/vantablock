@@ -1,4 +1,5 @@
 use crate::{
+    lifecycle::PersistentPathsResource,
     prelude::*,
     simulation::block::{BlockDescription, load_block_from_str},
 };
@@ -13,7 +14,7 @@ pub const AIR_BLOCK_ID: BlockId = 0;
 /// ID of a default solid block guaranteed to exist (probably stone).
 pub const SOLID_BLOCK_ID: BlockId = 1;
 
-#[derive(Resource, Clone, Default)]
+#[derive(Resource, Clone)]
 pub struct BlockRegistry {
     /// Direct access to transparency data from BlockRenderData
     /// to optimize super hot loops (meshing).
@@ -24,6 +25,16 @@ pub struct BlockRegistry {
 
     /// Maps a string name to the runtime ID.
     name_to_id: Arc<HashMap<String, BlockId>>,
+}
+
+impl FromWorld for BlockRegistry {
+    fn from_world(world: &mut World) -> Self {
+        let persistent_paths = world
+            .get_resource::<PersistentPathsResource>()
+            .map(|r| r.0.clone())
+            .unwrap_or_else(PersistentPaths::resolve);
+        Self::load_from_disk(&persistent_paths)
+    }
 }
 
 impl BlockRegistry {

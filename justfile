@@ -20,15 +20,14 @@ client  := "vantablock-client"
 server  := "vantablock-server"
 runner  := "vantablock-runner"
 
-
-default: run
-
 # INFO: ------------------------
 #         core execution
 # ------------------------------
 
+default: client
+
 # runs the client via debug profile
-run *args:
+client *args:
     cargo run -p {{runner}} --bin game {{args}}
 
 # runs the server via debug profile
@@ -40,6 +39,7 @@ release *args:
     cargo run -p {{runner}} --bin game --profile distribution --features distribution {{args}}
 
 
+alias run := client
 alias run-fast := release
 
 # INFO: -------------------------------

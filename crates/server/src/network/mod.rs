@@ -6,9 +6,9 @@ pub mod systems;
 
 use bevy::prelude::*;
 use lightyear::prelude::server::ServerPlugins;
-use shared::network::NETWORK_TICK_DURATION;
+use shared::network::{SharedNetworkPlugin, NETWORK_TICK_DURATION};
 use std::time::Duration;
-use systems::{handle_connections, start_udp_server};
+use systems::{handle_connections, handle_disconnections, send_sync_time, start_udp_server, MessageTimer};
 
 use crate::lifecycle::state::ServerState;
 
@@ -21,7 +21,14 @@ impl Plugin for ServerNetworkPlugin {
             tick_duration: Duration::from_secs_f64(NETWORK_TICK_DURATION),
         });
 
+        // (protocl) must be added AFTER lightyear plugin
+        app.add_plugins(SharedNetworkPlugin);
+
+        app.insert_resource(MessageTimer(Timer::from_seconds(1.0, TimerMode::Repeating)));
+
         app.add_systems(OnExit(ServerState::Initializing), start_udp_server)
-            .add_observer(handle_connections);
+            .add_systems(Update, send_sync_time)
+            .add_observer(handle_connections)
+            .add_observer(handle_disconnections);
     }
 }

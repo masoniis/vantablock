@@ -41,7 +41,6 @@ pub fn translate_server_messages(
 ) {
     for mut receiver in query.iter_mut() {
         for message in receiver.receive() {
-            info!("Received message in translate_server_messages: {:?}", message);
             match message {
                 ServerMessage::Welcome { spawn_pos, .. } => {
                     ev_welcome.write(WelcomeEvent { spawn_pos });
@@ -49,8 +48,11 @@ pub fn translate_server_messages(
                 ServerMessage::ChunkData { coord, data } => {
                     ev_chunk.write(ReceivedChunkDataEvent { coord, data });
                 }
+                ServerMessage::SyncTime { game_time, tick } => {
+                    info!("SyncTime received: game_time={}, tick={}", game_time, tick);
+                }
                 _ => {
-                    warn!("Unhandled message received");
+                    warn!("Unhandled message received: {:?}", message);
                 }
             }
         }

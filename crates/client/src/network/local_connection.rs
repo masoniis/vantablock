@@ -19,9 +19,10 @@ pub fn setup_client(mut commands: Commands, settings: Res<ConnectionSettings>) {
     info!("Connecting client to {}", server_addr);
 
     // netcode auth
+    let client_id = rand::random::<u64>();
     let auth = Authentication::Manual {
         server_addr,
-        client_id: 1,
+        client_id,
         private_key: Key::default(),
         protocol_id: 0,
     };

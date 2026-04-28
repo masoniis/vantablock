@@ -13,6 +13,7 @@ pub use prelude::*;
 // -----------------------------------
 
 use bevy::app::PluginGroupBuilder;
+use bevy::ecs::message::Messages;
 use bevy::prelude::{App, Plugin, PluginGroup};
 
 /// A plugin group containing shared simulation and game logic plugins used by both client and server.
@@ -23,7 +24,6 @@ impl PluginGroup for SharedPlugins {
         PluginGroupBuilder::start::<Self>()
             .add(SharedEventsPlugin)
             .add_group(lifecycle::SharedLifecyclePlugins)
-            .add(network::SharedNetworkPlugin)
             .add(simulation::asset::AssetPlugin)
             .add(simulation::biome::BiomePlugin)
             .add(simulation::block::BlockPlugin)
@@ -36,6 +36,6 @@ struct SharedEventsPlugin;
 
 impl Plugin for SharedEventsPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<bevy::ecs::message::Messages<events::RequestSingleplayerSession>>();
+        app.init_resource::<Messages<events::RequestSingleplayerSession>>();
     }
 }

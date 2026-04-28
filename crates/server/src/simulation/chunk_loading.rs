@@ -3,7 +3,7 @@ use crate::prelude::*;
 use crate::simulation::chunk::NeedsGenerating;
 use bevy::prelude::*;
 use lightyear::prelude::MessageSender;
-use shared::network::channel::ChunkData;
+use shared::network::ChunkData;
 use shared::network::protocol::server::ServerMessage;
 use shared::simulation::chunk::{
     ChunkBlocksComponent, ChunkCoord, ChunkLod, ChunkStateManager, LOAD_DISTANCE,
@@ -31,10 +31,17 @@ pub fn manage_player_chunk_loading_system(
         let player_pos = transform.translation;
         let player_chunk_pos = ChunkCoord::world_to_chunk_pos(player_pos);
 
+        let mut chunks_spurred_this_frame = 0;
+        const MAX_CHUNKS_SPURRED_PER_FRAME: usize = 32;
+
         // determine desired chunks
         for y in WORLD_MIN_Y_CHUNK..=WORLD_MAX_Y_CHUNK {
             for z in -LOAD_DISTANCE..=LOAD_DISTANCE {
                 for x in -LOAD_DISTANCE..=LOAD_DISTANCE {
+                    if chunks_spurred_this_frame >= MAX_CHUNKS_SPURRED_PER_FRAME {
+                        break;
+                    }
+
                     let coord = IVec3::new(player_chunk_pos.x + x, y, player_chunk_pos.z + z);
 
                     if !chunk_manager.is_chunk_present_or_loading(coord) {
@@ -46,8 +53,15 @@ pub fn manage_player_chunk_loading_system(
                             ))
                             .id();
                         chunk_manager.mark_as_needs_generating(coord, ent);
+                        chunks_spurred_this_frame += 1;
                     }
                 }
+                if chunks_spurred_this_frame >= MAX_CHUNKS_SPURRED_PER_FRAME {
+                    break;
+                }
+            }
+            if chunks_spurred_this_frame >= MAX_CHUNKS_SPURRED_PER_FRAME {
+                break;
             }
         }
     }
@@ -70,12 +84,19 @@ pub fn sync_chunk_data_to_clients_system(
         let player_pos = transform.translation;
         let player_chunk_pos = ChunkCoord::world_to_chunk_pos(player_pos);
 
+        let mut chunks_sent_this_frame = 0;
+        const MAX_CHUNKS_SENT_PER_FRAME: usize = 4;
+
         // find chunks within load distance that haven't been sent yet
         for y in WORLD_MIN_Y_CHUNK..=WORLD_MAX_Y_CHUNK {
             for z in -LOAD_DISTANCE..=LOAD_DISTANCE {
                 for x in -LOAD_DISTANCE..=LOAD_DISTANCE {
-                    let coord = IVec3::new(player_chunk_pos.x + x, y, player_chunk_pos.z + z);
+                    if chunks_sent_this_frame >= MAX_CHUNKS_SENT_PER_FRAME {
+                        break;
+                    }
 
+                    let coord = IVec3::new(player_chunk_pos.x + x, y, player_chunk_pos.z + z);
+                    
                     if tracker.sent_chunks.contains(&coord) {
                         continue;
                     }
@@ -96,11 +117,18 @@ pub fn sync_chunk_data_to_clients_system(
                             });
 
                             tracker.sent_chunks.insert(coord);
+                            chunks_sent_this_frame += 1;
                         } else {
                             trace!("Chunk {:?} is generated but has no entity or blocks", coord);
                         }
                     }
                 }
+                if chunks_sent_this_frame >= MAX_CHUNKS_SENT_PER_FRAME {
+                    break;
+                }
+            }
+            if chunks_sent_this_frame >= MAX_CHUNKS_SENT_PER_FRAME {
+                break;
             }
         }
     }

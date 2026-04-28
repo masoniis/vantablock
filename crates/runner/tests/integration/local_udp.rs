@@ -2,7 +2,7 @@ use crate::common::UdpClientServerTestEnvironment;
 use bevy::ecs::system::RunSystemOnce;
 use bevy::prelude::*;
 use lightyear::prelude::*;
-use shared::network::{channel::ChatAndSystem, ServerMessage};
+use shared::network::{ChatAndSystem, ServerMessage};
 use std::time::Duration;
 
 #[test]
@@ -51,7 +51,10 @@ fn sending_a_message() {
                     .single_mut()
                     .expect("Server should have exactly one sender but it doesn't!");
 
-                info!("Sending test message from server via entity {:?}...", entity);
+                info!(
+                    "Sending test message from server via entity {:?}...",
+                    entity
+                );
                 sender.send::<ChatAndSystem>(test_msg.clone());
                 info!("Message sent (queued)");
             },
