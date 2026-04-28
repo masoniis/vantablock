@@ -1,8 +1,11 @@
+use leafwing_input_manager::Actionlike;
+use bevy::prelude::Reflect;
+use bevy::reflect::{ReflectDeserialize, ReflectSerialize};
 use serde::{Deserialize, Serialize};
 
-/// Defines
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone, Copy)]
-pub enum SimulationAction {
+#[derive(Actionlike, PartialEq, Eq, Clone, Copy, Hash, Debug, Reflect, Serialize, Deserialize)]
+#[reflect(PartialEq, Hash, Serialize, Deserialize)]
+pub enum PlayerAction {
     // Core player movement
     MoveForward,
     MoveBackward,
@@ -38,5 +41,5 @@ pub enum SimulationAction {
     Showcase7,
     Showcase8,
     Showcase9,
-    Showcase0, // personal reset to flat
+    Showcase0,
 }

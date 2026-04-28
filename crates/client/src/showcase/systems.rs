@@ -1,8 +1,8 @@
-use crate::input::resources::ActionStateResource;
+use leafwing_input_manager::prelude::ActionState;
+use shared::simulation::player::PlayerAction;
 use bevy::ecs::prelude::*;
 use bevy::math::{Quat, Vec3};
 use bevy::prelude::{Camera, Camera3d, Projection, Transform};
-use shared::simulation::input::types::SimulationAction;
 use shared::simulation::time::{world_clock::SECONDS_IN_A_DAY, WorldClockResource};
 use std::time::Duration;
 
@@ -74,25 +74,36 @@ const SHOWCASES: &[Showcase] = &[
 ];
 
 pub fn apply_showcase_system(
-    action_state: Res<ActionStateResource>,
-    mut active_cam_q: Query<(&mut Transform, &Camera, &mut Projection), With<Camera3d>>,
+    mut active_cam_q: Query<
+        (&mut Transform, &Camera, &mut Projection, &ActionState<PlayerAction>),
+        With<Camera3d>,
+    >,
     // mut active_generator: ResMut<ActiveTerrainGenerator>,
     // terrain_gen_lib: Res<TerrainGeneratorLibrary>,
     mut world_clock: ResMut<WorldClockResource>,
 ) {
-    let showcase_idx = if action_state.just_happened(SimulationAction::Showcase0) {
+    let (mut transform, camera, _, action_state) = match active_cam_q.iter_mut().next() {
+        Some(q) => q,
+        None => return,
+    };
+
+    if !camera.is_active {
+        return;
+    }
+
+    let showcase_idx = if action_state.just_pressed(&PlayerAction::Showcase0) {
         0
-    } else if action_state.just_happened(SimulationAction::Showcase1) {
+    } else if action_state.just_pressed(&PlayerAction::Showcase1) {
         1
-    } else if action_state.just_happened(SimulationAction::Showcase2) {
+    } else if action_state.just_pressed(&PlayerAction::Showcase2) {
         2
-    } else if action_state.just_happened(SimulationAction::Showcase3) {
+    } else if action_state.just_pressed(&PlayerAction::Showcase3) {
         3
-    } else if action_state.just_happened(SimulationAction::Showcase4) {
+    } else if action_state.just_pressed(&PlayerAction::Showcase4) {
         4
-    } else if action_state.just_happened(SimulationAction::Showcase5) {
+    } else if action_state.just_pressed(&PlayerAction::Showcase5) {
         5
-    } else if action_state.just_happened(SimulationAction::Showcase6) {
+    } else if action_state.just_pressed(&PlayerAction::Showcase6) {
         6
     } else {
         return;
@@ -100,28 +111,17 @@ pub fn apply_showcase_system(
 
     let showcase = &SHOWCASES[showcase_idx];
 
-    // set shaper
-    // if let Some(generator) = terrain_gen_lib.generators.get(showcase.generator_idx) {
-    //     active_generator.0 = generator.clone();
-    // }
-
     // set time of day
     world_clock.time_of_day = Duration::from_secs_f32(SECONDS_IN_A_DAY * showcase.time_of_day);
 
     // set camera position and rotation
-    for (mut transform, camera, _) in active_cam_q.iter_mut() {
-        if !camera.is_active {
-            continue;
-        }
+    transform.translation = showcase.position;
 
-        transform.translation = showcase.position;
-
-        // map yaw/pitch to Bevy rotation
-        // yaw -90 in old system was looking at -Z (Bevy default)
-        let yaw_rad = (showcase.yaw + 90.0).to_radians();
-        let pitch_rad = showcase.pitch.to_radians();
-        transform.rotation = Quat::from_rotation_y(-yaw_rad) * Quat::from_rotation_x(pitch_rad);
-    }
+    // map yaw/pitch to Bevy rotation
+    // yaw -90 in old system was looking at -Z (Bevy default)
+    let yaw_rad = (showcase.yaw + 90.0).to_radians();
+    let pitch_rad = showcase.pitch.to_radians();
+    transform.rotation = Quat::from_rotation_y(-yaw_rad) * Quat::from_rotation_x(pitch_rad);
 }
 
 pub fn apply_default_showcase_system(

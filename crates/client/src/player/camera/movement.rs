@@ -1,12 +1,12 @@
-use crate::input::resources::ActionStateResource;
+use leafwing_input_manager::prelude::ActionState;
 use bevy::{
     ecs::prelude::*,
     input::mouse::{MouseMotion, MouseWheel},
     math::EulerRot,
     prelude::{Camera, Camera3d, Projection, Quat, Transform},
 };
-use shared::simulation::{chunk::ChunkCoord, input::types::SimulationAction, time::FrameClock};
-use tracing::{debug, instrument, warn};
+use shared::simulation::{chunk::ChunkCoord, player::PlayerAction, time::FrameClock};
+use tracing::{debug, instrument};
 
 /// The distance the near plane is set to for the camera frustum.
 pub const CAMERA_NEAR_PLANE: f32 = 1.0;
@@ -20,13 +20,17 @@ pub fn camera_movement_system(
     // input
     mut mouse_motion: MessageReader<MouseMotion>,
     mut mouse_wheel: MessageReader<MouseWheel>,
-    action_state: Res<ActionStateResource>,
     time: Res<FrameClock>,
 
     // output
-    mut camera_query: Query<(&mut Transform, &Camera, &mut Projection), With<Camera3d>>,
+    mut camera_query: Query<(
+        &mut Transform,
+        &Camera,
+        &mut Projection,
+        &ActionState<PlayerAction>,
+    ), With<Camera3d>>,
 ) {
-    for (mut transform, camera, mut projection) in camera_query.iter_mut() {
+    for (mut transform, camera, mut projection, action_state) in camera_query.iter_mut() {
         if !camera.is_active {
             continue;
         }
@@ -36,20 +40,20 @@ pub fn camera_movement_system(
         let front = transform.forward();
         let mut multiplier = 1.0;
 
-        if action_state.is_ongoing(SimulationAction::MoveFaster) {
+        if action_state.pressed(&PlayerAction::MoveFaster) {
             multiplier = 2.5;
         }
-        if action_state.is_ongoing(SimulationAction::MoveForward) {
+        if action_state.pressed(&PlayerAction::MoveForward) {
             transform.translation += front * velocity * multiplier;
         }
-        if action_state.is_ongoing(SimulationAction::MoveBackward) {
+        if action_state.pressed(&PlayerAction::MoveBackward) {
             transform.translation -= front * velocity * multiplier;
         }
         let right = transform.right();
-        if action_state.is_ongoing(SimulationAction::MoveLeft) {
+        if action_state.pressed(&PlayerAction::MoveLeft) {
             transform.translation -= right * velocity * multiplier;
         }
-        if action_state.is_ongoing(SimulationAction::MoveRight) {
+        if action_state.pressed(&PlayerAction::MoveRight) {
             transform.translation += right * velocity * multiplier;
         }
 

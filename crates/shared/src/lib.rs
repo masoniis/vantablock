@@ -24,7 +24,6 @@ impl PluginGroup for SharedPlugins {
         PluginGroupBuilder::start::<Self>()
             .add(SharedEventsPlugin)
             .add_group(lifecycle::SharedLifecyclePlugins)
-            .add(simulation::asset::AssetPlugin)
             .add(simulation::biome::BiomePlugin)
             .add(simulation::block::BlockPlugin)
             .add(simulation::chunk::ChunkLoadingPlugin)

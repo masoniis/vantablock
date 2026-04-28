@@ -10,11 +10,10 @@ pub use targeted_block::TargetedBlock;
 //         player plugin
 // -----------------------------
 
-use crate::input::resources::ActionStateResource;
 use bevy::app::{App, FixedUpdate, Plugin, Update};
 use bevy::ecs::schedule::IntoScheduleConfigs;
-use bevy::ecs::system::Res;
-use shared::simulation::input::types::simulation_action::SimulationAction;
+use leafwing_input_manager::common_conditions::action_just_pressed;
+use shared::simulation::player::PlayerAction;
 
 pub struct PlayerPlugin;
 
@@ -35,16 +34,10 @@ impl Plugin for PlayerPlugin {
         app.add_systems(
             Update,
             (
-                voxel_actions::break_targeted_voxel_system.run_if(
-                    |action_state: Res<ActionStateResource>| {
-                        action_state.just_happened(SimulationAction::BreakVoxel)
-                    },
-                ),
-                voxel_actions::place_targeted_voxel_system.run_if(
-                    |action_state: Res<ActionStateResource>| {
-                        action_state.just_happened(SimulationAction::PlaceVoxel)
-                    },
-                ),
+                voxel_actions::break_targeted_voxel_system
+                    .run_if(action_just_pressed(PlayerAction::BreakVoxel)),
+                voxel_actions::place_targeted_voxel_system
+                    .run_if(action_just_pressed(PlayerAction::PlaceVoxel)),
             ),
         );
     }

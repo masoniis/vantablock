@@ -39,16 +39,9 @@ pub fn start_pending_generation_tasks_system(
     terrain_painter: Res<ActiveTerrainPainter>,
     climate_generator: Res<ActiveClimateGenerator>,
 ) {
-    // limit the number of chunks we start per frame
-    let mut chunks_started = 0;
     const MAX_CHUNKS_PER_FRAME: usize = 4;
 
-    for (entity, needs_generating, coord) in pending_chunks_query.iter_mut() {
-        if chunks_started >= MAX_CHUNKS_PER_FRAME {
-            break;
-        }
-        chunks_started += 1;
-
+    for (entity, needs_generating, coord) in pending_chunks_query.iter_mut().take(MAX_CHUNKS_PER_FRAME) {
         // check for cancellation
         match chunk_manager.get_state(coord.pos) {
             Some(ChunkState::NeedsGenerating {

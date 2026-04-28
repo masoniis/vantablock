@@ -30,7 +30,6 @@ pub fn setup_client(mut commands: Commands, settings: Res<ConnectionSettings>) {
     // main client ent
     let client_entity = commands
         .spawn((
-            Client::default(),
             LocalAddr(client_addr),
             PeerAddr(server_addr),
             Link::new(None),

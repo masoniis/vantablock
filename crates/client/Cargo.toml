@@ -70,6 +70,7 @@ bevy = { workspace = true, features = [
   "bevy_asset",       # asset management
   "bevy_state",       # state machines
 ] }
+leafwing-input-manager = { workspace = true }
 lightyear = { workspace = true, features = [
   # extra features for client
   "client",  # client plugins

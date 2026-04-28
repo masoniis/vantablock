@@ -49,10 +49,10 @@ distribution = ["client?/distribution"]
 
 
 [dependencies]
-client = { package = "vantablock-client", path = "../client", optional = true }
-server = { package = "vantablock-server", path = "../server", optional = true }
-shared = { package = "vantablock-shared", path = "../shared" }
-utils = { package = "vantablock-utils", path = "../utils" }
+client = { workspace = true, optional = true }
+server = { workspace = true, optional = true }
+shared = { workspace = true }
+utils = { workspace = true }
 
 bevy = { workspace = true, features = ["bevy_asset"] }
 tracing = { workspace = true }
