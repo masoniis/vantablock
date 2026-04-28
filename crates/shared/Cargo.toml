@@ -45,3 +45,4 @@ noise = { workspace = true }       # gen random noise
 crossbeam = { workspace = true }   # thread comms
 rand = { workspace = true }        # rng
 ron = { workspace = true }         # parsing RON files
+zstd = { workspace = true }

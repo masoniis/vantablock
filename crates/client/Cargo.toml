@@ -87,6 +87,7 @@ derive_more = { workspace = true }
 serde = { workspace = true }       # serializing
 rand = { workspace = true }        # rng
 ron = { workspace = true }         # parsing RON files
+zstd = { workspace = true }
 noise = { workspace = true }       # gen random noise
 crossbeam = { workspace = true }   # thread comms
 glob = { workspace = true }        # reading dirs

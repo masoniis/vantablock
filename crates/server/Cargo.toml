@@ -21,6 +21,7 @@ criterion = { workspace = true }
 [dependencies]
 utils = { workspace = true }
 shared = { workspace = true }
+zstd = { workspace = true }
 
 # INFO: --------------------------------
 #         logging/error handling

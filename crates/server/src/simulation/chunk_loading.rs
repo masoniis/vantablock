@@ -109,12 +109,23 @@ pub fn sync_chunk_data_to_clients_system(
                             && let Ok((_coord, blocks)) = chunk_query.get(chunk_ent)
                         {
                             let data = extract_block_data(blocks);
+                            let original_len = data.len();
 
-                            trace!(target:"server_chunk_loading", "Sending chunk {:?} to client {:?}", coord, connection.client_entity);
+                            // compress the data using zstd
+                            let compressed_data = match zstd::encode_all(&data[..], 3) {
+                                Ok(compressed) => compressed,
+                                Err(e) => {
+                                    error!("Failed to compress chunk data for {:?}: {}", coord, e);
+                                    data
+                                }
+                            };
+
+                            trace!(target:"server_chunk_loading", "Sending chunk {:?} to client {:?} (compressed: {} -> {} bytes)", coord, connection.client_entity, original_len, compressed_data.len());
                             sender.send::<ChunkData>(ServerMessage::ChunkData {
                                 coord: ChunkCoord { pos: coord },
-                                data,
+                                data: compressed_data,
                             });
+
 
                             tracker.sent_chunks.insert(coord);
                             chunks_sent_this_frame += 1;
