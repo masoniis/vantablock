@@ -46,7 +46,19 @@ pub fn translate_server_messages(
                     ev_welcome.write(WelcomeEvent { spawn_pos });
                 }
                 ServerMessage::ChunkData { coord, data } => {
-                    ev_chunk.write(ReceivedChunkDataEvent { coord, data });
+                    // decompress the data using zstd
+                    match zstd::decode_all(&data[..]) {
+                        Ok(decompressed) => {
+                            trace!(target:"client_network", "Decompressed chunk {:?} ({} -> {} bytes)", coord, data.len(), decompressed.len());
+                            ev_chunk.write(ReceivedChunkDataEvent {
+                                coord,
+                                data: decompressed,
+                            });
+                        }
+                        Err(e) => {
+                            error!("Failed to decompress chunk data for {:?}: {}", coord, e);
+                        }
+                    }
                 }
                 ServerMessage::SyncTime { game_time, tick } => {
                     info!("SyncTime received: game_time={}, tick={}", game_time, tick);
