@@ -1,13 +1,13 @@
 use crate::network::systems::ClientConnection;
 use crate::prelude::*;
-use crate::simulation::chunk::NeedsGenerating;
+use crate::simulation::chunk::datagen::gentask_components::NeedsGenerating;
+use crate::simulation::chunk::manager::ServerChunkManager;
 use bevy::prelude::*;
 use lightyear::prelude::MessageSender;
 use shared::network::ChunkData;
 use shared::network::protocol::server::ServerMessage;
 use shared::simulation::chunk::{
-    ChunkBlocksComponent, ChunkCoord, ChunkLod, ChunkStateManager, LOAD_DISTANCE,
-    WORLD_MAX_Y_CHUNK, WORLD_MIN_Y_CHUNK,
+    ChunkBlocksComponent, ChunkCoord, ChunkLod, LOAD_DISTANCE, WORLD_MAX_Y_CHUNK, WORLD_MIN_Y_CHUNK,
 };
 use std::collections::HashSet;
 
@@ -23,7 +23,7 @@ pub fn manage_player_chunk_loading_system(
     player_query: Query<(&Transform, Entity), With<ClientConnection>>,
 
     // Output
-    mut chunk_manager: ResMut<ChunkStateManager>,
+    mut chunk_manager: ResMut<ServerChunkManager>,
     mut commands: Commands,
 ) {
     for (transform, player_ent) in player_query.iter() {
@@ -72,7 +72,7 @@ pub fn sync_chunk_data_to_clients_system(
     // Input
     mut client_query: Query<(&Transform, &ClientConnection, &mut ClientChunkTracker)>,
     chunk_query: Query<(&ChunkCoord, &ChunkBlocksComponent)>,
-    chunk_manager: Res<ChunkStateManager>,
+    chunk_manager: Res<ServerChunkManager>,
     mut sender_query: Query<&mut MessageSender<ServerMessage>>,
 ) {
     for (transform, connection, mut tracker) in client_query.iter_mut() {
@@ -96,7 +96,7 @@ pub fn sync_chunk_data_to_clients_system(
                     }
 
                     let coord = IVec3::new(player_chunk_pos.x + x, y, player_chunk_pos.z + z);
-                    
+
                     if tracker.sent_chunks.contains(&coord) {
                         continue;
                     }
@@ -125,7 +125,6 @@ pub fn sync_chunk_data_to_clients_system(
                                 coord: ChunkCoord { pos: coord },
                                 data: compressed_data,
                             });
-
 
                             tracker.sent_chunks.insert(coord);
                             chunks_sent_this_frame += 1;

@@ -12,39 +12,39 @@ use crate::input::systems::{
     toggle_opaque_wireframe_mode_system,
 };
 use bevy::app::{App, Plugin, PreUpdate, Update};
+use bevy::prelude::{IntoScheduleConfigs, KeyCode, MouseButton};
 use bevy::render::extract_resource::ExtractResourcePlugin;
-use bevy::prelude::{KeyCode, MouseButton, IntoScheduleConfigs};
+use leafwing_input_manager::common_conditions::action_just_pressed;
 use leafwing_input_manager::plugin::InputManagerPlugin;
 use leafwing_input_manager::prelude::InputMap;
-use leafwing_input_manager::common_conditions::action_just_pressed;
 use shared::simulation::player::PlayerAction;
 
 /// Provides the default input mapping for the game.
 pub fn get_default_input_map() -> InputMap<PlayerAction> {
     let mut input_map = InputMap::default();
-    
+
     // Movement
     input_map.insert(PlayerAction::MoveForward, KeyCode::KeyW);
     input_map.insert(PlayerAction::MoveBackward, KeyCode::KeyS);
     input_map.insert(PlayerAction::MoveLeft, KeyCode::KeyA);
     input_map.insert(PlayerAction::MoveRight, KeyCode::KeyD);
     input_map.insert(PlayerAction::MoveFaster, KeyCode::ShiftLeft);
-    
+
     // Core player actions
     input_map.insert(PlayerAction::BreakVoxel, MouseButton::Left);
     input_map.insert(PlayerAction::PlaceVoxel, MouseButton::Right);
-    
+
     // Terrain gen
     input_map.insert(PlayerAction::CycleActiveTerrainGenerator, KeyCode::KeyT);
-    
+
     // Game time control
     input_map.insert(PlayerAction::JumpGameTimeForward, KeyCode::ArrowRight);
     input_map.insert(PlayerAction::JumpGameTimeBackward, KeyCode::ArrowLeft);
     input_map.insert(PlayerAction::PauseGameTime, KeyCode::Space);
-    
+
     // Misc
     input_map.insert(PlayerAction::TogglePause, KeyCode::Escape);
-    
+
     // Debug/analysis tools
     input_map.insert(PlayerAction::ToggleDiagnostics, KeyCode::F1);
     input_map.insert(PlayerAction::ToggleDiagnostics, KeyCode::KeyU);
@@ -52,7 +52,7 @@ pub fn get_default_input_map() -> InputMap<PlayerAction> {
     input_map.insert(PlayerAction::ToggleOpaqueWireframeMode, KeyCode::KeyO);
     input_map.insert(PlayerAction::ToggleChunkBorders, KeyCode::F3);
     input_map.insert(PlayerAction::ToggleChunkBorders, KeyCode::KeyB);
-    
+
     // Showcase actions
     input_map.insert(PlayerAction::Showcase0, KeyCode::Digit0);
     input_map.insert(PlayerAction::Showcase1, KeyCode::Digit1);
@@ -64,7 +64,7 @@ pub fn get_default_input_map() -> InputMap<PlayerAction> {
     input_map.insert(PlayerAction::Showcase7, KeyCode::Digit7);
     input_map.insert(PlayerAction::Showcase8, KeyCode::Digit8);
     input_map.insert(PlayerAction::Showcase9, KeyCode::Digit9);
-    
+
     input_map
 }
 
@@ -79,12 +79,7 @@ impl Plugin for InputModulePlugin {
         app.insert_resource(CursorMovement::default());
 
         // schedules
-        app.add_systems(
-            PreUpdate,
-            (
-                systems::processing::device_events_system,
-            ),
-        );
+        app.add_systems(PreUpdate, (systems::processing::device_events_system,));
 
         // INFO: -------------------------------------
         //         keybind-based actions below

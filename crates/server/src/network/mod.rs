@@ -6,9 +6,11 @@ pub mod systems;
 
 use bevy::prelude::*;
 use lightyear::prelude::server::ServerPlugins;
-use shared::network::{SharedNetworkPlugin, NETWORK_TICK_DURATION};
+use shared::network::{NETWORK_TICK_DURATION, SharedNetworkPlugin};
 use std::time::Duration;
-use systems::{handle_connections, handle_disconnections, send_sync_time, start_udp_server, MessageTimer};
+use systems::{
+    MessageTimer, handle_connections, handle_disconnections, send_sync_time, start_udp_server,
+};
 
 use crate::lifecycle::state::ServerState;
 

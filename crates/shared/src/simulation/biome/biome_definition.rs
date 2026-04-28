@@ -11,7 +11,7 @@ pub fn load_biome_from_str(ron_string: &str) -> Result<BiomeDefinition, ron::Err
 }
 
 // INFO: -------------------------------------
-//         The biome struct definition
+//         the biome struct definition
 // -------------------------------------------
 
 #[derive(Asset, TypePath, Debug, Clone, Deserialize)]
@@ -37,7 +37,7 @@ mod raw {
     use super::*;
 
     // INFO: -----------------------------------------------
-    //         Raw deserialization struct definition
+    //         raw deserialization struct definition
     // -----------------------------------------------------
 
     #[derive(Deserialize, Debug)]
@@ -68,7 +68,7 @@ mod raw {
     }
 
     // INFO: ----------------------------------------------------------------
-    //         Conversion from raw struct to concrete BiomeDefinition
+    //         conversion from raw struct to concrete BiomeDefinition
     // ----------------------------------------------------------------------
 
     impl From<raw::BiomeDefinition> for super::BiomeDefinition {

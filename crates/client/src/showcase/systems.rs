@@ -1,9 +1,9 @@
-use leafwing_input_manager::prelude::ActionState;
-use shared::simulation::player::PlayerAction;
 use bevy::ecs::prelude::*;
 use bevy::math::{Quat, Vec3};
 use bevy::prelude::{Camera, Camera3d, Projection, Transform};
-use shared::simulation::time::{world_clock::SECONDS_IN_A_DAY, WorldClockResource};
+use leafwing_input_manager::prelude::ActionState;
+use shared::simulation::player::PlayerAction;
+use shared::simulation::time::{WorldClockResource, world_clock::SECONDS_IN_A_DAY};
 use std::time::Duration;
 
 struct Showcase {
@@ -75,7 +75,12 @@ const SHOWCASES: &[Showcase] = &[
 
 pub fn apply_showcase_system(
     mut active_cam_q: Query<
-        (&mut Transform, &Camera, &mut Projection, &ActionState<PlayerAction>),
+        (
+            &mut Transform,
+            &Camera,
+            &mut Projection,
+            &ActionState<PlayerAction>,
+        ),
         With<Camera3d>,
     >,
     // mut active_generator: ResMut<ActiveTerrainGenerator>,

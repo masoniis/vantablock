@@ -1,7 +1,10 @@
 pub mod asset;
 pub mod components;
+pub mod manager;
 pub mod meshing;
 pub mod tasks;
+
+pub use manager::{ClientChunkManager, ClientChunkState};
 
 pub use asset::VoxelMeshAsset;
 pub use components::{OpaqueMeshComponent, TransparentMeshComponent};
@@ -13,13 +16,14 @@ use bevy::app::{App, FixedUpdate, Plugin, PreUpdate};
 use bevy::asset::AssetApp;
 use bevy::ecs::prelude::*;
 use bevy::prelude::{Camera, Camera3d};
-use shared::simulation::chunk::{ChunkCoord, ChunkStateManager};
+use shared::simulation::chunk::ChunkCoord;
 
 pub struct ChunkMeshingPlugin;
 
 impl Plugin for ChunkMeshingPlugin {
     fn build(&self, app: &mut App) {
         app.init_asset::<VoxelMeshAsset>();
+        app.init_resource::<ClientChunkManager>();
 
         app.add_systems(
             PreUpdate,
@@ -58,7 +62,7 @@ pub fn promote_newly_generated_chunks_system(
     camera_query: Query<(&Camera, &ChunkCoord), With<Camera3d>>,
 
     // output
-    mut chunk_manager: ResMut<ChunkStateManager>,
+    mut chunk_manager: ResMut<ClientChunkManager>,
     mut commands: Commands,
 ) {
     let mut active_camera_chunk_pos = None;
@@ -73,9 +77,7 @@ pub fn promote_newly_generated_chunks_system(
         return;
     };
 
-    use shared::simulation::chunk::{
-        ChunkState, RENDER_DISTANCE, WORLD_MAX_Y_CHUNK, WORLD_MIN_Y_CHUNK,
-    };
+    use shared::simulation::chunk::{RENDER_DISTANCE, WORLD_MAX_Y_CHUNK, WORLD_MIN_Y_CHUNK};
     use tasks::meshgen::{CheckForMeshing, WantsMeshing};
 
     for (entity, _, coord) in new_data_query.iter() {
@@ -99,7 +101,7 @@ pub fn promote_newly_generated_chunks_system(
 
         // notify neighbors
         for neighbor in chunk_manager.iter_neighbors(coord.pos) {
-            if let ChunkState::WantsMeshing { .. } = neighbor.state {
+            if let ClientChunkState::NeedsMeshing { .. } = neighbor.state {
                 commands.entity(neighbor.entity).insert(CheckForMeshing);
             }
         }
@@ -113,7 +115,7 @@ pub fn manage_distance_based_chunk_meshing_targets_system(
     camera_query: Query<(&Camera, &ChunkCoord), With<Camera3d>>,
 
     // Output
-    mut chunk_manager: ResMut<ChunkStateManager>,
+    mut chunk_manager: ResMut<ClientChunkManager>,
     mut commands: Commands,
 ) {
     let mut active_camera_chunk_pos = None;
@@ -129,9 +131,7 @@ pub fn manage_distance_based_chunk_meshing_targets_system(
     };
 
     use crate::render::chunk::tasks::meshgen::{CheckForMeshing, WantsMeshing};
-    use shared::simulation::chunk::{
-        ChunkState, RENDER_DISTANCE, WORLD_MAX_Y_CHUNK, WORLD_MIN_Y_CHUNK,
-    };
+    use shared::simulation::chunk::{RENDER_DISTANCE, WORLD_MAX_Y_CHUNK, WORLD_MIN_Y_CHUNK};
     use std::collections::HashSet;
 
     let mut desired_mesh_chunks = HashSet::new();
@@ -147,13 +147,13 @@ pub fn manage_distance_based_chunk_meshing_targets_system(
 
     for (coord, state) in chunk_manager.chunk_states.iter_mut() {
         if desired_mesh_chunks.contains(coord)
-            && let ChunkState::DataReady { entity } = state
+            && let ClientChunkState::DataReady { entity } = state
         {
             debug!(target:"chunk_meshing", "Promoting chunk {:?} to WantsMeshing", coord);
             commands
                 .entity(*entity)
                 .insert((WantsMeshing, CheckForMeshing));
-            *state = ChunkState::WantsMeshing { entity: *entity };
+            *state = ClientChunkState::NeedsMeshing { entity: *entity };
         }
     }
 }

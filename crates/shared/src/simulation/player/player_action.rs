@@ -1,6 +1,6 @@
-use leafwing_input_manager::Actionlike;
 use bevy::prelude::Reflect;
 use bevy::reflect::{ReflectDeserialize, ReflectSerialize};
+use leafwing_input_manager::Actionlike;
 use serde::{Deserialize, Serialize};
 
 #[derive(Actionlike, PartialEq, Eq, Clone, Copy, Hash, Debug, Reflect, Serialize, Deserialize)]

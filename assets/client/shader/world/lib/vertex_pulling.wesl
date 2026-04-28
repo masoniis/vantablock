@@ -11,7 +11,7 @@ const QUAD_UVS: array<vec2<f32>, 6> = array<vec2<f32>, 6>(
     vec2<f32>(1.0, 0.0), // top-right
     vec2<f32>(1.0, 0.0), // top-right
     vec2<f32>(0.0, 0.0), // top-left
-    vec2<f32>(0.0, 1.0)  // bottom-left
+    vec2<f32>(0.0, 1.0)// bottom-left
 );
 
 /// A lookup table for the 6 potential normal vectors of a voxel.
@@ -56,9 +56,8 @@ const AO_VALUES: array<f32, 4> = array<f32, 4>(
 /// Indices: 0=BottomLeft, 1=TopLeft, 2=BottomRight, 3=TopRight
 const QUAD_VERTEX_TO_CORNER: array<u32, 6> = array<u32, 6>(
     0u, 1u, 2u, // triangle 1
-    2u, 3u, 0u  // triangle 2
+    2u, 3u, 0u// triangle 2
 );
-
 
 // INFO: ---------------
 //         utils

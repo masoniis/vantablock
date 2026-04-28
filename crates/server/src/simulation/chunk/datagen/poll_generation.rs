@@ -1,10 +1,11 @@
 use crate::prelude::*;
-use crate::simulation::chunk::ChunkGenerationTaskComponent;
+use crate::simulation::chunk::datagen::gentask_components::ChunkGenerationTaskComponent;
+use crate::simulation::chunk::manager::{ServerChunkManager, ServerChunkState};
 use bevy::ecs::prelude::*;
 use crossbeam::channel::TryRecvError;
-use shared::simulation::chunk::{ChunkCoord, ChunkState, ChunkStateManager};
+use shared::simulation::chunk::ChunkCoord;
 
-/// Polls chunk generation tasks, adds generated components, and marks chunks as `DataReady`.
+/// Polls chunk generation tasks, adds generated components, and marks chunks as `Active`.
 #[instrument(skip_all)]
 pub fn poll_chunk_generation_tasks(
     // Input
@@ -12,7 +13,7 @@ pub fn poll_chunk_generation_tasks(
 
     // Output
     mut commands: Commands,
-    mut chunk_manager: ResMut<ChunkStateManager>,
+    mut chunk_manager: ResMut<ServerChunkManager>,
 ) {
     // poll all generation tasks
     for (entity, generation_task_component, coord) in tasks_query.iter_mut() {
@@ -20,29 +21,29 @@ pub fn poll_chunk_generation_tasks(
             Ok(gen_bundle) => {
                 let current_state = chunk_manager.get_state(coord.pos);
                 match current_state {
-                    Some(ChunkState::Generating { entity: gen_entity }) if gen_entity == entity => {
+                    Some(ServerChunkState::Generating { entity: gen_entity })
+                        if gen_entity == entity =>
+                    {
                         if let Some(chunk_blocks) = gen_bundle.chunk_blocks {
                             trace!(
                                 target: "chunk_loading",
-                                "Chunk generation finished for {}. Marking as DataReady.",
+                                "Chunk generation finished for {}. Marking as Active.",
                                 coord
                             );
                             commands
                                 .entity(entity)
                                 .insert((chunk_blocks, gen_bundle.biome_map))
                                 .remove::<ChunkGenerationTaskComponent>();
-                            chunk_manager.mark_as_data_ready(coord.pos, entity);
+                            chunk_manager.mark_as_active(coord.pos, entity);
                         } else {
                             trace!(
                                 target: "chunk_loading",
-                                "Chunk generation finished for {} but chunk is empty. Marking as Loaded(None).",
+                                "Chunk generation finished for {} but chunk is empty. Marking as Active (Empty).",
                                 coord
                             );
                             commands.entity(entity).despawn();
-                            chunk_manager.mark_as_loaded_but_empty(coord.pos);
+                            chunk_manager.mark_as_active_empty(coord.pos);
                         }
-
-                        // Neighbors that may be waiting for this chunk will be handled by client-side meshing logic.
                     }
                     Some(_) => {
                         error!(

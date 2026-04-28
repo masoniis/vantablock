@@ -1,10 +1,9 @@
 use crate::prelude::*;
+use crate::render::chunk::manager::{ClientChunkManager, ClientChunkState};
 use bevy::ecs::prelude::*;
 use bevy::math::IVec3;
 use bevy::prelude::{Camera, Camera3d};
-use shared::simulation::chunk::{
-    ChunkCoord, ChunkState, ChunkStateManager, LOAD_DISTANCE, WORLD_MAX_Y_CHUNK, WORLD_MIN_Y_CHUNK,
-};
+use shared::simulation::chunk::{ChunkCoord, LOAD_DISTANCE, WORLD_MAX_Y_CHUNK, WORLD_MIN_Y_CHUNK};
 use std::collections::HashSet;
 
 /// Determines chunks to unload/load based on the camera position and loading distance.
@@ -16,8 +15,8 @@ pub fn manage_distance_based_chunk_loading_targets_system(
     camera_query: Query<(&Camera, &ChunkCoord), With<Camera3d>>,
 
     // Output
-    mut chunk_manager: ResMut<ChunkStateManager>, // for marking loaded/unloaded
-    mut commands: Commands,                       // for spawning chunk entities
+    mut chunk_manager: ResMut<ClientChunkManager>, // for marking loaded/unloaded
+    mut commands: Commands,                        // for spawning chunk entities
 ) {
     let mut active_camera_chunk_pos = None;
     for (camera, chunk_coord) in camera_query.iter() {
@@ -53,20 +52,20 @@ pub fn manage_distance_based_chunk_loading_targets_system(
         if !desired_load_chunks.contains(coord) {
             // chunk is outside load distance, unload it completely
             match state {
-                ChunkState::NeedsGenerating { entity, .. }
-                | ChunkState::Generating { entity }
-                | ChunkState::DataReady { entity }
-                | ChunkState::WantsMeshing { entity }
-                | ChunkState::Meshing { entity }
-                | ChunkState::Loaded {
+                ClientChunkState::AwaitingData => {
+                    // nothing to despawn
+                }
+                ClientChunkState::DataReady { entity }
+                | ClientChunkState::NeedsMeshing { entity }
+                | ClientChunkState::Meshing { entity }
+                | ClientChunkState::Rendered {
                     entity: Some(entity),
                 } => {
                     debug!(target:"chunk_loading", "Unloading chunk at {:?} (Entity: {:?})", coord, entity);
                     commands.entity(*entity).despawn();
                 }
-                ChunkState::Loaded { entity: None } => {
+                ClientChunkState::Rendered { entity: None } => {
                     // already unloaded, nothing to despawn
-                    debug!(target:"chunk_loading", "Marking chunk at {:?} as unloaded (was already unloaded)", coord);
                 }
             }
             coords_to_remove.push(*coord);
@@ -82,12 +81,13 @@ pub fn manage_distance_based_chunk_loading_targets_system(
     //         load new chunks
     // -------------------------------
 
-    // if any desired chunks are not currently loaded or loading, spawn a new chunk entity and mark it as needs-generation
+    // if any desired chunks are not currently loaded or loading, mark it as awaiting data
     for coord in desired_load_chunks {
         if !chunk_manager.is_chunk_present_or_loading(coord) {
             debug!(target:"chunk_loading","Marking chunk as requested at {:?}", coord);
-            let ent = commands.spawn((ChunkCoord { pos: coord },)).id();
-            chunk_manager.mark_as_needs_generating(coord, ent);
+            chunk_manager.mark_as_awaiting_data(coord);
+
+            // Note: In a real multiplayer scenario, we might want to send a RequestChunk message here.
         }
     }
 }

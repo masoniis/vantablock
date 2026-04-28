@@ -12,8 +12,8 @@ pub use prelude::*;
 // ---------------------------------
 
 use bevy::{
-    app::ScheduleRunnerPlugin, asset::AssetPlugin, prelude::default, state::app::StatesPlugin,
-    MinimalPlugins,
+    MinimalPlugins, app::ScheduleRunnerPlugin, asset::AssetPlugin, prelude::default,
+    state::app::StatesPlugin,
 };
 use shared::SharedPlugins;
 use std::time::Duration;

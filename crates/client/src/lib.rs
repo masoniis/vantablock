@@ -19,14 +19,14 @@ pub use prelude::*;
 #[cfg(feature = "dev")]
 use bevy::dev_tools::fps_overlay::{FpsOverlayConfig, FpsOverlayPlugin};
 use bevy::{
+    MinimalPlugins,
     asset::AssetApp,
     image::Image,
     input::InputPlugin,
     log::LogPlugin,
-    prelude::{default, AssetPlugin, DefaultPlugins, Window, WindowPlugin},
+    prelude::{AssetPlugin, DefaultPlugins, Window, WindowPlugin, default},
     state::app::StatesPlugin,
     window::WindowResolution,
-    MinimalPlugins,
 };
 
 /// A plugin group containing client-side core plugins.

@@ -1,7 +1,8 @@
 use crate::prelude::*;
 use crate::render::block::BlockRenderDataRegistry;
 use crate::render::chunk::{
-    OpaqueMeshComponent, TransparentMeshComponent, VoxelMeshAsset,
+    ClientChunkManager, ClientChunkState, OpaqueMeshComponent, TransparentMeshComponent,
+    VoxelMeshAsset,
     meshing::build_chunk_mesh,
     tasks::meshgen::{CheckForMeshing, WantsMeshing, components::ChunkMeshingTaskComponent},
 };
@@ -13,13 +14,13 @@ use shared::simulation::chunk::TransformComponent;
 use shared::simulation::{
     block::BlockRegistry,
     chunk::{
-        CHUNK_SIDE_LENGTH, ChunkBlocksComponent, ChunkCoord, ChunkState, ChunkStateManager,
-        chunk_state_manager::NEIGHBOR_OFFSETS,
+        CHUNK_SIDE_LENGTH, ChunkBlocksComponent, ChunkCoord, NEIGHBOR_OFFSETS,
         common::{
             chunk_scaling::{downsample_chunk, upsample_chunk},
             padded_chunk_view::{ChunkDataOption, NeighborLODs, PaddedChunk},
             thread_buffer_pool::{acquire_buffer, release_buffer},
         },
+        is_in_bounds,
     },
 };
 
@@ -39,14 +40,14 @@ pub fn start_pending_meshing_tasks_system(
 
     // Resources needed to start meshing
     mut commands: Commands,
-    mut chunk_manager: ResMut<ChunkStateManager>,
+    mut chunk_manager: ResMut<ClientChunkManager>,
     block_registry: Res<BlockRegistry>,
     render_registry: Res<BlockRenderDataRegistry>,
 ) {
     'chunk_loop: for (entity, chunk_comp, chunk_coord) in pending_chunks_query.iter_mut() {
         // check for cancellation
         match chunk_manager.get_state(chunk_coord.pos) {
-            Some(ChunkState::WantsMeshing {
+            Some(ClientChunkState::NeedsMeshing {
                 entity: state_entity,
             }) if state_entity == entity => {
                 // state is correct, proceed to start meshing
@@ -74,12 +75,12 @@ pub fn start_pending_meshing_tasks_system(
         let get_neighbor = |offset: IVec3| -> NeighborStatus {
             let neighbor_coord = chunk_coord.pos + offset;
 
-            if !ChunkStateManager::is_in_bounds(neighbor_coord) {
+            if !is_in_bounds(neighbor_coord) {
                 return NeighborStatus::Ready(ChunkDataOption::OutOfBounds);
             }
 
             match chunk_manager.get_state(neighbor_coord) {
-                Some(ChunkState::Loaded { entity: None }) => {
+                Some(ClientChunkState::Rendered { entity: None }) => {
                     NeighborStatus::Ready(ChunkDataOption::Empty)
                 }
                 Some(state) if state.is_generated() => {
@@ -206,7 +207,7 @@ pub fn poll_chunk_meshing_tasks(
 
     // output
     mut commands: Commands,
-    mut chunk_manager: ResMut<ChunkStateManager>,
+    mut chunk_manager: ResMut<ClientChunkManager>,
     mut mesh_assets: ResMut<Assets<VoxelMeshAsset>>,
 ) {
     // poll all mesh task
@@ -217,8 +218,8 @@ pub fn poll_chunk_meshing_tasks(
 
                 match current_state {
                     Some(
-                        ChunkState::Meshing { entity: gen_entity }
-                        | ChunkState::WantsMeshing { entity: gen_entity },
+                        ClientChunkState::Meshing { entity: gen_entity }
+                        | ClientChunkState::NeedsMeshing { entity: gen_entity },
                     ) if gen_entity == entity => {
                         trace!(target : "chunk_loading","Chunk meshing finished for {:?}", coord);
 
@@ -265,7 +266,7 @@ pub fn poll_chunk_meshing_tasks(
                                 commands
                                     .entity(entity)
                                     .remove::<ChunkMeshingTaskComponent>();
-                                chunk_manager.mark_as_loaded(coord.pos, entity);
+                                chunk_manager.mark_as_rendered_empty(coord.pos);
                                 continue; // continue to avoid adding transform component
                             }
                         }
@@ -284,7 +285,7 @@ pub fn poll_chunk_meshing_tasks(
                             })
                             .remove::<ChunkMeshingTaskComponent>();
 
-                        chunk_manager.mark_as_loaded(coord.pos, entity);
+                        chunk_manager.mark_as_rendered(coord.pos, entity);
                     }
                     Some(_) => {
                         error!(

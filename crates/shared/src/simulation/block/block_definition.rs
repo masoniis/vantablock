@@ -27,6 +27,7 @@ pub mod raw {
         pub is_transparent: bool,
     }
 
+    /// Parsed texture config with state for all six block sides
     pub struct ParsedTextureConfig {
         pub top: String,
         pub bottom: String,

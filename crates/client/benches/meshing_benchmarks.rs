@@ -1,12 +1,12 @@
 use client::render::chunk::meshing::build_chunk_mesh;
 use client::render::{block::BlockRenderDataRegistry, texture::VoxelTextureProcessor};
 use client::settings::ClientSettings;
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use shared::simulation::{
     block::{BlockRegistry, SOLID_BLOCK_ID},
     chunk::{
-        components::ChunkBlocksComponent, thread_buffer_pool::acquire_buffer, types::ChunkLod,
-        ChunkDataOption, NeighborLODs, PaddedChunk,
+        ChunkDataOption, NeighborLODs, PaddedChunk, components::ChunkBlocksComponent,
+        thread_buffer_pool::acquire_buffer, types::ChunkLod,
     },
 };
 use utils::PersistentPaths;

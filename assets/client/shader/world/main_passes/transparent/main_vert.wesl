@@ -72,4 +72,3 @@ fn vs_main(
 
     return out;
 }
-

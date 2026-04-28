@@ -1,7 +1,8 @@
 use crate::prelude::*;
+use crate::render::chunk::manager::ClientChunkManager;
 use crate::render::chunk::tasks::meshgen::{CheckForMeshing, WantsMeshing};
 use bevy::ecs::prelude::*;
-use shared::simulation::chunk::{ChunkCoord, ChunkMeshDirty, ChunkStateManager};
+use shared::simulation::chunk::{ChunkCoord, ChunkMeshDirty};
 
 /// A system that detects chunks marked as dirty and prepares them for re-meshing.
 pub fn handle_dirty_chunks_system(
@@ -10,7 +11,7 @@ pub fn handle_dirty_chunks_system(
 
     // output
     mut commands: Commands,
-    mut chunk_manager: ResMut<ChunkStateManager>,
+    mut chunk_manager: ResMut<ClientChunkManager>,
 ) {
     for (entity, coord) in dirty_chunks_query.iter() {
         trace!(

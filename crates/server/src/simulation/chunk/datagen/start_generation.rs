@@ -1,6 +1,8 @@
 use crate::prelude::*;
 use crate::simulation::{
-    chunk::{ChunkGenerationTaskComponent, GeneratedChunkComponentBundle, NeedsGenerating},
+    chunk::components::GeneratedChunkComponentBundle,
+    chunk::datagen::gentask_components::{ChunkGenerationTaskComponent, NeedsGenerating},
+    chunk::manager::{ServerChunkManager, ServerChunkState},
     terrain::{
         ActiveBiomeGenerator, ActiveClimateGenerator, ActiveTerrainGenerator, ActiveTerrainPainter,
         BiomeMapComponent,
@@ -16,7 +18,7 @@ use crossbeam::channel::unbounded;
 use shared::simulation::{
     biome::BiomeRegistryResource,
     block::BlockRegistry,
-    chunk::{ChunkBlocksComponent, ChunkCoord, ChunkState, ChunkStateManager},
+    chunk::{ChunkBlocksComponent, ChunkCoord},
 };
 
 /// Queries for entities needing generation and starts a limited number per frame.
@@ -31,7 +33,7 @@ pub fn start_pending_generation_tasks_system(
 
     // output
     mut commands: Commands,
-    mut chunk_manager: ResMut<ChunkStateManager>,
+    mut chunk_manager: ResMut<ServerChunkManager>,
     block_registry: Res<BlockRegistry>,
     biome_registry: Res<BiomeRegistryResource>,
     biome_generator: Res<ActiveBiomeGenerator>,
@@ -41,10 +43,12 @@ pub fn start_pending_generation_tasks_system(
 ) {
     const MAX_CHUNKS_PER_FRAME: usize = 4;
 
-    for (entity, needs_generating, coord) in pending_chunks_query.iter_mut().take(MAX_CHUNKS_PER_FRAME) {
+    for (entity, needs_generating, coord) in
+        pending_chunks_query.iter_mut().take(MAX_CHUNKS_PER_FRAME)
+    {
         // check for cancellation
         match chunk_manager.get_state(coord.pos) {
-            Some(ChunkState::NeedsGenerating {
+            Some(ServerChunkState::NeedsGenerating {
                 entity: state_entity,
             }) if state_entity == entity => {
                 // state is correct, proceed to start generation
@@ -67,7 +71,7 @@ pub fn start_pending_generation_tasks_system(
                 let chunk_blocks = ChunkBlocksComponent::new_uniform_empty(lod);
 
                 commands.entity(entity).insert(chunk_blocks);
-                chunk_manager.mark_as_data_ready(coord.pos, entity);
+                chunk_manager.mark_as_active(coord.pos, entity);
                 continue;
             }
             ChunkUniformity::Solid => {

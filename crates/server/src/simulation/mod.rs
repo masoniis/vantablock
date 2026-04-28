@@ -10,7 +10,7 @@ mod chunk_loading_test;
 // ---------------------------------
 
 use bevy::prelude::*;
-use chunk::{poll_chunk_generation_tasks, start_pending_generation_tasks_system};
+use chunk::datagen::{poll_chunk_generation_tasks, start_pending_generation_tasks_system};
 use chunk_loading::{manage_player_chunk_loading_system, sync_chunk_data_to_clients_system};
 use terrain::TerrainGenerationPlugin;
 
@@ -20,7 +20,7 @@ pub struct ServerSimulationPlugin;
 
 impl Plugin for ServerSimulationPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(TerrainGenerationPlugin);
+        app.add_plugins((TerrainGenerationPlugin, chunk::ServerChunkPlugin));
 
         app.add_systems(
             Update,

@@ -1,5 +1,4 @@
 use crate::prelude::*;
-use crate::simulation::chunk::ChunkStateManager;
 use crate::simulation::{
     block::block_registry::AIR_BLOCK_ID,
     chunk::{
@@ -7,8 +6,8 @@ use crate::simulation::{
         components::{ChunkBlocksComponent, ChunkCoord, ChunkMeshDirty},
     },
 };
-use bevy::ecs::prelude::Res;
-use bevy::ecs::prelude::{Commands, Message, MessageReader, Query};
+use bevy::ecs::prelude::{Commands, Entity, Message, MessageReader, Query};
+use std::collections::HashMap;
 
 /// An event that is sent when a voxel should be broken.
 #[derive(Message, Clone)]
@@ -21,17 +20,27 @@ pub struct BreakVoxelEvent {
 pub fn handle_break_voxel_events_system(
     // input
     mut events: MessageReader<BreakVoxelEvent>,
-    chunk_manager: Res<ChunkStateManager>,
+    chunk_query: Query<(&ChunkCoord, Entity)>,
 
     // output
-    mut chunks: Query<&mut ChunkBlocksComponent>,
+    mut blocks_query: Query<&mut ChunkBlocksComponent>,
     mut commands: Commands,
 ) {
+    if events.is_empty() {
+        return;
+    }
+
+    // build a temporary map for lookups
+    let mut entity_map = HashMap::new();
+    for (coord, entity) in chunk_query.iter() {
+        entity_map.insert(coord.pos, entity);
+    }
+
     for event in events.read() {
         let chunk_pos = ChunkCoord::world_to_chunk_pos(event.world_pos.as_vec3());
 
-        if let Some(entity) = chunk_manager.get_entity(chunk_pos)
-            && let Ok(mut chunk_blocks) = chunks.get_mut(entity)
+        if let Some(&entity) = entity_map.get(&chunk_pos)
+            && let Ok(mut chunk_blocks) = blocks_query.get_mut(entity)
         {
             let local_pos = event.world_pos - (chunk_pos * CHUNK_SIDE_LENGTH as i32);
 
@@ -69,7 +78,7 @@ pub fn handle_break_voxel_events_system(
             }
 
             for neighbor_coord in neighbor_coords_to_dirty {
-                if let Some(neighbor_entity) = chunk_manager.get_entity(neighbor_coord) {
+                if let Some(&neighbor_entity) = entity_map.get(&neighbor_coord) {
                     commands.entity(neighbor_entity).insert(ChunkMeshDirty);
                 }
             }

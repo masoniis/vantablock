@@ -1,10 +1,10 @@
-use leafwing_input_manager::prelude::ActionState;
 use bevy::{
     ecs::prelude::*,
     input::mouse::{MouseMotion, MouseWheel},
     math::EulerRot,
     prelude::{Camera, Camera3d, Projection, Quat, Transform},
 };
+use leafwing_input_manager::prelude::ActionState;
 use shared::simulation::{chunk::ChunkCoord, player::PlayerAction, time::FrameClock};
 use tracing::{debug, instrument};
 
@@ -23,12 +23,15 @@ pub fn camera_movement_system(
     time: Res<FrameClock>,
 
     // output
-    mut camera_query: Query<(
-        &mut Transform,
-        &Camera,
-        &mut Projection,
-        &ActionState<PlayerAction>,
-    ), With<Camera3d>>,
+    mut camera_query: Query<
+        (
+            &mut Transform,
+            &Camera,
+            &mut Projection,
+            &ActionState<PlayerAction>,
+        ),
+        With<Camera3d>,
+    >,
 ) {
     for (mut transform, camera, mut projection, action_state) in camera_query.iter_mut() {
         if !camera.is_active {

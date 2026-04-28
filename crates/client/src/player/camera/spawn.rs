@@ -1,10 +1,10 @@
+use crate::input::get_default_input_map;
 use crate::prelude::*;
 use bevy::ecs::prelude::*;
 use bevy::prelude::{Camera3d, PerspectiveProjection, Projection, Transform, Vec3};
-use shared::simulation::chunk::{CHUNK_SIDE_LENGTH, ChunkCoord};
 use leafwing_input_manager::prelude::ActionState;
+use shared::simulation::chunk::{CHUNK_SIDE_LENGTH, ChunkCoord};
 use shared::simulation::player::PlayerAction;
-use crate::input::get_default_input_map;
 
 const DEFAULT_CAMERA_STARTING_X: f32 = (CHUNK_SIDE_LENGTH / 2) as f32;
 const DEFAULT_CAMERA_STARTING_Y: f32 = 64.0;

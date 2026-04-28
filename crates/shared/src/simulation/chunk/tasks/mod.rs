@@ -1,3 +1,3 @@
-pub mod chunk_state_manager;
+pub mod utils;
 
-pub use chunk_state_manager::{ChunkState, ChunkStateManager};
+pub use utils::{NEIGHBOR_OFFSETS, is_in_bounds};

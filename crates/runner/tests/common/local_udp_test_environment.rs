@@ -1,8 +1,8 @@
 use bevy::{ecs::system::RunSystemOnce, prelude::*};
 use std::time::{Duration, Instant};
 use {
-    client::network::{local_connection::setup_client, ClientNetworkPlugin},
-    server::network::{systems::start_udp_server, ServerNetworkPlugin},
+    client::network::{ClientNetworkPlugin, local_connection::setup_client},
+    server::network::{ServerNetworkPlugin, systems::start_udp_server},
 };
 
 pub struct UdpClientServerTestEnvironment {

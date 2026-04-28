@@ -11,7 +11,7 @@ mod client;
 mod server;
 mod shared;
 
-use crate::shared::{SharedPlugin, FIXED_TIMESTEP_HZ};
+use crate::shared::{FIXED_TIMESTEP_HZ, SharedPlugin};
 use bevy::prelude::*;
 use clap::{Parser, Subcommand, ValueEnum};
 use core::time::Duration;

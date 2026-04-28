@@ -33,7 +33,9 @@ fn send_message(
     server: Option<Single<&Server>>,
 ) {
     timer.0.tick(time.delta());
-    if timer.0.just_finished() && let Some(server) = server {
+    if timer.0.just_finished()
+        && let Some(server) = server
+    {
         let message = Message1(42);
         info!("Sending message: {:?}", message);
         let _ = sender.send::<_, Channel1>(&message, server.into_inner(), &NetworkTarget::All);

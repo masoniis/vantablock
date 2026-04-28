@@ -1,13 +1,13 @@
+use ::{
+    client::network::ClientNetworkPlugin, server::network::ServerNetworkPlugin,
+    shared::network::SharedNetworkPlugin,
+};
 use bevy::prelude::*;
 use lightyear::crossbeam::CrossbeamIo;
 use lightyear::prelude::client::{Client, Connect};
 use lightyear::prelude::server::{Server, Start};
 use lightyear::prelude::*;
 use std::time::{Duration, Instant};
-use ::{
-    client::network::ClientNetworkPlugin, server::network::ServerNetworkPlugin,
-    shared::network::SharedNetworkPlugin,
-};
 
 pub struct CrossbeamClientServerTestEnvironment {
     pub server_app: App,

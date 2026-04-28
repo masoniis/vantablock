@@ -1,13 +1,11 @@
 use crate::player::TargetedBlock;
 use crate::prelude::*;
+use crate::render::chunk::manager::ClientChunkManager;
 use bevy::ecs::prelude::{Query, Res, ResMut, With};
 use bevy::prelude::{Camera, Camera3d};
 use bevy::transform::components::Transform;
-use shared::simulation::chunk::{ChunkCoord, ChunkState, chunk_blocks::ChunkView};
-use shared::simulation::{
-    block::block_registry::AIR_BLOCK_ID,
-    chunk::{ChunkBlocksComponent, ChunkStateManager},
-};
+use shared::simulation::chunk::{ChunkCoord, chunk_blocks::ChunkView};
+use shared::simulation::{block::block_registry::AIR_BLOCK_ID, chunk::ChunkBlocksComponent};
 
 /// Max raycast traverse distance in blocks
 const RAYCAST_MAX_DIST: f32 = 8.0;
@@ -19,7 +17,7 @@ const RAYCAST_STEP: f32 = 0.1;
 pub fn update_targeted_block_system(
     // input
     camera_query: Query<(&Transform, &Camera), With<Camera3d>>,
-    chunk_manager: Res<ChunkStateManager>,
+    chunk_manager: Res<ClientChunkManager>,
     chunks_query: Query<&ChunkBlocksComponent>,
 
     // output
@@ -77,16 +75,15 @@ pub fn update_targeted_block_system(
 /// Helper function to get a block from world coordinates
 fn get_block_at_world_pos(
     world_pos: IVec3,
-    manager: &Res<ChunkStateManager>,
+    manager: &Res<ClientChunkManager>,
     chunks_query: &Query<&ChunkBlocksComponent>,
 ) -> Option<u8> {
     let (chunk_coord, local_pos) = ChunkCoord::world_to_chunk_and_local_pos(world_pos);
 
-    // only get if chunk loaded
-    let chunk_state = manager.get_state(chunk_coord)?;
-    if let ChunkState::Loaded {
-        entity: Some(actual_entity),
-    } = chunk_state
+    // only get if chunk has data
+    let state = manager.get_state(chunk_coord)?;
+    if state.is_generated()
+        && let Some(actual_entity) = state.entity()
         && let Ok(chunk_blocks) = chunks_query.get(actual_entity)
     {
         return Some(match chunk_blocks.get_view() {
