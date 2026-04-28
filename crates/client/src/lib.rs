@@ -19,14 +19,14 @@ pub use prelude::*;
 #[cfg(feature = "dev")]
 use bevy::dev_tools::fps_overlay::{FpsOverlayConfig, FpsOverlayPlugin};
 use bevy::{
-    MinimalPlugins,
     asset::AssetApp,
     image::Image,
     input::InputPlugin,
     log::LogPlugin,
-    prelude::{AssetPlugin, DefaultPlugins, Window, WindowPlugin, default},
+    prelude::{default, AssetPlugin, DefaultPlugins, Window, WindowPlugin},
     state::app::StatesPlugin,
     window::WindowResolution,
+    MinimalPlugins,
 };
 
 /// A plugin group containing client-side core plugins.
@@ -53,7 +53,7 @@ pub struct DefaultClientPlugins;
 
 impl PluginGroup for DefaultClientPlugins {
     fn build(self) -> PluginGroupBuilder {
-        let persistent_paths = utils::PersistentPaths::resolve();
+        let persistent_paths = utils::PersistentPaths::resolve_client();
         let asset_path = persistent_paths.assets_dir.to_string_lossy().to_string();
 
         #[allow(unused_mut)]
@@ -101,7 +101,7 @@ pub struct HeadlessClientPlugins;
 
 impl PluginGroup for HeadlessClientPlugins {
     fn build(self) -> PluginGroupBuilder {
-        let persistent_paths = utils::PersistentPaths::resolve();
+        let persistent_paths = utils::PersistentPaths::resolve_client();
         let asset_path = persistent_paths.assets_dir.to_string_lossy().to_string();
 
         PluginGroupBuilder::start::<Self>()

@@ -71,7 +71,7 @@ impl Plugin for ClientSettingsPlugin {
             .world()
             .get_resource::<PersistentPathsResource>()
             .map(|r| r.0.clone())
-            .unwrap_or_else(PersistentPaths::resolve);
+            .unwrap_or_else(PersistentPaths::resolve_client);
 
         app.insert_resource(ClientSettings::load_or_create(&paths));
     }

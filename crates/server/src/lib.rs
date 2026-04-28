@@ -12,8 +12,8 @@ pub use prelude::*;
 // ---------------------------------
 
 use bevy::{
-    MinimalPlugins, app::ScheduleRunnerPlugin, asset::AssetPlugin, prelude::default,
-    state::app::StatesPlugin,
+    app::ScheduleRunnerPlugin, asset::AssetPlugin, prelude::default, state::app::StatesPlugin,
+    MinimalPlugins,
 };
 use shared::SharedPlugins;
 use std::time::Duration;
@@ -36,7 +36,7 @@ pub struct DefaultServerPlugins;
 
 impl PluginGroup for DefaultServerPlugins {
     fn build(self) -> PluginGroupBuilder {
-        let persistent_paths = utils::PersistentPaths::resolve();
+        let persistent_paths = utils::PersistentPaths::resolve_client();
         let asset_path = persistent_paths.assets_dir.to_string_lossy().to_string();
 
         PluginGroupBuilder::start::<Self>()

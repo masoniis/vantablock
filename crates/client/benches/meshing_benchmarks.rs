@@ -1,12 +1,12 @@
 use client::render::chunk::meshing::build_chunk_mesh;
 use client::render::{block::BlockRenderDataRegistry, texture::VoxelTextureProcessor};
 use client::settings::ClientSettings;
-use criterion::{Criterion, criterion_group, criterion_main};
+use criterion::{criterion_group, criterion_main, Criterion};
 use shared::simulation::{
     block::{BlockRegistry, SOLID_BLOCK_ID},
     chunk::{
-        ChunkDataOption, NeighborLODs, PaddedChunk, components::ChunkBlocksComponent,
-        thread_buffer_pool::acquire_buffer, types::ChunkLod,
+        components::ChunkBlocksComponent, thread_buffer_pool::acquire_buffer, types::ChunkLod,
+        ChunkDataOption, NeighborLODs, PaddedChunk,
     },
 };
 use utils::PersistentPaths;
@@ -18,7 +18,7 @@ fn bench_chunk_meshing(c: &mut Criterion) {
     //         setup
     // ---------------------
 
-    let persistent_paths = PersistentPaths::resolve();
+    let persistent_paths = PersistentPaths::resolve_client();
     let client_settings = ClientSettings::load_or_create(&persistent_paths);
 
     // meshing requires textures to resolve

@@ -13,7 +13,7 @@ pub struct PathsPlugin;
 impl Plugin for PathsPlugin {
     fn build(&self, app: &mut App) {
         if !app.world().contains_resource::<PersistentPathsResource>() {
-            app.insert_resource(PersistentPathsResource(PersistentPaths::resolve()));
+            app.insert_resource(PersistentPathsResource(PersistentPaths::resolve_client()));
         }
     }
 }

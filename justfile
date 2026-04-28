@@ -28,15 +28,15 @@ default: client
 
 # runs the client via debug profile
 client *args:
-    cargo run -p {{runner}} --bin game {{args}}
+    cargo run -p {{runner}} --bin vantablock {{args}}
 
 # runs the server via debug profile
 server *args:
-    cargo run -p {{runner}} --bin server --no-default-features --features dedicated {{args}}
+    cargo run -p {{runner}} --bin vantablock-server --no-default-features --features server {{args}}
 
 # runs the client via max-optimization release profile
 release *args:
-    cargo run -p {{runner}} --bin game --profile distribution --features distribution {{args}}
+    cargo run -p {{runner}} --bin vantablock --profile distribution --features distribution {{args}}
 
 
 alias run := client
@@ -101,12 +101,12 @@ ready *args:
 
 # packages the client for distribution
 package profile="distribution":
-    cargo build -p {{runner}} --bin game --profile {{profile}} --features distribution
-    cargo packager -p {{runner}} --bin game --profile {{ if profile == "dev" { "debug" } else { profile } }}
+    cargo build -p {{runner}} --bin vantablock --profile {{profile}} --features distribution
+    cargo packager -p {{runner}} --bin vantablock --profile {{ if profile == "dev" { "debug" } else { profile } }}
 
 # packages the server for distribution
 server-package profile="distribution":
-    cargo build -p {{runner}} --bin server --no-default-features --features dedicated --profile {{profile}}
+    cargo build -p {{runner}} --bin vantablock-server --no-default-features --features server --profile {{profile}}
 
 # runs the texture processor utility
 texture:
@@ -123,7 +123,7 @@ sign:
 # Shows the ASM associated with a rust file.
 # requires https://crates.io/crates/cargo-show-asm
 asm path:
-    cargo asm -p {{runner}} --bin game --color {{path}}
+    cargo asm -p {{runner}} --bin vantablock --color {{path}}
 
 # launch tracy if it isn't already running
 trace *args:
@@ -135,15 +135,15 @@ trace *args:
         TRACY_ENABLE_MEMORY=1
         tracy &
     fi
-    cargo run -p {{runner}} --bin game --features tracy {{args}}
+    cargo run -p {{runner}} --bin vantablock --features tracy {{args}}
 
 # runs the client with Bevy-specific debug features
 debug_bevy *args:
-    cargo run -p {{runner}} --bin game --features bevy/trace,bevy/track_location,bevy/debug {{args}}
+    cargo run -p {{runner}} --bin vantablock --features bevy/trace,bevy/track_location,bevy/debug {{args}}
 
 # runs the client with verbose wgpu logging
 debug_wgpu *args:
-    RUST_LOG=wgpu=trace cargo run -p {{runner}} --bin game {{args}}
+    RUST_LOG=wgpu=trace cargo run -p {{runner}} --bin vantablock {{args}}
 
 # targeted tracing, call without args to list targets found in source.
 debug *args:
@@ -166,7 +166,7 @@ debug *args:
     done
     export RUST_LOG="${log_targets%,},{{project}}=info"
     echo -e "\033[1;32mRunning with RUST_LOG=\033[0m$RUST_LOG"
-    cargo run -p {{runner}} --bin game
+    cargo run -p {{runner}} --bin vantablock
 
 # INFO: ---------------------------------
 #         advanced/niche commands

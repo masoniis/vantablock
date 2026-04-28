@@ -1,5 +1,5 @@
 use bevy::ecs::prelude::World;
-use criterion::{Criterion, criterion_group, criterion_main};
+use criterion::{criterion_group, criterion_main, Criterion};
 use server::prelude::*;
 use server::simulation::terrain::{
     BasicBiomeGenerator, BiomeGenerator, BiomeMapComponent, BiomeResultBuilder, ClimateGenerator,
@@ -27,7 +27,7 @@ fn bench_chunk_generation(c: &mut Criterion) {
     //         setup
     // ---------------------
 
-    let persistent_paths = PersistentPaths::resolve();
+    let persistent_paths = PersistentPaths::resolve_client();
     let block_registry = BlockRegistry::load_from_disk(&persistent_paths);
 
     let mut world = World::new();

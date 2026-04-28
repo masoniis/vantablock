@@ -24,7 +24,7 @@ impl FromWorld for BiomeRegistryResource {
         let persistent_paths = world
             .get_resource::<PersistentPathsResource>()
             .map(|r| r.0.clone())
-            .unwrap_or_else(PersistentPaths::resolve);
+            .unwrap_or_else(PersistentPaths::resolve_client);
         Self::load_from_disk(&persistent_paths)
     }
 }
