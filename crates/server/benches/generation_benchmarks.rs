@@ -1,7 +1,7 @@
 use bevy::ecs::prelude::World;
-use criterion::{Criterion, criterion_group, criterion_main};
+use criterion::{criterion_group, criterion_main, Criterion};
 use server::prelude::*;
-use server::simulation::terrain::{
+use server::world::terrain::{
     BasicBiomeGenerator, BiomeGenerator, BiomeMapComponent, BiomeResultBuilder, ClimateGenerator,
     ClimateNoiseGenerator, PaintResultBuilder, ShapeResultBuilder, SimpleSurfacePainter,
     SinwaveShaper, TerrainPainter, TerrainShaper,

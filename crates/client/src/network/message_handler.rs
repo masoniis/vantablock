@@ -3,8 +3,10 @@
 // ---------------------------------
 
 use crate::network::messages::{ReceivedChunkDataEvent, WelcomeEvent};
-use bevy::ecs::message::{MessageWriter, Messages};
-use bevy::prelude::*;
+use bevy::{
+    ecs::message::{MessageWriter, Messages},
+    prelude::*,
+};
 use lightyear::prelude::{Connected, MessageReceiver};
 use shared::network::protocol::server::ServerMessage;
 
