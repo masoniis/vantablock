@@ -23,10 +23,7 @@ impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<TargetedBlock>();
 
-        app.add_plugins((
-            CameraPlugin,
-            shared::player::actions::ActionPlugin,
-        ));
+        app.add_plugins((CameraPlugin, shared::player::actions::ActionPlugin));
 
         app.add_systems(
             FixedUpdate,

@@ -1,11 +1,12 @@
-use crate::input::{get_default_input_map, get_default_local_input_map, local_actions::LocalClientAction};
+use crate::input::{
+    get_default_input_map, get_default_local_input_map, local_actions::LocalClientAction,
+};
 use crate::player::LocalPlayer;
-use crate::prelude::*;
-use bevy::ecs::prelude::*;
-use bevy::prelude::{Camera3d, PerspectiveProjection, Projection, Transform, Vec3};
+use bevy::prelude::*;
 use leafwing_input_manager::prelude::ActionState;
-use shared::world::chunk::{CHUNK_SIDE_LENGTH, ChunkCoord};
 use shared::player::PlayerAction;
+use shared::player::components::{Player, PlayerLook};
+use shared::world::chunk::{CHUNK_SIDE_LENGTH, ChunkCoord};
 
 const DEFAULT_CAMERA_STARTING_X: f32 = (CHUNK_SIDE_LENGTH / 2) as f32;
 const DEFAULT_CAMERA_STARTING_Y: f32 = 64.0;
@@ -23,20 +24,29 @@ pub fn spawn_camera_system(mut commands: Commands) {
 
     let start_chunk = ChunkCoord::world_to_chunk_pos(start_position);
 
-    commands.spawn((
-        LocalPlayer,
-        Camera3d::default(),
-        Projection::Perspective(PerspectiveProjection {
-            fov: 45.0f32.to_radians(),
-            near: 1.0,
-            far: f32::INFINITY,
-            ..Default::default()
-        }),
-        Transform::from_translation(start_position),
-        ChunkCoord { pos: start_chunk },
-        ActionState::<PlayerAction>::default(),
-        get_default_input_map(),
-        ActionState::<LocalClientAction>::default(),
-        get_default_local_input_map(),
-    ));
+    commands
+        .spawn((
+            Player,
+            LocalPlayer,
+            PlayerLook::default(),
+            Transform::from_translation(start_position),
+            ChunkCoord { pos: start_chunk },
+            ActionState::<PlayerAction>::default(),
+            get_default_input_map(),
+            ActionState::<LocalClientAction>::default(),
+            get_default_local_input_map(),
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Camera3d::default(),
+                Projection::Perspective(PerspectiveProjection {
+                    fov: 45.0f32.to_radians(),
+                    near: 1.0,
+                    far: f32::INFINITY,
+                    ..Default::default()
+                }),
+                Transform::from_xyz(0.0, 1.6, 0.0),
+                ChunkCoord { pos: start_chunk },
+            ));
+        });
 }

@@ -1,19 +1,16 @@
 use crate::player::LocalPlayer;
+use bevy::ecs::relationship::Relationship;
 use bevy::{
-    ecs::prelude::*,
     input::mouse::{MouseMotion, MouseWheel},
     math::EulerRot,
-    prelude::{Camera, Camera3d, Projection, Quat, Transform},
+    prelude::*,
 };
-use leafwing_input_manager::prelude::ActionState;
-use shared::player::PlayerAction;
-use shared::time::FrameClock;
+use shared::player::components::PlayerLook;
 use shared::world::chunk::ChunkCoord;
 use tracing::{debug, instrument};
 
 /// The distance the near plane is set to for the camera frustum.
 pub const CAMERA_NEAR_PLANE: f32 = 1.0;
-const MOVEMENT_SPEED: f32 = 16.0;
 const MOUSE_SENSITIVITY: f32 = 0.1;
 
 /// A system that updates the active camera's position and orientation based on user input.
@@ -23,84 +20,56 @@ pub fn camera_movement_system(
     // input
     mut mouse_motion: MessageReader<MouseMotion>,
     mut mouse_wheel: MessageReader<MouseWheel>,
-    time: Res<FrameClock>,
 
     // output
-    mut camera_query: Query<
-        (
-            &mut Transform,
-            &Camera,
-            &mut Projection,
-            &ActionState<PlayerAction>,
-        ),
-        (With<Camera3d>, With<LocalPlayer>),
-    >,
+    mut player_query: Query<(Entity, &mut PlayerLook, &mut Transform), With<LocalPlayer>>,
+    mut camera_query: Query<(&Camera, &mut Projection, &ChildOf), With<Camera3d>>,
 ) {
-    for (mut transform, camera, mut projection, action_state) in camera_query.iter_mut() {
-        if !camera.is_active {
-            continue;
-        }
+    if player_query.is_empty() {
+        return;
+    }
+    let (player_entity, mut look, mut transform) = player_query.single_mut().unwrap();
 
-        // update position based on input
-        let velocity = MOVEMENT_SPEED * time.delta.as_secs_f32();
-        let front = transform.forward();
-        let mut multiplier = 1.0;
+    // update rotation using native Bevy mouse motion events
+    let mut xoffset = 0.0;
+    let mut yoffset = 0.0;
+    for ev in mouse_motion.read() {
+        xoffset += ev.delta.x;
+        yoffset += ev.delta.y;
+    }
 
-        if action_state.pressed(&PlayerAction::MoveFaster) {
-            multiplier = 2.5;
-        }
-        if action_state.pressed(&PlayerAction::MoveForward) {
-            transform.translation += front * velocity * multiplier;
-        }
-        if action_state.pressed(&PlayerAction::MoveBackward) {
-            transform.translation -= front * velocity * multiplier;
-        }
-        let right = transform.right();
-        if action_state.pressed(&PlayerAction::MoveLeft) {
-            transform.translation -= right * velocity * multiplier;
-        }
-        if action_state.pressed(&PlayerAction::MoveRight) {
-            transform.translation += right * velocity * multiplier;
-        }
-
-        // update rotation using native Bevy mouse motion events
-        let mut xoffset = 0.0;
-        let mut yoffset = 0.0;
-        for ev in mouse_motion.read() {
-            xoffset += ev.delta.x;
-            yoffset += ev.delta.y;
-        }
-
+    if xoffset != 0.0 || yoffset != 0.0 {
         xoffset *= MOUSE_SENSITIVITY;
         yoffset *= MOUSE_SENSITIVITY;
 
-        // extract current yaw and pitch to prevent roll (gimbal lock handling)
-        let (mut yaw, mut pitch, _) = transform.rotation.to_euler(EulerRot::YXZ);
-
-        yaw -= xoffset.to_radians();
-        pitch -= yoffset.to_radians();
+        look.yaw -= xoffset.to_radians();
+        look.pitch -= yoffset.to_radians();
 
         // clamp pitch to avoid flipping
-        pitch = pitch.clamp(-89.0f32.to_radians(), 89.0f32.to_radians());
+        look.pitch = look
+            .pitch
+            .clamp(-89.0f32.to_radians(), 89.0f32.to_radians());
 
-        // apply constrained rotation
-        transform.rotation = Quat::from_euler(EulerRot::YXZ, yaw, pitch, 0.0);
+        // apply constrained rotation to the player transform
+        transform.rotation = Quat::from_euler(EulerRot::YXZ, look.yaw, look.pitch, 0.0);
+    }
 
-        // handle zoom using native Bevy mouse wheel events
-        let mut yoffset_scroll = 0.0;
-        for ev in mouse_wheel.read() {
-            yoffset_scroll += ev.y;
-        }
+    // handle zoom using native Bevy mouse wheel events
+    let mut yoffset_scroll = 0.0;
+    for ev in mouse_wheel.read() {
+        yoffset_scroll += ev.y;
+    }
 
-        if let Projection::Perspective(ref mut perspective) = *projection
-            && yoffset_scroll != 0.0
-        {
-            // zoom in the old system was FOV in degrees, between 1 and 45
-            // here we map it to radians
-            let mut current_fov_deg = perspective.fov.to_degrees();
-            current_fov_deg -= yoffset_scroll;
-            current_fov_deg = current_fov_deg.clamp(1.0, 45.0);
-            perspective.fov = current_fov_deg.to_radians();
+    if yoffset_scroll != 0.0 {
+        for (camera, mut projection, parent) in camera_query.iter_mut() {
+            if camera.is_active && parent.get() == player_entity {
+                if let Projection::Perspective(ref mut perspective) = *projection {
+                    let mut current_fov_deg = perspective.fov.to_degrees();
+                    current_fov_deg -= yoffset_scroll;
+                    current_fov_deg = current_fov_deg.clamp(1.0, 45.0);
+                    perspective.fov = current_fov_deg.to_radians();
+                }
+            }
         }
     }
 }
@@ -108,22 +77,15 @@ pub fn camera_movement_system(
 /// A system to that updates the active camera's chunk chord based on its position.
 #[instrument(skip_all)]
 pub fn update_camera_chunk_chord_system(
-    mut camera_query: Query<
-        (&Transform, &Camera, &mut ChunkCoord),
-        (With<Camera3d>, With<LocalPlayer>),
-    >,
+    mut query: Query<(&GlobalTransform, &mut ChunkCoord)>,
 ) {
-    for (transform, camera, mut vicinity) in camera_query.iter_mut() {
-        if !camera.is_active {
-            continue;
-        }
-
+    for (transform, mut vicinity) in query.iter_mut() {
         // update chunk chord if it is different
-        let new_chunk_pos = ChunkCoord::world_to_chunk_pos(transform.translation);
+        let new_chunk_pos = ChunkCoord::world_to_chunk_pos(transform.translation());
         if new_chunk_pos != vicinity.pos {
             debug!(
                 target: "camera_chunk",
-                "Camera crossed chunk boundary. Old: {:?}, New: {:?}",
+                "Entity crossed chunk boundary. Old: {:?}, New: {:?}",
                 vicinity.pos, new_chunk_pos
             );
             vicinity.pos = new_chunk_pos;

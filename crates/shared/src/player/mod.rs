@@ -1,7 +1,9 @@
 pub mod actions;
 pub mod components;
+pub mod movement;
 pub mod player_action;
 
+use movement::shared_player_movement_system;
 pub use player_action::PlayerAction;
 
 // INFO: ---------------------------
@@ -18,5 +20,7 @@ impl Plugin for SharedPlayerPlugin {
     fn build(&self, app: &mut App) {
         // handle leafwing inputs via lightyear
         app.add_plugins(InputPlugin::<PlayerAction>::default());
+
+        app.add_systems(FixedUpdate, shared_player_movement_system);
     }
 }

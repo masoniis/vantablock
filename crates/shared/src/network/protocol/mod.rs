@@ -10,9 +10,11 @@ pub use server::ServerMessage;
 //         plugin definition
 // ---------------------------------
 
+use crate::player::components::PlayerLook;
 use bevy::prelude::*;
 use lightyear::prelude::{
-    AppChannelExt, AppMessageExt, ChannelMode, ChannelSettings, NetworkDirection, ReliableSettings,
+    AppChannelExt, AppComponentExt, AppMessageExt, ChannelMode, ChannelSettings, NetworkDirection,
+    ReliableSettings,
 };
 
 pub(crate) struct NetworkProtocolPlugin;
@@ -26,6 +28,9 @@ impl Plugin for NetworkProtocolPlugin {
             .add_direction(NetworkDirection::ClientToServer);
         app.register_message::<ServerMessage>()
             .add_direction(NetworkDirection::ServerToClient);
+
+        // register components
+        app.register_component::<PlayerLook>();
 
         // add channels
         app.add_channel::<PlayerMovement>(ChannelSettings {

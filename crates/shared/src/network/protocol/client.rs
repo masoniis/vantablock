@@ -1,5 +1,5 @@
-use crate::world::chunk::ChunkCoord;
 use crate::player::PlayerAction;
+use crate::world::chunk::ChunkCoord;
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 

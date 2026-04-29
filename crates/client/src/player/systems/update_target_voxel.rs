@@ -1,9 +1,8 @@
-use crate::player::{TargetedBlock, LocalPlayer};
+use crate::player::{LocalPlayer, TargetedBlock};
 use crate::prelude::*;
 use crate::render::chunk::manager::ClientChunkManager;
-use bevy::ecs::prelude::{Query, Res, ResMut, With};
-use bevy::prelude::{Camera, Camera3d};
-use bevy::transform::components::Transform;
+use bevy::ecs::relationship::Relationship;
+use bevy::prelude::{Camera, Camera3d, ChildOf, Entity, GlobalTransform, Query, Res, ResMut, With};
 use shared::world::chunk::{ChunkCoord, chunk_blocks::ChunkView};
 use shared::world::{block::block_registry::AIR_BLOCK_ID, chunk::ChunkBlocksComponent};
 
@@ -16,19 +15,22 @@ const RAYCAST_STEP: f32 = 0.1;
 #[instrument(skip_all)]
 pub fn update_targeted_block_system(
     // input
-    camera_query: Query<
-        (&Transform, &Camera),
-        (With<Camera3d>, With<LocalPlayer>),
-    >,
+    camera_query: Query<(&GlobalTransform, &Camera, &ChildOf), With<Camera3d>>,
+    player_query: Query<Entity, With<LocalPlayer>>,
     chunk_manager: Res<ClientChunkManager>,
     chunks_query: Query<&ChunkBlocksComponent>,
 
     // output
     mut targeted_block: ResMut<TargetedBlock>,
 ) {
+    if player_query.is_empty() {
+        return;
+    }
+    let local_player_entity = player_query.single().unwrap();
+
     let mut active_transform = None;
-    for (transform, camera) in camera_query.iter() {
-        if camera.is_active {
+    for (transform, camera, parent) in camera_query.iter() {
+        if camera.is_active && parent.get() == local_player_entity {
             active_transform = Some(transform);
             break;
         }
@@ -48,7 +50,7 @@ pub fn update_targeted_block_system(
 
     for i in 0..steps {
         let dist = i as f32 * RAYCAST_STEP;
-        let current_pos = transform.translation + transform.forward() * dist;
+        let current_pos = transform.translation() + transform.forward() * dist;
         let current_voxel_pos = current_pos.floor().as_ivec3();
 
         // skip if we're still in the same voxel

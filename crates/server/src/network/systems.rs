@@ -60,6 +60,8 @@ pub fn handle_connections(trigger: On<Add, Connected>, mut commands: Commands) {
 
     let player_entity = commands
         .spawn((
+            shared::player::components::Player,
+            shared::player::components::PlayerLook::default(),
             ClientConnection { client_entity },
             ClientChunkTracker::default(),
             Transform::from_translation(spawn_pos),

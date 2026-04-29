@@ -8,9 +8,7 @@ pub use world_clock::WorldClockResource;
 //         time plugin
 // ---------------------------
 
-use crate::time::{
-    frame_clock::update_frame_clock_system, world_clock::update_world_clock_system,
-};
+use crate::time::{frame_clock::update_frame_clock_system, world_clock::update_world_clock_system};
 use bevy::app::{App, FixedUpdate, Plugin, Update};
 
 pub struct TimeControlPlugin;
