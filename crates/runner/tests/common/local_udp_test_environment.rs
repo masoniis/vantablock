@@ -1,7 +1,10 @@
 use bevy::{ecs::system::RunSystemOnce, prelude::*};
 use std::time::{Duration, Instant};
 use {
-    client::network::{connection::setup_client, ClientNetworkPlugin},
+    client::network::{
+        connection::InitiateConnection,
+        ClientNetworkPlugin,
+    },
     server::network::{systems::start_udp_server, ServerNetworkPlugin},
 };
 
@@ -32,10 +35,9 @@ impl Default for UdpClientServerTestEnvironment {
             .expect("Failed to run start_udp_server system");
 
         // setup client
-        client_app
-            .world_mut()
-            .run_system_once(setup_client)
-            .expect("Failed to run setup_client system");
+        client_app.world_mut().trigger(InitiateConnection {
+            server_addr: "127.0.0.1:5000".to_string(),
+        });
 
         Self {
             server_app,

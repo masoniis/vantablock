@@ -6,6 +6,12 @@ pub enum ConnectType {
     Multiplayer,
 }
 
+/// An event to initiate a connection to a specific server address.
+#[derive(Event, Debug)]
+pub struct InitiateConnection {
+    pub server_addr: String,
+}
+
 #[derive(Resource, Debug, Clone)]
 pub struct ConnectionSettings {
     pub connect_type: ConnectType,

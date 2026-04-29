@@ -1,6 +1,6 @@
 use crate::lifecycle::state::ClientState;
 use crate::lifecycle::SessionTopology;
-use crate::network::connection::{ConnectType, ConnectionSettings};
+use crate::network::connection::{ConnectionSettings, InitiateConnection};
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::prelude::*;
 use shared::events::RequestSingleplayerSession;
@@ -167,9 +167,9 @@ pub fn main_menu_button_interaction_system(
         ),
         (Changed<Interaction>, With<Button>),
     >,
-    mut client_state: ResMut<NextState<ClientState>>,
+    mut commands: Commands,
     mut session_topology: ResMut<NextState<SessionTopology>>,
-    mut settings: ResMut<ConnectionSettings>,
+    settings: Res<ConnectionSettings>,
     mut ev_request_session: MessageWriter<RequestSingleplayerSession>,
 ) {
     for (interaction, mut color, mut border_color, action) in interaction_query.iter_mut() {
@@ -178,17 +178,17 @@ pub fn main_menu_button_interaction_system(
                 *color = BackgroundColor(Color::LinearRgba(LinearRgba::new(0.3, 0.3, 0.3, 1.0)));
                 *border_color = BorderColor::all(Color::WHITE);
 
-                // Transition to InGame state
-                client_state.set(ClientState::InGame);
+                // Trigger connection - this will transition state to InGame
+                commands.trigger(InitiateConnection {
+                    server_addr: settings.server_addr.clone(),
+                });
 
                 match action {
                     MainMenuButtonAction::Singleplayer => {
-                        settings.connect_type = ConnectType::Singleplayer;
                         session_topology.set(SessionTopology::Internal);
                         ev_request_session.write(RequestSingleplayerSession);
                     }
                     MainMenuButtonAction::Multiplayer => {
-                        settings.connect_type = ConnectType::Multiplayer;
                         session_topology.set(SessionTopology::External);
                     }
                 }

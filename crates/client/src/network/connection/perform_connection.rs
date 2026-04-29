@@ -1,4 +1,5 @@
-use crate::network::connection::ConnectionSettings;
+use crate::lifecycle::{ClientState, InGameState};
+use crate::network::connection::{ConnectionSettings, InitiateConnection};
 use bevy::prelude::*;
 use lightyear::{netcode::Key, prelude::client::*, prelude::*};
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
@@ -6,10 +7,23 @@ use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 /// Sets up a basic client.
 ///
 /// https://cbournhonesque.github.io/lightyear/book/tutorial/build_client_server.html#client
-pub fn setup_client(mut commands: Commands, settings: Res<ConnectionSettings>) {
-    let server_addr: SocketAddr = settings.server_addr.parse().unwrap_or_else(|_| {
-        error!("Failed to parse server address. Falling back to 127.0.0.1:5000");
-        "127.0.0.1:5000".parse().unwrap()
+pub fn setup_client(
+    trigger: On<InitiateConnection>,
+    mut commands: Commands,
+    settings: Res<ConnectionSettings>,
+    mut next_client_state: ResMut<NextState<ClientState>>,
+    mut next_in_game_state: ResMut<NextState<InGameState>>,
+) {
+    let event = trigger.event();
+    let server_addr: SocketAddr = event.server_addr.parse().unwrap_or_else(|_| {
+        error!(
+            "Failed to parse server address {}. Falling back to {}",
+            event.server_addr, settings.server_addr
+        );
+        settings
+            .server_addr
+            .parse()
+            .unwrap_or_else(|_| "127.0.0.1:5000".parse().unwrap())
     });
 
     let client_addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 0));
@@ -42,4 +56,8 @@ pub fn setup_client(mut commands: Commands, settings: Res<ConnectionSettings>) {
     commands.trigger(Connect {
         entity: client_entity,
     });
+
+    // transition to game state
+    next_client_state.set(ClientState::InGame);
+    next_in_game_state.set(InGameState::Connecting);
 }
