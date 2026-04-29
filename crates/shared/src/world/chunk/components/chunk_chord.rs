@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use crate::simulation::chunk::{CHUNK_DEPTH, CHUNK_HEIGHT, CHUNK_SIDE_LENGTH, CHUNK_WIDTH};
+use crate::world::chunk::{CHUNK_DEPTH, CHUNK_HEIGHT, CHUNK_SIDE_LENGTH, CHUNK_WIDTH};
 use bevy::ecs::prelude::*;
 use derive_more::{Deref, DerefMut};
 use serde::{Deserialize, Serialize};

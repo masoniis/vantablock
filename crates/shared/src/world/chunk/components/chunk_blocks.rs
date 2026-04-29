@@ -1,5 +1,5 @@
-use crate::simulation::block::{AIR_BLOCK_ID, BlockId, SOLID_BLOCK_ID};
-use crate::simulation::chunk::{
+use crate::world::block::{AIR_BLOCK_ID, BlockId, SOLID_BLOCK_ID};
+use crate::world::chunk::{
     CHUNK_SIDE_LENGTH, ChunkLod, ChunkVolumeData, VolumeDataView, VolumeDataWriter,
 };
 use bevy::ecs::prelude::Component;

@@ -1,6 +1,6 @@
 use crate::prelude::*;
 use crate::simulation::terrain::climate::ClimateMapComponent;
-use shared::simulation::{
+use shared::world::{
     block::{BlockId, SOLID_BLOCK_ID},
     chunk::{ChunkBlocksComponent, ChunkCoord, VolumeDataWriter},
 };

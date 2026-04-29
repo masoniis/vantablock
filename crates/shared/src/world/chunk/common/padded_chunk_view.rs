@@ -1,6 +1,6 @@
 use super::TOTAL_BUFFER_SIZE;
 use crate::prelude::*;
-use crate::simulation::{
+use crate::world::{
     block::block_registry::{AIR_BLOCK_ID, BlockId, BlockRegistry},
     chunk::{CHUNK_SIDE_LENGTH, ChunkBlocksComponent, ChunkLod, ChunkView},
 };

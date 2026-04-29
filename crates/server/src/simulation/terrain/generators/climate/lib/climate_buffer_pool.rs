@@ -1,4 +1,4 @@
-use shared::simulation::chunk::CHUNK_SIDE_LENGTH;
+use shared::world::chunk::CHUNK_SIDE_LENGTH;
 use std::cell::RefCell;
 
 /// A thread-local pool of buffers to prevent re-allocating buffers every chunk.

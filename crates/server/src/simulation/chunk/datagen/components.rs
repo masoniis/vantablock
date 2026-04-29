@@ -1,7 +1,7 @@
 use crate::simulation::chunk::components::GeneratedChunkComponentBundle;
 use bevy::ecs::prelude::Component;
 use crossbeam::channel::Receiver;
-use shared::simulation::chunk::ChunkLod;
+use shared::world::chunk::ChunkLod;
 
 /// Marks a chunk loading task in the simulation world that returns nothing.
 #[derive(Component)]

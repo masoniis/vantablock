@@ -1,6 +1,6 @@
 use crate::prelude::*;
-use crate::simulation::{
-    block::block_registry::SOLID_BLOCK_ID,
+use crate::world::{
+    block::block_registry::AIR_BLOCK_ID,
     chunk::{
         CHUNK_SIDE_LENGTH,
         components::{ChunkBlocksComponent, ChunkCoord, ChunkMeshDirty},
@@ -9,17 +9,17 @@ use crate::simulation::{
 use bevy::ecs::prelude::{Commands, Entity, Message, MessageReader, Query};
 use std::collections::HashMap;
 
-/// An event that is sent when a voxel should be placed.
+/// An event that is sent when a voxel should be broken.
 #[derive(Message, Clone)]
-pub struct PlaceVoxelEvent {
-    /// The world position to place a voxel.
-    pub target_pos: IVec3,
+pub struct BreakVoxelEvent {
+    /// The world position of the voxel to break.
+    pub world_pos: IVec3,
 }
 
-/// A system that handles the `PlaceVoxelEvent`.
-pub fn handle_place_voxel_events_system(
+/// A system that handles the `BreakVoxelEvent`.
+pub fn handle_break_voxel_events_system(
     // input
-    mut events: MessageReader<PlaceVoxelEvent>,
+    mut events: MessageReader<BreakVoxelEvent>,
     chunk_query: Query<(&ChunkCoord, Entity)>,
 
     // output
@@ -37,26 +37,25 @@ pub fn handle_place_voxel_events_system(
     }
 
     for event in events.read() {
-        let new_block_pos = event.target_pos;
-        let chunk_pos = ChunkCoord::world_to_chunk_pos(new_block_pos.as_vec3());
+        let chunk_pos = ChunkCoord::world_to_chunk_pos(event.world_pos.as_vec3());
 
         if let Some(&entity) = entity_map.get(&chunk_pos)
             && let Ok(mut chunk_blocks) = blocks_query.get_mut(entity)
         {
-            let local_pos = new_block_pos - (chunk_pos * CHUNK_SIDE_LENGTH as i32);
+            let local_pos = event.world_pos - (chunk_pos * CHUNK_SIDE_LENGTH as i32);
 
             let mut writer = chunk_blocks.get_writer();
             writer.set_data(
                 local_pos.x as usize,
                 local_pos.y as usize,
                 local_pos.z as usize,
-                SOLID_BLOCK_ID,
+                AIR_BLOCK_ID,
             );
 
-            // mark primary chunk as dirty
+            // mark the primary chunk as dirty
             commands.entity(entity).insert(ChunkMeshDirty);
 
-            // mark any neighbors as dirty if relevant
+            // mark any neighbors as dirty if we are on the edge
             let max_idx = (CHUNK_SIDE_LENGTH - 1) as i32;
             let mut neighbor_coords_to_dirty = Vec::with_capacity(3);
 

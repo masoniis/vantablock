@@ -2,7 +2,7 @@ use crate::prelude::*;
 use crate::render::chunk::manager::ClientChunkManager;
 use crate::render::chunk::tasks::meshgen::{CheckForMeshing, WantsMeshing};
 use bevy::ecs::prelude::*;
-use shared::simulation::chunk::{ChunkCoord, ChunkMeshDirty};
+use shared::world::chunk::{ChunkCoord, ChunkMeshDirty};
 
 /// A system that detects chunks marked as dirty and prepares them for re-meshing.
 pub fn handle_dirty_chunks_system(

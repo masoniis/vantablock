@@ -1,6 +1,6 @@
 use bevy::ecs::message::Message;
 use bevy::prelude::*;
-use shared::simulation::chunk::ChunkCoord;
+use shared::world::chunk::ChunkCoord;
 
 #[derive(Message)]
 pub struct WelcomeEvent {

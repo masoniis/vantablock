@@ -5,7 +5,7 @@ use crate::simulation::terrain::generators::shaping::{
     ChunkUniformity, ShapeResultBuilder, TerrainShaper,
 };
 use noise::{Fbm, MultiFractal, NoiseFn, Perlin};
-use shared::simulation::chunk::CHUNK_SIDE_LENGTH;
+use shared::world::chunk::CHUNK_SIDE_LENGTH;
 
 #[derive(Debug, Clone)]
 pub struct NoisyShaper {

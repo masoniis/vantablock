@@ -3,7 +3,7 @@ use crate::simulation::terrain::{
     climate::ClimateMapComponent,
     generators::biome::{BiomeGenerator, BiomeResultBuilder},
 };
-use shared::simulation::biome::BiomeRegistryResource;
+use shared::world::biome::BiomeRegistryResource;
 
 // A default implementation
 #[derive(Debug, Default)]

@@ -15,7 +15,7 @@ use crate::simulation::{
 use bevy::ecs::prelude::*;
 use bevy::tasks::AsyncComputeTaskPool;
 use crossbeam::channel::unbounded;
-use shared::simulation::{
+use shared::world::{
     biome::BiomeRegistryResource,
     block::BlockRegistry,
     chunk::{ChunkBlocksComponent, ChunkCoord},

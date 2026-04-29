@@ -10,8 +10,8 @@ use bevy::asset::Assets;
 use bevy::ecs::prelude::*;
 use bevy::tasks::AsyncComputeTaskPool;
 use crossbeam::channel::{TryRecvError, unbounded};
-use shared::simulation::chunk::TransformComponent;
-use shared::simulation::{
+use shared::world::chunk::TransformComponent;
+use shared::world::{
     block::BlockRegistry,
     chunk::{
         CHUNK_SIDE_LENGTH, ChunkBlocksComponent, ChunkCoord, NEIGHBOR_OFFSETS,

@@ -120,7 +120,7 @@ impl ClientChunkManager {
 
     /// Returns an iterator over all *existing* neighbors of a chunk.
     pub fn iter_neighbors(&self, coord: IVec3) -> impl Iterator<Item = NeighborInfo> + '_ {
-        shared::simulation::chunk::NEIGHBOR_OFFSETS
+        shared::world::chunk::NEIGHBOR_OFFSETS
             .into_iter()
             .filter_map(move |offset| {
                 let neighbor_coord = coord + offset;

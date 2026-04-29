@@ -1,10 +1,10 @@
-use crate::input::get_default_input_map;
+use crate::input::{get_default_input_map, get_default_local_input_map, local_actions::LocalClientAction};
 use crate::prelude::*;
 use bevy::ecs::prelude::*;
 use bevy::prelude::{Camera3d, PerspectiveProjection, Projection, Transform, Vec3};
 use leafwing_input_manager::prelude::ActionState;
-use shared::simulation::chunk::{CHUNK_SIDE_LENGTH, ChunkCoord};
-use shared::simulation::player::PlayerAction;
+use shared::world::chunk::{CHUNK_SIDE_LENGTH, ChunkCoord};
+use shared::player::PlayerAction;
 
 const DEFAULT_CAMERA_STARTING_X: f32 = (CHUNK_SIDE_LENGTH / 2) as f32;
 const DEFAULT_CAMERA_STARTING_Y: f32 = 64.0;
@@ -34,5 +34,7 @@ pub fn spawn_camera_system(mut commands: Commands) {
         ChunkCoord { pos: start_chunk },
         ActionState::<PlayerAction>::default(),
         get_default_input_map(),
+        ActionState::<LocalClientAction>::default(),
+        get_default_local_input_map(),
     ));
 }

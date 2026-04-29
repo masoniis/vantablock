@@ -5,7 +5,7 @@ use crate::simulation::terrain::{
 };
 use bevy::ecs::prelude::Resource;
 use noise::MultiFractal;
-use shared::simulation::chunk::{ChunkCoord, ChunkLod};
+use shared::world::chunk::{ChunkCoord, ChunkLod};
 
 #[derive(Resource)]
 pub struct ClimateNoiseGenerator {

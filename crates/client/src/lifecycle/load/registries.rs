@@ -14,7 +14,7 @@ use shared::{
         PersistentPathsResource,
         load::{AppStartupLoadingPhase, LoadingTaskComponent},
     },
-    simulation::block::BlockRegistry,
+    world::block::BlockRegistry,
 };
 
 /// A system that starts the asynchronous initialization of texture and block registries

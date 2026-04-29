@@ -2,7 +2,7 @@ use crate::render::chunk::OpaqueMeshComponent;
 use crate::render::chunk::VoxelMeshAsset;
 use crate::render::types::RenderTransformComponent;
 use bevy::{asset::Handle, ecs::prelude::*, render::Extract, render::sync_world::RenderEntity};
-use shared::simulation::chunk::TransformComponent;
+use shared::world::chunk::TransformComponent;
 
 // INFO: -------------------------------
 //         render app components

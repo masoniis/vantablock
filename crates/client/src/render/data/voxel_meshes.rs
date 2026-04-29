@@ -12,7 +12,7 @@ use bevy::{
     platform::collections::HashMap,
     render::Extract,
 };
-use shared::simulation::chunk::TransformComponent;
+use shared::world::chunk::TransformComponent;
 
 #[derive(Resource, Default)]
 pub struct RenderMeshStorageResource {

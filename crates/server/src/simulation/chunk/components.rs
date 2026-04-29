@@ -1,5 +1,5 @@
 use crate::simulation::terrain::BiomeMapComponent;
-use shared::simulation::chunk::{ChunkBlocksComponent, ChunkMetadata};
+use shared::world::chunk::{ChunkBlocksComponent, ChunkMetadata};
 
 pub struct GeneratedChunkComponentBundle {
     pub chunk_blocks: Option<ChunkBlocksComponent>,

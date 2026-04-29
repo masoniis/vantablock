@@ -3,8 +3,10 @@
 pub mod events;
 pub mod lifecycle;
 pub mod network;
+pub mod player;
 pub mod prelude;
-pub mod simulation;
+pub mod time;
+pub mod world;
 
 pub use prelude::*;
 
@@ -24,9 +26,10 @@ impl PluginGroup for SharedPlugins {
         PluginGroupBuilder::start::<Self>()
             .add(SharedEventsPlugin)
             .add_group(lifecycle::SharedLifecyclePlugins)
-            .add(simulation::biome::BiomePlugin)
-            .add(simulation::block::BlockPlugin)
-            .add(simulation::time::TimeControlPlugin)
+            .add(world::biome::BiomePlugin)
+            .add(world::block::BlockPlugin)
+            .add(time::TimeControlPlugin)
+            .add(player::SharedPlayerPlugin)
     }
 }
 

@@ -2,7 +2,7 @@ use crate::network::messages::ReceivedChunkDataEvent;
 use crate::render::chunk::manager::{ClientChunkManager, ClientChunkState};
 use bevy::ecs::message::MessageReader;
 use bevy::prelude::*;
-use shared::simulation::chunk::{ChunkBlocksComponent, ChunkCoord, ChunkLod};
+use shared::world::chunk::{ChunkBlocksComponent, ChunkCoord, ChunkLod};
 
 pub fn apply_received_chunk_data_system(
     mut ev_chunk: MessageReader<ReceivedChunkDataEvent>,

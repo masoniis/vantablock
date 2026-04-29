@@ -1,7 +1,7 @@
 use crate::{
     lifecycle::PersistentPathsResource,
     prelude::*,
-    simulation::block::{BlockDescription, load_block_from_str},
+    world::block::{BlockDescription, load_block_from_str},
 };
 use bevy::ecs::prelude::*;
 use std::collections::HashMap;

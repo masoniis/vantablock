@@ -84,10 +84,10 @@ lightyear = { version = "0.26.4", default-features = false, features = [
   "interpolation", # smooths out remote players walking around
   "prediction",    # essential for smooth local player movement
   # extras
-  "input_native", # input support with built-in rollback
-  "crossbeam",    # enables crossbeam as an IO layer (for client as the host on same machine)
-  "netcode",      # needed to manage distinct conns
-  "udp",          # needed for dedicated/lan
+  "leafwing",  # leafwing input support with built-in rollback
+  "crossbeam", # enables crossbeam as an IO layer (for client as the host on same machine)
+  "netcode",   # needed to manage distinct conns
+  "udp",       # needed for dedicated/lan
 ] }
 
 # general utilities

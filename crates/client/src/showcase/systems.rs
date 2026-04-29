@@ -1,9 +1,9 @@
+use crate::input::local_actions::LocalClientAction;
 use bevy::ecs::prelude::*;
 use bevy::math::{Quat, Vec3};
 use bevy::prelude::{Camera, Camera3d, Projection, Transform};
 use leafwing_input_manager::prelude::ActionState;
-use shared::simulation::player::PlayerAction;
-use shared::simulation::time::{WorldClockResource, world_clock::SECONDS_IN_A_DAY};
+use shared::time::{WorldClockResource, world_clock::SECONDS_IN_A_DAY};
 use std::time::Duration;
 
 struct Showcase {
@@ -79,7 +79,7 @@ pub fn apply_showcase_system(
             &mut Transform,
             &Camera,
             &mut Projection,
-            &ActionState<PlayerAction>,
+            &ActionState<LocalClientAction>,
         ),
         With<Camera3d>,
     >,
@@ -96,19 +96,19 @@ pub fn apply_showcase_system(
         return;
     }
 
-    let showcase_idx = if action_state.just_pressed(&PlayerAction::Showcase0) {
+    let showcase_idx = if action_state.just_pressed(&LocalClientAction::Showcase0) {
         0
-    } else if action_state.just_pressed(&PlayerAction::Showcase1) {
+    } else if action_state.just_pressed(&LocalClientAction::Showcase1) {
         1
-    } else if action_state.just_pressed(&PlayerAction::Showcase2) {
+    } else if action_state.just_pressed(&LocalClientAction::Showcase2) {
         2
-    } else if action_state.just_pressed(&PlayerAction::Showcase3) {
+    } else if action_state.just_pressed(&LocalClientAction::Showcase3) {
         3
-    } else if action_state.just_pressed(&PlayerAction::Showcase4) {
+    } else if action_state.just_pressed(&LocalClientAction::Showcase4) {
         4
-    } else if action_state.just_pressed(&PlayerAction::Showcase5) {
+    } else if action_state.just_pressed(&LocalClientAction::Showcase5) {
         5
-    } else if action_state.just_pressed(&PlayerAction::Showcase6) {
+    } else if action_state.just_pressed(&LocalClientAction::Showcase6) {
         6
     } else {
         return;

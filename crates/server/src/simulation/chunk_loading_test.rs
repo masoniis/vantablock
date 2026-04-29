@@ -8,7 +8,7 @@ mod tests {
         ClientChunkTracker, manage_player_chunk_loading_system,
     };
     use bevy::prelude::*;
-    use shared::simulation::chunk::ChunkCoord;
+    use shared::world::chunk::ChunkCoord;
 
     #[test]
     fn test_manage_player_chunk_loading() {

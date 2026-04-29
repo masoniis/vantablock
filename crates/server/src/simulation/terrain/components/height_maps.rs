@@ -1,6 +1,6 @@
 use bevy::ecs::prelude::Component;
 
-use shared::simulation::chunk::CHUNK_AREA;
+use shared::world::chunk::CHUNK_AREA;
 
 /// Heightmap of the highest non-transparent block.
 ///

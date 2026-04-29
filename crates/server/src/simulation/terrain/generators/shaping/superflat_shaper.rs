@@ -3,7 +3,7 @@ use crate::simulation::terrain::climate::ClimateMapComponent;
 use crate::simulation::terrain::generators::shaping::{
     ChunkUniformity, ShapeResultBuilder, TerrainShaper,
 };
-use shared::simulation::chunk::CHUNK_SIDE_LENGTH;
+use shared::world::chunk::CHUNK_SIDE_LENGTH;
 
 use super::realistic_shaper::REALISTIC_SEA_LEVEL;
 

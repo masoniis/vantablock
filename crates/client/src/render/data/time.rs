@@ -1,6 +1,6 @@
 use bevy::ecs::prelude::Resource;
 use bevy::render::extract_resource::ExtractResource;
-use shared::simulation::time::FrameClock;
+use shared::time::FrameClock;
 
 #[derive(Resource, Debug, Default, Clone)]
 pub struct RenderTimeResource {

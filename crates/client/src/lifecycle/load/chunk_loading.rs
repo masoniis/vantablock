@@ -3,7 +3,7 @@ use crate::render::chunk::manager::{ClientChunkManager, ClientChunkState};
 use bevy::ecs::prelude::*;
 use bevy::math::IVec3;
 use bevy::prelude::{Camera, Camera3d};
-use shared::simulation::chunk::{ChunkCoord, LOAD_DISTANCE, WORLD_MAX_Y_CHUNK, WORLD_MIN_Y_CHUNK};
+use shared::world::chunk::{ChunkCoord, LOAD_DISTANCE, WORLD_MAX_Y_CHUNK, WORLD_MIN_Y_CHUNK};
 use std::collections::HashSet;
 
 /// Determines chunks to unload/load based on the camera position and loading distance.

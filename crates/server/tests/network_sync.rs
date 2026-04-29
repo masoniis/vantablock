@@ -4,7 +4,7 @@ use server::network::systems::ClientConnection;
 use server::simulation::chunk::manager::ServerChunkManager;
 use server::simulation::chunk_loading::{ClientChunkTracker, sync_chunk_data_to_clients_system};
 use shared::network::protocol::server::ServerMessage;
-use shared::simulation::chunk::{ChunkBlocksComponent, ChunkCoord, ChunkLod};
+use shared::world::chunk::{ChunkBlocksComponent, ChunkCoord, ChunkLod};
 
 #[test]
 fn test_chunk_data_sync_to_client() {

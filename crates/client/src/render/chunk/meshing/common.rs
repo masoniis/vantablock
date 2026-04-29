@@ -2,7 +2,7 @@ use super::{OpaqueMeshData, TransparentMeshData};
 use crate::prelude::*;
 use crate::render::chunk::meshing::packed_face::PackedFace;
 use crate::render::texture::TextureId;
-use shared::simulation::{
+use shared::world::{
     block::{BlockId, BlockRegistry},
     chunk::{NeighborLODs, PaddedChunk, types::ChunkLod},
 };

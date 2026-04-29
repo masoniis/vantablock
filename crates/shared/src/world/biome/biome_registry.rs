@@ -1,7 +1,7 @@
 use crate::{
     lifecycle::PersistentPathsResource,
     prelude::*,
-    simulation::biome::biome_definition::{BiomeDefinition, load_biome_from_str},
+    world::biome::biome_definition::{BiomeDefinition, load_biome_from_str},
 };
 use bevy::asset::AssetServer;
 use bevy::ecs::prelude::*;

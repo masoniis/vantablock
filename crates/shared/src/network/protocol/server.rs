@@ -1,4 +1,4 @@
-use crate::simulation::chunk::ChunkCoord;
+use crate::world::chunk::ChunkCoord;
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 

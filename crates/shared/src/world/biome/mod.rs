@@ -8,7 +8,7 @@ pub use biome_registry::{BiomeId, BiomeRegistryResource};
 //         Biome plugin
 // ----------------------------
 
-use crate::simulation::biome::biome_registry::initialize_biome_registry_system;
+use crate::world::biome::biome_registry::initialize_biome_registry_system;
 use bevy::app::{App, Plugin, Startup};
 
 pub struct BiomePlugin;

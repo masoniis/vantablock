@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use crate::simulation::terrain::BiomeMapComponent;
 use crate::simulation::terrain::climate::ClimateMapComponent;
-use shared::simulation::{
+use shared::world::{
     biome::{BiomeId, BiomeRegistryResource},
     chunk::{ChunkCoord, VolumeDataWriter},
 };

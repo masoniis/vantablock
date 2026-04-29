@@ -3,7 +3,7 @@ use crate::simulation::chunk::datagen::gentask_components::ChunkGenerationTaskCo
 use crate::simulation::chunk::manager::{ServerChunkManager, ServerChunkState};
 use bevy::ecs::prelude::*;
 use crossbeam::channel::TryRecvError;
-use shared::simulation::chunk::ChunkCoord;
+use shared::world::chunk::ChunkCoord;
 
 /// Polls chunk generation tasks, adds generated components, and marks chunks as `Active`.
 #[instrument(skip_all)]

@@ -7,7 +7,7 @@ use server::simulation::terrain::{
     SinwaveShaper, TerrainPainter, TerrainShaper,
 };
 use shared::lifecycle::PersistentPathsResource;
-use shared::simulation::{
+use shared::world::{
     biome::biome_registry::BiomeRegistryResource,
     block::BlockRegistry,
     chunk::{

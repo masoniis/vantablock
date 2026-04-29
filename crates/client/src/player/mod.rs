@@ -13,7 +13,7 @@ pub use targeted_block::TargetedBlock;
 use bevy::app::{App, FixedUpdate, Plugin, Update};
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use leafwing_input_manager::common_conditions::action_just_pressed;
-use shared::simulation::player::PlayerAction;
+use shared::player::PlayerAction;
 
 pub struct PlayerPlugin;
 
@@ -23,7 +23,7 @@ impl Plugin for PlayerPlugin {
 
         app.add_plugins((
             CameraPlugin,
-            shared::simulation::player::actions::ActionPlugin,
+            shared::player::actions::ActionPlugin,
         ));
 
         app.add_systems(

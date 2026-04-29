@@ -1,3 +1,4 @@
+pub mod local_actions;
 pub mod resources;
 pub mod systems;
 
@@ -5,6 +6,7 @@ pub mod systems;
 //         input module plugin
 // -----------------------------------
 
+use crate::input::local_actions::LocalClientAction;
 use crate::input::resources::CursorMovement;
 use crate::input::systems::toggle_opaque_wireframe::OpaqueRenderMode;
 use crate::input::systems::{
@@ -17,7 +19,7 @@ use bevy::render::extract_resource::ExtractResourcePlugin;
 use leafwing_input_manager::common_conditions::action_just_pressed;
 use leafwing_input_manager::plugin::InputManagerPlugin;
 use leafwing_input_manager::prelude::InputMap;
-use shared::simulation::player::PlayerAction;
+use shared::player::PlayerAction;
 
 /// Provides the default input mapping for the game.
 pub fn get_default_input_map() -> InputMap<PlayerAction> {
@@ -42,38 +44,48 @@ pub fn get_default_input_map() -> InputMap<PlayerAction> {
     input_map.insert(PlayerAction::JumpGameTimeBackward, KeyCode::ArrowLeft);
     input_map.insert(PlayerAction::PauseGameTime, KeyCode::Space);
 
+    input_map
+}
+
+/// Provides the default local input mapping for the game.
+pub fn get_default_local_input_map() -> InputMap<LocalClientAction> {
+    let mut input_map = InputMap::default();
+
     // Misc
-    input_map.insert(PlayerAction::TogglePause, KeyCode::Escape);
+    input_map.insert(LocalClientAction::TogglePause, KeyCode::Escape);
 
     // Debug/analysis tools
-    input_map.insert(PlayerAction::ToggleDiagnostics, KeyCode::F1);
-    input_map.insert(PlayerAction::ToggleDiagnostics, KeyCode::KeyU);
-    input_map.insert(PlayerAction::ToggleOpaqueWireframeMode, KeyCode::F2);
-    input_map.insert(PlayerAction::ToggleOpaqueWireframeMode, KeyCode::KeyO);
-    input_map.insert(PlayerAction::ToggleChunkBorders, KeyCode::F3);
-    input_map.insert(PlayerAction::ToggleChunkBorders, KeyCode::KeyB);
+    input_map.insert(LocalClientAction::ToggleDiagnostics, KeyCode::F1);
+    input_map.insert(LocalClientAction::ToggleDiagnostics, KeyCode::KeyU);
+    input_map.insert(LocalClientAction::ToggleOpaqueWireframeMode, KeyCode::F2);
+    input_map.insert(LocalClientAction::ToggleOpaqueWireframeMode, KeyCode::KeyO);
+    input_map.insert(LocalClientAction::ToggleChunkBorders, KeyCode::F3);
+    input_map.insert(LocalClientAction::ToggleChunkBorders, KeyCode::KeyB);
 
     // Showcase actions
-    input_map.insert(PlayerAction::Showcase0, KeyCode::Digit0);
-    input_map.insert(PlayerAction::Showcase1, KeyCode::Digit1);
-    input_map.insert(PlayerAction::Showcase2, KeyCode::Digit2);
-    input_map.insert(PlayerAction::Showcase3, KeyCode::Digit3);
-    input_map.insert(PlayerAction::Showcase4, KeyCode::Digit4);
-    input_map.insert(PlayerAction::Showcase5, KeyCode::Digit5);
-    input_map.insert(PlayerAction::Showcase6, KeyCode::Digit6);
-    input_map.insert(PlayerAction::Showcase7, KeyCode::Digit7);
-    input_map.insert(PlayerAction::Showcase8, KeyCode::Digit8);
-    input_map.insert(PlayerAction::Showcase9, KeyCode::Digit9);
+    input_map.insert(LocalClientAction::Showcase0, KeyCode::Digit0);
+    input_map.insert(LocalClientAction::Showcase1, KeyCode::Digit1);
+    input_map.insert(LocalClientAction::Showcase2, KeyCode::Digit2);
+    input_map.insert(LocalClientAction::Showcase3, KeyCode::Digit3);
+    input_map.insert(LocalClientAction::Showcase4, KeyCode::Digit4);
+    input_map.insert(LocalClientAction::Showcase5, KeyCode::Digit5);
+    input_map.insert(LocalClientAction::Showcase6, KeyCode::Digit6);
+    input_map.insert(LocalClientAction::Showcase7, KeyCode::Digit7);
+    input_map.insert(LocalClientAction::Showcase8, KeyCode::Digit8);
+    input_map.insert(LocalClientAction::Showcase9, KeyCode::Digit9);
 
     input_map
 }
 
-pub struct InputModulePlugin;
+pub struct ClientInputPlugin;
 
-impl Plugin for InputModulePlugin {
+impl Plugin for ClientInputPlugin {
     fn build(&self, app: &mut App) {
-        // leafwing input manager
-        app.add_plugins(InputManagerPlugin::<PlayerAction>::default());
+        // leafwing input manager for local actions
+        app.add_plugins(InputManagerPlugin::<LocalClientAction>::default());
+
+        // Note: InputManagerPlugin for PlayerAction is now handled by SharedPlayerPlugin
+        // via lightyear's LeafwingInputPlugin.
 
         // resources
         app.insert_resource(CursorMovement::default());
@@ -88,15 +100,16 @@ impl Plugin for InputModulePlugin {
         // set desired cursor state on pause action
         app.add_systems(
             Update,
-            toggle_cursor_system.run_if(action_just_pressed(PlayerAction::TogglePause)),
+            toggle_cursor_system.run_if(action_just_pressed(LocalClientAction::TogglePause)),
         );
 
         // toggle opaque wireframe mode
         app.insert_resource(OpaqueRenderMode::default())
             .add_systems(
                 Update,
-                toggle_opaque_wireframe_mode_system
-                    .run_if(action_just_pressed(PlayerAction::ToggleOpaqueWireframeMode)),
+                toggle_opaque_wireframe_mode_system.run_if(action_just_pressed(
+                    LocalClientAction::ToggleOpaqueWireframeMode,
+                )),
             );
 
         // toggle chunk borders
@@ -105,7 +118,7 @@ impl Plugin for InputModulePlugin {
             .add_systems(
                 Update,
                 toggle_chunk_borders_system
-                    .run_if(action_just_pressed(PlayerAction::ToggleChunkBorders)),
+                    .run_if(action_just_pressed(LocalClientAction::ToggleChunkBorders)),
             );
     }
 }

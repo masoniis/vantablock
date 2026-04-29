@@ -1,7 +1,7 @@
 use crate::player::TargetedBlock;
 use bevy::ecs::prelude::MessageWriter;
 use bevy::ecs::prelude::Res;
-use shared::simulation::player::actions::voxel::{BreakVoxelEvent, PlaceVoxelEvent};
+use shared::player::actions::voxel::{BreakVoxelEvent, PlaceVoxelEvent};
 
 /// Fires a `BreakVoxelEvent` for the currently targeted block.
 pub fn break_targeted_voxel_system(

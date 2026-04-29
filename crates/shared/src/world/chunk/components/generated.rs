@@ -1,4 +1,4 @@
-use crate::simulation::block::BlockId;
+use crate::world::block::BlockId;
 use bevy::ecs::prelude::Component;
 
 /// Contains all metadata calculated during generation.

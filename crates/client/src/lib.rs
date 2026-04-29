@@ -40,7 +40,7 @@ impl PluginGroup for CoreClientLogicPlugins {
         PluginGroupBuilder::start::<Self>()
             // internal crate plugins
             .add(settings::ClientSettingsPlugin)
-            .add(input::InputModulePlugin)
+            .add(input::ClientInputPlugin)
             .add_group(lifecycle::LifecyclePlugins)
             .add(network::ClientNetworkPlugin)
             .add(player::PlayerPlugin)

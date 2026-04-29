@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use crate::simulation::chunk::{
+use crate::world::chunk::{
     CHUNK_SIDE_LENGTH, ChunkBlocksComponent, chunk_blocks::ChunkView, types::ChunkLod,
 };
 

@@ -5,7 +5,9 @@ use bevy::{
     prelude::{Camera, Camera3d, Projection, Quat, Transform},
 };
 use leafwing_input_manager::prelude::ActionState;
-use shared::simulation::{chunk::ChunkCoord, player::PlayerAction, time::FrameClock};
+use shared::player::PlayerAction;
+use shared::time::FrameClock;
+use shared::world::chunk::ChunkCoord;
 use tracing::{debug, instrument};
 
 /// The distance the near plane is set to for the camera frustum.

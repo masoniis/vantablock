@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use crate::simulation::chunk::CHUNK_SIDE_LENGTH;
+use crate::world::chunk::CHUNK_SIDE_LENGTH;
 use std::fmt::{Display, Formatter};
 use std::mem::MaybeUninit;
 use std::sync::Arc;

@@ -1,6 +1,6 @@
 use super::padded_chunk_view::PADDED_SIZE;
 use crate::prelude::*;
-use crate::simulation::block::BlockId;
+use crate::world::block::BlockId;
 use std::cell::RefCell;
 
 pub const TOTAL_BUFFER_SIZE: usize = PADDED_SIZE * PADDED_SIZE * PADDED_SIZE;

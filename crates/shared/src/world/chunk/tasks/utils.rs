@@ -1,4 +1,4 @@
-use crate::simulation::chunk::{WORLD_MAX_Y_CHUNK, WORLD_MIN_Y_CHUNK};
+use crate::world::chunk::{WORLD_MAX_Y_CHUNK, WORLD_MIN_Y_CHUNK};
 use bevy::math::IVec3;
 
 /// Offsets to find the 26 direct neighbors of a chunk.

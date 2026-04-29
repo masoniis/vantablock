@@ -12,7 +12,7 @@ use bevy::render::{
     view::ExtractedView,
 };
 use bytemuck::{Pod, Zeroable};
-use shared::simulation::chunk::{CHUNK_SIDE_LENGTH, RENDER_DISTANCE};
+use shared::world::chunk::{CHUNK_SIDE_LENGTH, RENDER_DISTANCE};
 
 // INFO: ---------------------------------
 //         uniform data definition

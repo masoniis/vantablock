@@ -4,8 +4,8 @@ use crate::render::chunk::manager::ClientChunkManager;
 use bevy::ecs::prelude::{Query, Res, ResMut, With};
 use bevy::prelude::{Camera, Camera3d};
 use bevy::transform::components::Transform;
-use shared::simulation::chunk::{ChunkCoord, chunk_blocks::ChunkView};
-use shared::simulation::{block::block_registry::AIR_BLOCK_ID, chunk::ChunkBlocksComponent};
+use shared::world::chunk::{ChunkCoord, chunk_blocks::ChunkView};
+use shared::world::{block::block_registry::AIR_BLOCK_ID, chunk::ChunkBlocksComponent};
 
 /// Max raycast traverse distance in blocks
 const RAYCAST_MAX_DIST: f32 = 8.0;

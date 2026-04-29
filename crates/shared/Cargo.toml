@@ -34,7 +34,7 @@ bytemuck = { workspace = true } # gpu friendly data
 bevy = { workspace = true }
 leafwing-input-manager = { workspace = true }
 lightyear = { workspace = true }
-futures-lite = { workspace = true } # future utils
+futures-lite = { workspace = true }           # future utils
 
 # INFO: ---------------
 #         utils

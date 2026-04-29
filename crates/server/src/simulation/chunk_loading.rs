@@ -6,7 +6,7 @@ use bevy::prelude::*;
 use lightyear::prelude::MessageSender;
 use shared::network::ChunkData;
 use shared::network::protocol::server::ServerMessage;
-use shared::simulation::chunk::{
+use shared::world::chunk::{
     ChunkBlocksComponent, ChunkCoord, ChunkLod, LOAD_DISTANCE, WORLD_MAX_Y_CHUNK, WORLD_MIN_Y_CHUNK,
 };
 use std::collections::HashSet;
@@ -150,10 +150,10 @@ fn extract_block_data(blocks: &ChunkBlocksComponent) -> Vec<u8> {
     let mut data = Vec::with_capacity(size * size * size);
 
     match view {
-        shared::simulation::chunk::ChunkView::Uniform(block_id) => {
+        shared::world::chunk::ChunkView::Uniform(block_id) => {
             data.resize(size * size * size, block_id);
         }
-        shared::simulation::chunk::ChunkView::Dense(volume_view) => {
+        shared::world::chunk::ChunkView::Dense(volume_view) => {
             // Optimally structured loop (X, Z, Y)
             for x in 0..size {
                 for z in 0..size {

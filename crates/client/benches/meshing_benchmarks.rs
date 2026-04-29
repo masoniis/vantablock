@@ -2,7 +2,7 @@ use client::render::chunk::meshing::build_chunk_mesh;
 use client::render::{block::BlockRenderDataRegistry, texture::VoxelTextureProcessor};
 use client::settings::ClientSettings;
 use criterion::{Criterion, criterion_group, criterion_main};
-use shared::simulation::{
+use shared::world::{
     block::{BlockRegistry, SOLID_BLOCK_ID},
     chunk::{
         ChunkDataOption, NeighborLODs, PaddedChunk, components::ChunkBlocksComponent,

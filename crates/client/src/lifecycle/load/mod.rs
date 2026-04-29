@@ -15,7 +15,7 @@ use bevy::state::state::OnExit;
 use chunk_loading::manage_distance_based_chunk_loading_targets_system;
 use registries::start_async_registry_initialization;
 use shared::lifecycle::state::enums::AppState;
-use shared::simulation::chunk::ChunkCoord;
+use shared::world::chunk::ChunkCoord;
 use shared::{
     SimulationLoadingPhase, cleanup_orphaned_tasks, loading_is_complete, poll_tasks,
     start_fake_work_system, transition_to,

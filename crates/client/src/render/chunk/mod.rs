@@ -9,14 +9,14 @@ pub use manager::{ClientChunkManager, ClientChunkState};
 pub use asset::VoxelMeshAsset;
 pub use components::{OpaqueMeshComponent, TransparentMeshComponent};
 use shared::FixedUpdateSet;
-pub use shared::simulation::chunk::ChunkMeshDirty;
+pub use shared::world::chunk::ChunkMeshDirty;
 
 use crate::prelude::*;
 use bevy::app::{App, FixedUpdate, Plugin, PreUpdate};
 use bevy::asset::AssetApp;
 use bevy::ecs::prelude::*;
 use bevy::prelude::{Camera, Camera3d};
-use shared::simulation::chunk::ChunkCoord;
+use shared::world::chunk::ChunkCoord;
 
 pub struct ChunkMeshingPlugin;
 
@@ -54,10 +54,10 @@ pub fn promote_newly_generated_chunks_system(
     new_data_query: Query<
         (
             Entity,
-            &shared::simulation::chunk::ChunkBlocksComponent,
+            &shared::world::chunk::ChunkBlocksComponent,
             &ChunkCoord,
         ),
-        Added<shared::simulation::chunk::ChunkBlocksComponent>,
+        Added<shared::world::chunk::ChunkBlocksComponent>,
     >,
     camera_query: Query<(&Camera, &ChunkCoord), With<Camera3d>>,
 
@@ -77,7 +77,7 @@ pub fn promote_newly_generated_chunks_system(
         return;
     };
 
-    use shared::simulation::chunk::{RENDER_DISTANCE, WORLD_MAX_Y_CHUNK, WORLD_MIN_Y_CHUNK};
+    use shared::world::chunk::{RENDER_DISTANCE, WORLD_MAX_Y_CHUNK, WORLD_MIN_Y_CHUNK};
     use tasks::meshgen::{CheckForMeshing, WantsMeshing};
 
     for (entity, _, coord) in new_data_query.iter() {
@@ -131,7 +131,7 @@ pub fn manage_distance_based_chunk_meshing_targets_system(
     };
 
     use crate::render::chunk::tasks::meshgen::{CheckForMeshing, WantsMeshing};
-    use shared::simulation::chunk::{RENDER_DISTANCE, WORLD_MAX_Y_CHUNK, WORLD_MIN_Y_CHUNK};
+    use shared::world::chunk::{RENDER_DISTANCE, WORLD_MAX_Y_CHUNK, WORLD_MIN_Y_CHUNK};
     use std::collections::HashSet;
 
     let mut desired_mesh_chunks = HashSet::new();

@@ -4,7 +4,7 @@ use bevy::asset::Handle;
 use bevy::ecs::prelude::*;
 use bevy::render::Extract;
 use bevy::render::sync_world::RenderEntity;
-use shared::simulation::chunk::TransformComponent;
+use shared::world::chunk::TransformComponent;
 
 // INFO: -------------------------------
 //         render app components
