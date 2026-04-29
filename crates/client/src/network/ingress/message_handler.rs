@@ -22,7 +22,7 @@ impl Plugin for ClientMessageHandlerPlugin {
     }
 }
 
-pub fn handle_connections(trigger: On<Add, Connected>, mut commands: Commands) {
+fn handle_connections(trigger: On<Add, Connected>, mut commands: Commands) {
     let server_entity = trigger.entity;
 
     // ensure server entity has MessageReceiver
@@ -36,7 +36,7 @@ pub fn handle_connections(trigger: On<Add, Connected>, mut commands: Commands) {
     );
 }
 
-pub fn translate_server_messages(
+fn translate_server_messages(
     mut query: Query<&mut MessageReceiver<ServerMessage>>,
     mut ev_welcome: MessageWriter<WelcomeEvent>,
     mut ev_chunk: MessageWriter<ReceivedChunkDataEvent>,

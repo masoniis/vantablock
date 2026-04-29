@@ -1,19 +1,16 @@
-pub mod local_connection;
-pub mod message_handler;
-pub mod messages;
-pub mod resources;
+pub mod connection;
+pub mod ingress;
 pub mod systems;
+
+pub use ingress::*;
 
 // INFO: ---------------------------
 //         plugin definition
 // ---------------------------------
 
-use crate::lifecycle::state::InGameState;
-use crate::network::resources::ConnectionSettings;
 use bevy::prelude::*;
 use lightyear::prelude::client as lightyear_client;
-use local_connection::setup_client;
-use shared::network::{NETWORK_TICK_DURATION, SharedNetworkPlugin};
+use shared::network::{SharedNetworkPlugin, NETWORK_TICK_DURATION};
 use std::time::Duration;
 use systems::apply_received_chunk_data_system;
 
@@ -21,21 +18,18 @@ pub struct ClientNetworkPlugin;
 
 impl Plugin for ClientNetworkPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<ConnectionSettings>();
-
         app.add_plugins((
             // lightyear plugin group
             lightyear_client::ClientPlugins {
                 tick_duration: Duration::from_secs_f64(NETWORK_TICK_DURATION),
             },
             // client's message handler
-            message_handler::ClientMessageHandlerPlugin,
+            ingress::ClientMessageHandlerPlugin,
+            connection::ClientConnectionPlugin,
         ));
 
         // (protocl) must be added AFTER lightyear plugin
         app.add_plugins(SharedNetworkPlugin);
-
-        app.add_systems(OnEnter(InGameState::Connecting), setup_client);
 
         app.add_systems(Update, apply_received_chunk_data_system);
     }
