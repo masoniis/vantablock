@@ -3,7 +3,7 @@
 pub mod lifecycle;
 pub mod network;
 pub mod prelude;
-pub mod simulation;
+pub mod world;
 
 pub use prelude::*;
 
@@ -12,8 +12,8 @@ pub use prelude::*;
 // ---------------------------------
 
 use bevy::{
-    MinimalPlugins, app::ScheduleRunnerPlugin, asset::AssetPlugin, prelude::default,
-    state::app::StatesPlugin,
+    app::ScheduleRunnerPlugin, asset::AssetPlugin, prelude::default, state::app::StatesPlugin,
+    MinimalPlugins,
 };
 use shared::SharedPlugins;
 use std::time::Duration;
@@ -26,7 +26,7 @@ impl PluginGroup for ServerCoreLogicPlugins {
         PluginGroupBuilder::start::<Self>()
             .add_group(lifecycle::ServerLifecyclePlugins)
             .add(network::ServerNetworkPlugin)
-            .add(simulation::ServerSimulationPlugin)
+            .add(world::ServerWorldPlugin)
     }
 }
 

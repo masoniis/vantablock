@@ -1,8 +1,6 @@
 use crate::network::resources::ConnectionSettings;
 use bevy::prelude::*;
-use lightyear::netcode::Key;
-use lightyear::prelude::client::*;
-use lightyear::prelude::*;
+use lightyear::{netcode::Key, prelude::client::*, prelude::*};
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 /// Sets up a basic client.

@@ -1,4 +1,4 @@
-use crate::simulation::chunk_loading::ClientChunkTracker;
+use crate::world::chunk_loading::ClientChunkTracker;
 use bevy::prelude::*;
 use lightyear::prelude::server::*;
 use lightyear::prelude::*;
