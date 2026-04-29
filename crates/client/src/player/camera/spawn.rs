@@ -1,4 +1,5 @@
 use crate::input::{get_default_input_map, get_default_local_input_map, local_actions::LocalClientAction};
+use crate::player::LocalPlayer;
 use crate::prelude::*;
 use bevy::ecs::prelude::*;
 use bevy::prelude::{Camera3d, PerspectiveProjection, Projection, Transform, Vec3};
@@ -23,6 +24,7 @@ pub fn spawn_camera_system(mut commands: Commands) {
     let start_chunk = ChunkCoord::world_to_chunk_pos(start_position);
 
     commands.spawn((
+        LocalPlayer,
         Camera3d::default(),
         Projection::Perspective(PerspectiveProjection {
             fov: 45.0f32.to_radians(),

@@ -1,3 +1,4 @@
+use crate::player::LocalPlayer;
 use bevy::{
     ecs::prelude::*,
     input::mouse::{MouseMotion, MouseWheel},
@@ -32,7 +33,7 @@ pub fn camera_movement_system(
             &mut Projection,
             &ActionState<PlayerAction>,
         ),
-        With<Camera3d>,
+        (With<Camera3d>, With<LocalPlayer>),
     >,
 ) {
     for (mut transform, camera, mut projection, action_state) in camera_query.iter_mut() {
@@ -107,7 +108,10 @@ pub fn camera_movement_system(
 /// A system to that updates the active camera's chunk chord based on its position.
 #[instrument(skip_all)]
 pub fn update_camera_chunk_chord_system(
-    mut camera_query: Query<(&Transform, &Camera, &mut ChunkCoord), With<Camera3d>>,
+    mut camera_query: Query<
+        (&Transform, &Camera, &mut ChunkCoord),
+        (With<Camera3d>, With<LocalPlayer>),
+    >,
 ) {
     for (transform, camera, mut vicinity) in camera_query.iter_mut() {
         if !camera.is_active {

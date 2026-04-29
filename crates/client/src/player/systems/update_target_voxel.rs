@@ -1,4 +1,4 @@
-use crate::player::TargetedBlock;
+use crate::player::{TargetedBlock, LocalPlayer};
 use crate::prelude::*;
 use crate::render::chunk::manager::ClientChunkManager;
 use bevy::ecs::prelude::{Query, Res, ResMut, With};
@@ -16,7 +16,10 @@ const RAYCAST_STEP: f32 = 0.1;
 #[instrument(skip_all)]
 pub fn update_targeted_block_system(
     // input
-    camera_query: Query<(&Transform, &Camera), With<Camera3d>>,
+    camera_query: Query<
+        (&Transform, &Camera),
+        (With<Camera3d>, With<LocalPlayer>),
+    >,
     chunk_manager: Res<ClientChunkManager>,
     chunks_query: Query<&ChunkBlocksComponent>,
 

@@ -1,8 +1,10 @@
 pub mod camera;
+pub mod components;
 pub mod systems;
 pub mod targeted_block;
 
 pub use camera::*;
+pub use components::*;
 pub use systems::*;
 pub use targeted_block::TargetedBlock;
 
