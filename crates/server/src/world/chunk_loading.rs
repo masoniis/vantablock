@@ -4,8 +4,8 @@ use crate::world::chunk::chunk_map::ChunkMap;
 use crate::world::chunk::components::{ActiveChunk, NeedsGenerating};
 use bevy::prelude::*;
 use lightyear::prelude::MessageSender;
-use shared::network::protocol::server::ServerMessage;
 use shared::network::ChunkData;
+use shared::network::protocol::server::ServerMessage;
 use shared::world::chunk::{
     ChunkBlocksComponent, ChunkCoord, ChunkLod, LOAD_DISTANCE, WORLD_MAX_Y_CHUNK, WORLD_MIN_Y_CHUNK,
 };
@@ -170,7 +170,7 @@ mod tests {
     use crate::world::{
         chunk::chunk_map::ChunkMap,
         chunk::components::NeedsGenerating,
-        chunk_loading::{manage_player_chunk_loading_system, ClientChunkTracker},
+        chunk_loading::{ClientChunkTracker, manage_player_chunk_loading_system},
     };
     use bevy::prelude::*;
     use shared::world::chunk::ChunkCoord;

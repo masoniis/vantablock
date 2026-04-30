@@ -1,22 +1,30 @@
-pub mod perform_connection;
 pub mod resources;
 
-pub use perform_connection::setup_client;
 pub use resources::*;
 
 // INFO: ---------------------------
 //         plugin definition
 // ---------------------------------
 
-use bevy::app::{App, Plugin};
+mod handle_connection_states;
+mod perform_connection;
+
+use bevy::app::{App, Plugin, Update};
+use perform_connection::initiate_connection_trigger;
+
+use crate::network::connection::handle_connection_states::{
+    handle_connections, handle_disconnections,
+};
 
 pub struct ClientConnectionPlugin;
 
 impl Plugin for ClientConnectionPlugin {
     fn build(&self, app: &mut App) {
-        // Triggered manually from UI, which then causes the game state connection state
-        app.add_observer(setup_client);
+        app.add_observer(initiate_connection_trigger);
 
         app.init_resource::<ConnectionSettings>();
+
+        app.add_systems(Update, handle_disconnections)
+            .add_observer(handle_connections);
     }
 }

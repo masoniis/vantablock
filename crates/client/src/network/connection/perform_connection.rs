@@ -7,7 +7,7 @@ use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 /// Sets up a basic client.
 ///
 /// https://cbournhonesque.github.io/lightyear/book/tutorial/build_client_server.html#client
-pub fn setup_client(
+pub fn initiate_connection_trigger(
     trigger: On<InitiateConnection>,
     mut commands: Commands,
     settings: Res<ConnectionSettings>,
@@ -15,6 +15,7 @@ pub fn setup_client(
     mut next_in_game_state: ResMut<NextState<InGameState>>,
 ) {
     let event = trigger.event();
+    // TODO: dont fall back to anything, just fail probably
     let server_addr: SocketAddr = event.server_addr.parse().unwrap_or_else(|_| {
         error!(
             "Failed to parse server address {}. Falling back to {}",

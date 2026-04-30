@@ -7,7 +7,7 @@ use bevy::{
     ecs::message::{MessageWriter, Messages},
     prelude::*,
 };
-use lightyear::prelude::{Connected, MessageReceiver};
+use lightyear::prelude::MessageReceiver;
 use shared::network::protocol::server::ServerMessage;
 
 pub struct ClientMessageHandlerPlugin;
@@ -17,23 +17,8 @@ impl Plugin for ClientMessageHandlerPlugin {
         app.init_resource::<Messages<WelcomeEvent>>()
             .init_resource::<Messages<ReceivedChunkDataEvent>>();
 
-        app.add_systems(Update, translate_server_messages)
-            .add_observer(handle_connections);
+        app.add_systems(Update, translate_server_messages);
     }
-}
-
-fn handle_connections(trigger: On<Add, Connected>, mut commands: Commands) {
-    let server_entity = trigger.entity;
-
-    // ensure server entity has MessageReceiver
-    commands
-        .entity(server_entity)
-        .insert(MessageReceiver::<ServerMessage>::default());
-
-    info!(
-        "Client listening for messages from server! (entity {:?})",
-        server_entity
-    );
 }
 
 fn translate_server_messages(

@@ -1,6 +1,6 @@
 use crate::player::{
-    components::{Player, PlayerLook},
     PlayerAction,
+    components::{Player, PlayerLook},
 };
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::ActionState;

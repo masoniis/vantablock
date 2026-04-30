@@ -1,5 +1,5 @@
-use crate::lifecycle::state::ClientState;
 use crate::lifecycle::SessionTopology;
+use crate::lifecycle::state::ClientState;
 use crate::network::connection::{ConnectionSettings, InitiateConnection};
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::prelude::*;
@@ -178,7 +178,7 @@ pub fn main_menu_button_interaction_system(
                 *color = BackgroundColor(Color::LinearRgba(LinearRgba::new(0.3, 0.3, 0.3, 1.0)));
                 *border_color = BorderColor::all(Color::WHITE);
 
-                // Trigger connection - this will transition state to InGame
+                // trigger connection
                 commands.trigger(InitiateConnection {
                     server_addr: settings.server_addr.clone(),
                 });

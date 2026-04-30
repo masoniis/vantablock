@@ -6,12 +6,12 @@ use crate::{
         },
         chunk::tasks::components::ChunkGenerationTaskComponent,
         terrain::{
+            ActiveBiomeGenerator, ActiveClimateGenerator, ActiveTerrainGenerator,
+            ActiveTerrainPainter, BiomeMapComponent,
             generators::{
                 biome::BiomeResultBuilder, painting::PaintResultBuilder, shaping::ChunkUniformity,
                 shaping::ShapeResultBuilder,
             },
-            ActiveBiomeGenerator, ActiveClimateGenerator, ActiveTerrainGenerator,
-            ActiveTerrainPainter, BiomeMapComponent,
         },
     },
 };
