@@ -62,13 +62,14 @@ pub fn camera_movement_system(
 
     if yoffset_scroll != 0.0 {
         for (camera, mut projection, parent) in camera_query.iter_mut() {
-            if camera.is_active && parent.get() == player_entity {
-                if let Projection::Perspective(ref mut perspective) = *projection {
-                    let mut current_fov_deg = perspective.fov.to_degrees();
-                    current_fov_deg -= yoffset_scroll;
-                    current_fov_deg = current_fov_deg.clamp(1.0, 45.0);
-                    perspective.fov = current_fov_deg.to_radians();
-                }
+            if camera.is_active
+                && parent.get() == player_entity
+                && let Projection::Perspective(ref mut perspective) = *projection
+            {
+                let mut current_fov_deg = perspective.fov.to_degrees();
+                current_fov_deg -= yoffset_scroll;
+                current_fov_deg = current_fov_deg.clamp(1.0, 45.0);
+                perspective.fov = current_fov_deg.to_radians();
             }
         }
     }

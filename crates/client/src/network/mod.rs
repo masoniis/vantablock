@@ -10,7 +10,7 @@ pub use ingress::*;
 
 use bevy::prelude::*;
 use lightyear::prelude::client as lightyear_client;
-use shared::network::{NETWORK_TICK_DURATION, SharedNetworkPlugin};
+use shared::network::{SharedNetworkPlugin, NETWORK_TICK_DURATION};
 use std::time::Duration;
 use systems::apply_received_chunk_data_system;
 
@@ -28,7 +28,7 @@ impl Plugin for ClientNetworkPlugin {
             connection::ClientConnectionPlugin,
         ));
 
-        // (protocl) must be added AFTER lightyear plugin
+        // (protocol) must be added AFTER lightyear plugin
         app.add_plugins(SharedNetworkPlugin);
 
         app.add_systems(Update, apply_received_chunk_data_system);

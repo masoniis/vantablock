@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use bevy::ecs::prelude::Resource;
 use bevy::render::extract_resource::ExtractResource;
-use shared::time::world_clock::WorldClockResource;
+use shared::time::WorldClockResource;
 
 /// Controls where the sun/sky starts LERPing to the horizon
 const SUN_HEIGHT_DAY: f32 = 0.2;
