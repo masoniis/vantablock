@@ -1,3 +1,4 @@
+use bevy::prelude::{Component, Deref, DerefMut};
 use crate::prelude::*;
 use crate::world::chunk::CHUNK_SIDE_LENGTH;
 use std::fmt::{Display, Formatter};
@@ -5,7 +6,7 @@ use std::mem::MaybeUninit;
 use std::sync::Arc;
 
 /// A type-safe wrapper for a Level of Detail value.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deref, DerefMut)]
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deref, DerefMut, Default)]
 pub struct ChunkLod(pub u8);
 
 impl Display for ChunkLod {
