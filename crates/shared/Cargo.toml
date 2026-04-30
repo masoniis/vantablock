@@ -33,8 +33,12 @@ bytemuck = { workspace = true } # gpu friendly data
 
 bevy = { workspace = true }
 leafwing-input-manager = { workspace = true }
-lightyear = { workspace = true }
-futures-lite = { workspace = true }           # future utils
+lightyear = { workspace = true, features = [
+  # shared needs these for protocol definitions
+  "interpolation", # smoothing intended for more pleasing visuals
+  "prediction",    # for local predictions agaisnt server to get snappy feedback
+] }
+futures-lite = { workspace = true } # future utils
 
 # INFO: ---------------
 #         utils

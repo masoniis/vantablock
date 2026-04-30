@@ -1,18 +1,25 @@
 use crate::player::{
     PlayerAction,
-    components::{Player, PlayerLook},
+    components::{LogicalPosition, Player, PlayerLook},
 };
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::ActionState;
 
 pub fn shared_player_movement_system(
     time: Res<Time<Fixed>>,
-    mut query: Query<(&ActionState<PlayerAction>, &PlayerLook, &mut Transform), With<Player>>,
+    mut query: Query<
+        (
+            &ActionState<PlayerAction>,
+            &PlayerLook,
+            &mut LogicalPosition,
+        ),
+        With<Player>,
+    >,
 ) {
     let delta = time.delta_secs();
     let move_speed = 20.0;
 
-    for (action_state, look, mut transform) in query.iter_mut() {
+    for (action_state, look, mut position) in query.iter_mut() {
         let mut move_dir = Vec3::ZERO;
 
         // calculate front vector based on yaw and pitch (for vertical movement)
@@ -35,7 +42,7 @@ pub fn shared_player_movement_system(
 
         if move_dir != Vec3::ZERO {
             move_dir = move_dir.normalize();
-            transform.translation += move_dir * move_speed * delta;
+            position.0 += move_dir * move_speed * delta;
         }
     }
 }

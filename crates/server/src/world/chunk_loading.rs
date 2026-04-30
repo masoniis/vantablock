@@ -5,7 +5,8 @@ use crate::world::chunk::components::{ActiveChunk, NeedsGenerating};
 use bevy::prelude::*;
 use lightyear::prelude::MessageSender;
 use shared::network::ChunkData;
-use shared::network::protocol::server::ServerMessage;
+use shared::network::protocol::ServerMessage;
+use shared::player::components::LogicalPosition;
 use shared::world::chunk::{
     ChunkBlocksComponent, ChunkCoord, ChunkLod, LOAD_DISTANCE, WORLD_MAX_Y_CHUNK, WORLD_MIN_Y_CHUNK,
 };
@@ -20,15 +21,15 @@ pub struct ClientChunkTracker {
 /// Determines which chunks each player needs and starts loading them.
 pub fn manage_player_chunk_loading_system(
     // input
-    player_query: Query<(&Transform, Entity), With<ClientConnection>>,
+    player_query: Query<(&LogicalPosition, Entity), With<ClientConnection>>,
 
     // output
     mut chunk_manager: ResMut<ChunkMap>,
     mut commands: Commands,
 ) {
-    for (transform, player_ent) in player_query.iter() {
-        trace!(target:"server_chunk_loading", "Processing player {:?} at {:?}", player_ent, transform.translation);
-        let player_pos = transform.translation;
+    for (position, player_ent) in player_query.iter() {
+        trace!(target:"server_chunk_loading", "Processing player {:?} at {:?}", player_ent, position.0);
+        let player_pos = position.0;
         let player_chunk_pos = ChunkCoord::world_to_chunk_pos(player_pos);
 
         let mut chunks_spurred_this_frame = 0;
@@ -67,18 +68,18 @@ pub fn manage_player_chunk_loading_system(
 /// Sends generated chunk data to clients that need it.
 pub fn sync_chunk_data_to_clients_system(
     // input
-    mut client_query: Query<(&Transform, &ClientConnection, &mut ClientChunkTracker)>,
+    mut client_query: Query<(&LogicalPosition, &ClientConnection, &mut ClientChunkTracker)>,
     chunk_query: Query<(&ChunkCoord, &ChunkBlocksComponent), With<ActiveChunk>>,
     chunk_manager: Res<ChunkMap>,
     mut sender_query: Query<&mut MessageSender<ServerMessage>>,
 ) {
-    for (transform, connection, mut tracker) in client_query.iter_mut() {
+    for (position, connection, mut tracker) in client_query.iter_mut() {
         let Ok(mut sender) = sender_query.get_mut(connection.client_entity) else {
             warn!("No MessageSender for client {:?}", connection.client_entity);
             continue;
         };
 
-        let player_pos = transform.translation;
+        let player_pos = position.0;
         let player_chunk_pos = ChunkCoord::world_to_chunk_pos(player_pos);
 
         let mut chunks_sent_this_frame = 0;
@@ -189,6 +190,7 @@ mod tests {
         let client_entity = app.world_mut().spawn_empty().id();
         app.world_mut().spawn((
             Transform::from_xyz(0.0, 32.0, 0.0),
+            shared::player::components::LogicalPosition(Vec3::new(0.0, 32.0, 0.0)),
             ClientConnection { client_entity },
             ClientChunkTracker::default(),
         ));

@@ -17,6 +17,6 @@ impl Plugin for SharedNetworkPlugin {
     fn build(&self, app: &mut App) {
         // the protocol must be added after the lightyear `ClientPlugins`
         // https://docs.rs/lightyear/0.26.4/lightyear/prelude/client/struct.ClientPlugins.html
-        app.add_plugins(NetworkProtocolPlugin);
+        app.add_plugins(NetworkProtocolPlugins);
     }
 }

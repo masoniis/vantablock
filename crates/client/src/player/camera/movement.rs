@@ -2,7 +2,6 @@ use crate::player::LocalPlayer;
 use bevy::ecs::relationship::Relationship;
 use bevy::{
     input::mouse::{MouseMotion, MouseWheel},
-    math::EulerRot,
     prelude::*,
 };
 use shared::player::components::PlayerLook;
@@ -22,13 +21,13 @@ pub fn camera_movement_system(
     mut mouse_wheel: MessageReader<MouseWheel>,
 
     // output
-    mut player_query: Query<(Entity, &mut PlayerLook, &mut Transform), With<LocalPlayer>>,
+    mut player_query: Query<(Entity, &mut PlayerLook), With<LocalPlayer>>,
     mut camera_query: Query<(&Camera, &mut Projection, &ChildOf), With<Camera3d>>,
 ) {
     if player_query.is_empty() {
         return;
     }
-    let (player_entity, mut look, mut transform) = player_query.single_mut().unwrap();
+    let (player_entity, mut look) = player_query.single_mut().unwrap();
 
     // update rotation using native Bevy mouse motion events
     let mut xoffset = 0.0;
@@ -49,9 +48,6 @@ pub fn camera_movement_system(
         look.pitch = look
             .pitch
             .clamp(-89.0f32.to_radians(), 89.0f32.to_radians());
-
-        // apply constrained rotation to the player transform
-        transform.rotation = Quat::from_euler(EulerRot::YXZ, look.yaw, look.pitch, 0.0);
     }
 
     // handle zoom using native Bevy mouse wheel events

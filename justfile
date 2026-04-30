@@ -84,8 +84,13 @@ test-bench:
     cargo test --benches
 
 # runs benchmarks and opens html report once finished
-bench *args:
+bench-client *args:
     cargo bench -p {{client}} {{args}}
+    @echo "Opening Criterion report..."
+    -{{ open_cmd }} target/criterion/report/index.html
+
+bench-server *args:
+    cargo bench -p {{server}} {{args}}
     @echo "Opening Criterion report..."
     -{{ open_cmd }} target/criterion/report/index.html
 

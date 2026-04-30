@@ -8,7 +8,7 @@ use bevy::{
     prelude::*,
 };
 use lightyear::prelude::MessageReceiver;
-use shared::network::protocol::server::ServerMessage;
+use shared::network::protocol::ServerMessage;
 
 pub struct ClientMessageHandlerPlugin;
 

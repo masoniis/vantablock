@@ -79,15 +79,11 @@ image = { version = "0.25.6", default-features = false, features = ["png"] }
 bevy = { version = "0.18.1", default-features = false }
 leafwing-input-manager = "0.20.0"
 lightyear = { version = "0.26.4", default-features = false, features = [
-  # subset of original defaults
-  "replication",   # allows replicating components between server and client
-  "interpolation", # smooths out remote players walking around
-  "prediction",    # essential for smooth local player movement
-  # extras
-  "leafwing",  # leafwing input support with built-in rollback
-  "crossbeam", # enables crossbeam as an IO layer (for client as the host on same machine)
-  "netcode",   # needed to manage distinct conns
-  "udp",       # needed for dedicated/lan
+  "replication", # allows replicating components between server and client
+  "leafwing",    # leafwing input support with built-in rollback
+  "crossbeam",   # enables crossbeam as an IO layer (for client as the host on same machine)
+  "netcode",     # needed to manage distinct conns
+  "udp",         # needed for dedicated/lan
 ] }
 
 # general utilities

@@ -5,7 +5,7 @@ use crate::player::LocalPlayer;
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::ActionState;
 use shared::player::PlayerAction;
-use shared::player::components::{Player, PlayerLook};
+use shared::player::components::{LogicalPosition, Player, PlayerLook};
 use shared::world::chunk::{CHUNK_SIDE_LENGTH, ChunkCoord};
 
 const DEFAULT_CAMERA_STARTING_X: f32 = (CHUNK_SIDE_LENGTH / 2) as f32;
@@ -29,6 +29,7 @@ pub fn spawn_camera_system(mut commands: Commands) {
             Player,
             LocalPlayer,
             PlayerLook::default(),
+            LogicalPosition(start_position),
             Transform::from_translation(start_position),
             ChunkCoord { pos: start_chunk },
             ActionState::<PlayerAction>::default(),

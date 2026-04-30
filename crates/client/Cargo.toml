@@ -72,10 +72,9 @@ bevy = { workspace = true, features = [
 ] }
 leafwing-input-manager = { workspace = true }
 lightyear = { workspace = true, features = [
-  # extra features for client
-  "client",  # client plugins
-  "udp",     # needed for Dedicated/LAN listening
-  "netcode", # needed to manage distinct player connections
+  "client",        # lightyear client core (plugin, etc)
+  "interpolation", # smoothing intended for more pleasing visuals
+  "prediction",    # for local predictions agaisnt server to get snappy feedback
 ] }
 futures-lite = { workspace = true } # future utils
 

@@ -1,4 +1,5 @@
 pub mod connection;
+pub mod graphics;
 pub mod ingress;
 pub mod systems;
 
@@ -19,7 +20,7 @@ pub struct ClientNetworkPlugin;
 impl Plugin for ClientNetworkPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins((
-            // lightyear plugin group
+            // lightyear plugin group and interpolation
             lightyear_client::ClientPlugins {
                 tick_duration: Duration::from_secs_f64(NETWORK_TICK_DURATION),
             },
@@ -31,6 +32,13 @@ impl Plugin for ClientNetworkPlugin {
         // (protocol) must be added AFTER lightyear plugin
         app.add_plugins(SharedNetworkPlugin);
 
-        app.add_systems(Update, apply_received_chunk_data_system);
+        app.add_systems(
+            Update,
+            (
+                apply_received_chunk_data_system,
+                graphics::smoothing::update_logical_position_smoothing,
+                graphics::smoothing::update_player_look_smoothing,
+            ),
+        );
     }
 }

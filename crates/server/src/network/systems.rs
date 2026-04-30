@@ -62,6 +62,7 @@ pub fn handle_connections(trigger: On<Add, Connected>, mut commands: Commands) {
         .spawn((
             shared::player::components::Player,
             shared::player::components::PlayerLook::default(),
+            shared::player::components::LogicalPosition(spawn_pos),
             ClientConnection { client_entity },
             ClientChunkTracker::default(),
             Transform::from_translation(spawn_pos),

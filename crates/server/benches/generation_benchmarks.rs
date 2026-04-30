@@ -1,18 +1,22 @@
 use bevy::ecs::prelude::World;
-use criterion::{Criterion, criterion_group, criterion_main};
-use server::prelude::*;
-use server::world::terrain::{
-    BasicBiomeGenerator, BiomeGenerator, BiomeMapComponent, BiomeResultBuilder, ClimateGenerator,
-    ClimateNoiseGenerator, PaintResultBuilder, ShapeResultBuilder, SimpleSurfacePainter,
-    SinwaveShaper, TerrainPainter, TerrainShaper,
+use criterion::{criterion_group, criterion_main, Criterion};
+use server::{
+    prelude::*,
+    world::terrain::{
+        BasicBiomeGenerator, BiomeGenerator, BiomeMapComponent, BiomeResultBuilder,
+        ClimateGenerator, ClimateNoiseGenerator, PaintResultBuilder, ShapeResultBuilder,
+        SimpleSurfacePainter, SinwaveShaper, TerrainPainter, TerrainShaper,
+    },
 };
-use shared::lifecycle::PersistentPathsResource;
-use shared::world::{
-    biome::biome_registry::BiomeRegistryResource,
-    block::BlockRegistry,
-    chunk::{
-        components::{ChunkBlocksComponent, ChunkCoord},
-        types::ChunkLod,
+use shared::{
+    lifecycle::PersistentPathsResource,
+    world::{
+        biome::biome_registry::BiomeRegistryResource,
+        block::BlockRegistry,
+        chunk::{
+            components::{ChunkBlocksComponent, ChunkCoord},
+            types::ChunkLod,
+        },
     },
 };
 use utils::PersistentPaths;
