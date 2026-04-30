@@ -1,6 +1,8 @@
-use crate::lifecycle::SessionTopology;
-use crate::lifecycle::state::ClientState;
-use crate::network::connection::{ConnectionSettings, InitiateConnection};
+use crate::{
+    lifecycle::state::ClientState,
+    lifecycle::SessionTopology,
+    network::connection::{ConnectionSettings, InitiateConnection},
+};
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::prelude::*;
 use shared::events::RequestSingleplayerSession;

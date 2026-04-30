@@ -1,5 +1,10 @@
 use bevy::prelude::*;
 
+#[derive(Event, Debug, Clone)]
+pub struct NetworkErrorEvent {
+    pub reason: String,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConnectType {
     Singleplayer,
