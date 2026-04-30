@@ -49,6 +49,14 @@ impl Plugin for VantablockUiPlugin {
             screens::connecting::spawn_connecting_ui,
         );
 
+        // settings ui
+        app.add_systems(OnEnter(InGameState::Paused), screens::settings::spawn_settings_ui)
+            .add_systems(
+                Update,
+                screens::settings::settings_button_interaction_system
+                    .run_if(in_state(InGameState::Paused)),
+            );
+
         // disconnected ui
         // it is spawned via trigger NetworkErrorEvent
         app.add_observer(screens::disconnected::spawn_disconnected_ui);

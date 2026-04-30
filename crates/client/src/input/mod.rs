@@ -6,19 +6,26 @@ pub mod systems;
 //         input module plugin
 // -----------------------------------
 
-use crate::input::local_actions::LocalClientAction;
-use crate::input::resources::CursorMovement;
-use crate::input::systems::toggle_opaque_wireframe::OpaqueRenderMode;
-use crate::input::systems::{
-    toggle_chunk_borders::ChunkBoundsToggle, toggle_chunk_borders_system, toggle_cursor_system,
-    toggle_opaque_wireframe_mode_system,
+use crate::{
+    input::{
+        local_actions::LocalClientAction,
+        resources::CursorMovement,
+        systems::toggle_opaque_wireframe::OpaqueRenderMode,
+        systems::{
+            toggle_chunk_borders::ChunkBoundsToggle, toggle_chunk_borders_system,
+            toggle_cursor_system, toggle_opaque_wireframe_mode_system, toggle_pause_system,
+        },
+    },
+    lifecycle::state::enums::InGameState,
 };
-use bevy::app::{App, Plugin, PreUpdate, Update};
-use bevy::prelude::{IntoScheduleConfigs, KeyCode, MouseButton};
-use bevy::render::extract_resource::ExtractResourcePlugin;
-use leafwing_input_manager::common_conditions::action_just_pressed;
-use leafwing_input_manager::plugin::InputManagerPlugin;
-use leafwing_input_manager::prelude::InputMap;
+use bevy::{
+    app::{App, Plugin, PreUpdate, Update},
+    prelude::{in_state, IntoScheduleConfigs, KeyCode, MouseButton, OnEnter, SystemCondition},
+    render::extract_resource::ExtractResourcePlugin,
+};
+use leafwing_input_manager::{
+    common_conditions::action_just_pressed, plugin::InputManagerPlugin, prelude::InputMap,
+};
 use shared::player::PlayerAction;
 
 /// Provides the default input mapping for the game.
@@ -100,8 +107,15 @@ impl Plugin for ClientInputPlugin {
         // set desired cursor state on pause action
         app.add_systems(
             Update,
-            toggle_cursor_system.run_if(action_just_pressed(LocalClientAction::TogglePause)),
+            toggle_pause_system.run_if(
+                action_just_pressed(LocalClientAction::TogglePause)
+                    .and(in_state(InGameState::Playing).or(in_state(InGameState::Paused))),
+            ),
         );
+
+        // cursor management based on game state
+        app.add_systems(OnEnter(InGameState::Playing), toggle_cursor_system)
+            .add_systems(OnEnter(InGameState::Paused), toggle_cursor_system);
 
         // toggle opaque wireframe mode
         app.insert_resource(OpaqueRenderMode::default())
