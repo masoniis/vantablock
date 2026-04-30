@@ -1,12 +1,12 @@
 use crate::prelude::*;
 use crate::render::passes::transparent::extract::TransparentRenderMeshComponent;
 use crate::render::passes::transparent::startup::{TransparentPipeline, TransparentPipelineKey};
-use crate::render::types::RenderTransformComponent;
 use bevy::ecs::prelude::*;
 use bevy::render::render_resource::{
     CachedRenderPipelineId, PipelineCache, SpecializedRenderPipelines,
 };
 use bevy::render::view::{ExtractedView, Msaa};
+use bevy::transform::components::GlobalTransform;
 
 #[derive(Debug)]
 pub struct PhaseItem {
@@ -28,11 +28,7 @@ pub struct Transparent3dRenderPhase {
 pub fn queue_and_prepare_transparent_system(
     // input
     mut views_query: Query<(&ExtractedView, &Msaa, &mut Transparent3dRenderPhase)>,
-    meshes_query: Query<(
-        Entity,
-        &TransparentRenderMeshComponent,
-        &RenderTransformComponent,
-    )>,
+    meshes_query: Query<(Entity, &TransparentRenderMeshComponent, &GlobalTransform)>,
     pipeline_cache: Res<PipelineCache>,
     mut specialized_pipelines: ResMut<SpecializedRenderPipelines<TransparentPipeline>>,
     transparent_pipeline: Res<TransparentPipeline>,
@@ -55,7 +51,7 @@ pub fn queue_and_prepare_transparent_system(
         for (entity, _mesh, transform) in meshes_query.iter() {
             // TODO: frustum culling here using view.frustum or Bevy's ViewVisibility
 
-            let object_position = transform.transform.w_axis.truncate();
+            let object_position = transform.translation();
             let distance_from_camera = (object_position - camera_position).length_squared();
 
             sortable_items.push(PhaseItem {

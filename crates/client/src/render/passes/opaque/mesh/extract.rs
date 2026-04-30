@@ -1,8 +1,9 @@
 use crate::render::chunk::OpaqueMeshComponent;
 use crate::render::chunk::VoxelMeshAsset;
-use crate::render::types::RenderTransformComponent;
-use bevy::{asset::Handle, ecs::prelude::*, render::Extract, render::sync_world::RenderEntity};
-use shared::world::chunk::TransformComponent;
+use bevy::{
+    asset::Handle, ecs::prelude::*, render::Extract, render::sync_world::RenderEntity,
+    transform::components::GlobalTransform,
+};
 
 // INFO: -------------------------------
 //         render app components
@@ -21,16 +22,14 @@ pub struct OpaqueRenderMeshComponent {
 /// A system that extracts opaque meshes from the simulation world into the render world.
 pub fn extract_opaque_meshes(
     mut commands: Commands,
-    query: Extract<Query<(&RenderEntity, &OpaqueMeshComponent, &TransformComponent)>>,
+    query: Extract<Query<(&RenderEntity, &OpaqueMeshComponent, &GlobalTransform)>>,
 ) {
     for (render_entity, mesh, transform) in query.iter() {
         commands.entity(render_entity.id()).insert((
             OpaqueRenderMeshComponent {
                 mesh_handle: mesh.mesh_handle.clone(),
             },
-            RenderTransformComponent {
-                transform: transform.to_matrix(),
-            },
+            *transform,
         ));
     }
 }

@@ -11,8 +11,8 @@ pub use utils::*;
 // -------------------------------------
 
 pub use bevy::math::{
-    vec2, vec3, vec4, FloatExt, IVec2, IVec3, IVec4, Mat3, Mat4, Quat, Vec2, Vec3, Vec4,
-    Vec4Swizzles,
+    FloatExt, IVec2, IVec3, IVec4, Mat3, Mat4, Quat, Vec2, Vec3, Vec4, Vec4Swizzles, vec2, vec3,
+    vec4,
 };
 pub use derive_more::{Deref, DerefMut};
 pub use std::f32::consts::{FRAC_PI_2, PI};

@@ -1,16 +1,15 @@
 use crate::prelude::*;
-use crate::render::block::BlockRenderDataRegistry;
-use crate::render::chunk::{
-    ClientChunkManager, ClientChunkState, OpaqueMeshComponent, TransparentMeshComponent,
-    VoxelMeshAsset,
-    meshing::build_chunk_mesh,
-    tasks::meshgen::{CheckForMeshing, WantsMeshing, components::ChunkMeshingTaskComponent},
+use crate::render::{
+    block::BlockRenderDataRegistry,
+    chunk::{
+        ClientChunkManager, ClientChunkState, OpaqueMeshComponent, TransparentMeshComponent,
+        VoxelMeshAsset,
+        meshing::build_chunk_mesh,
+        tasks::meshgen::{CheckForMeshing, WantsMeshing, components::ChunkMeshingTaskComponent},
+    },
 };
-use bevy::asset::Assets;
-use bevy::ecs::prelude::*;
-use bevy::tasks::AsyncComputeTaskPool;
+use bevy::{asset::Assets, ecs::prelude::*, prelude::*, tasks::AsyncComputeTaskPool};
 use crossbeam::channel::{TryRecvError, unbounded};
-use shared::world::chunk::TransformComponent;
 use shared::world::{
     block::BlockRegistry,
     chunk::{
@@ -274,15 +273,14 @@ pub fn poll_chunk_meshing_tasks(
                         // insert to world
                         commands
                             .entity(entity)
-                            .insert(TransformComponent {
-                                position: Vec3::new(
+                            .insert((
+                                Transform::from_translation(Vec3::new(
                                     (coord.x * CHUNK_SIDE_LENGTH as i32) as f32,
                                     (coord.y * CHUNK_SIDE_LENGTH as i32) as f32,
                                     (coord.z * CHUNK_SIDE_LENGTH as i32) as f32,
-                                ),
-                                rotation: Quat::IDENTITY,
-                                scale: Vec3::ONE,
-                            })
+                                )),
+                                Visibility::default(),
+                            ))
                             .remove::<ChunkMeshingTaskComponent>();
 
                         chunk_manager.mark_as_rendered(coord.pos, entity);

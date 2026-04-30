@@ -11,10 +11,7 @@ pub enum SettingsButtonAction {
     Disconnect,
 }
 
-pub fn spawn_settings_ui(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-) {
+pub fn spawn_settings_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
     info!("Spawning Settings UI...");
 
     let font = asset_server.load("client/font/Recursive_variable.ttf");
@@ -49,12 +46,7 @@ pub fn spawn_settings_ui(
                 },
             ));
 
-            spawn_button(
-                parent,
-                font.clone(),
-                "RESUME",
-                SettingsButtonAction::Resume,
-            );
+            spawn_button(parent, font.clone(), "RESUME", SettingsButtonAction::Resume);
 
             parent.spawn(Node {
                 height: Val::Px(20.0),

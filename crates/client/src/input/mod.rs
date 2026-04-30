@@ -22,7 +22,7 @@ use crate::{
 use bevy::{
     app::{App, Plugin, PreUpdate, Update},
     prelude::{
-        in_state, IntoScheduleConfigs, KeyCode, MouseButton, OnEnter, OnExit, SystemCondition,
+        IntoScheduleConfigs, KeyCode, MouseButton, OnEnter, OnExit, SystemCondition, in_state,
     },
     render::extract_resource::ExtractResourcePlugin,
 };

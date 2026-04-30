@@ -1,4 +1,5 @@
 use bevy::{ecs::system::RunSystemOnce, prelude::*};
+use shared::network::DEFAULT_LOCAL_SERVER_ADDR;
 use std::time::{Duration, Instant};
 use {
     client::network::{
@@ -7,7 +8,6 @@ use {
     },
     server::network::{ServerNetworkPlugin, systems::start_udp_server},
 };
-use shared::network::DEFAULT_LOCAL_SERVER_ADDR;
 
 pub struct UdpClientServerTestEnvironment {
     pub server_app: App,

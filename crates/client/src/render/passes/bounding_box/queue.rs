@@ -2,12 +2,9 @@ use crate::player::TargetedBlock;
 use crate::{
     input::systems::toggle_chunk_borders::ChunkBoundsToggle,
     prelude::*,
-    render::{
-        passes::bounding_box::gpu_resources::{
-            WireframeObjectBuffer, WireframeObjectData,
-            object_binding::WireframeObjectBindGroupLayout, wireframe_pipeline::*,
-        },
-        types::RenderTransformComponent,
+    render::passes::bounding_box::gpu_resources::{
+        WireframeObjectBuffer, WireframeObjectData, object_binding::WireframeObjectBindGroupLayout,
+        wireframe_pipeline::*,
     },
 };
 use bevy::{
@@ -20,6 +17,7 @@ use bevy::{
         renderer::{RenderDevice, RenderQueue},
         view::{ExtractedView, Msaa},
     },
+    transform::components::GlobalTransform,
 };
 use shared::world::chunk::consts::{CHUNK_DEPTH, CHUNK_HEIGHT, CHUNK_WIDTH};
 
@@ -35,7 +33,7 @@ pub fn queue_wireframe_system(
     queue: Res<RenderQueue>,
     device: Res<RenderDevice>,
     object_layout: Res<WireframeObjectBindGroupLayout>,
-    chunk_query: Query<&RenderTransformComponent>,
+    chunk_query: Query<&GlobalTransform>,
     active_bounds: Res<ChunkBoundsToggle>,
     targeted_block: Res<TargetedBlock>,
     pipeline_cache: Res<PipelineCache>,
@@ -79,7 +77,7 @@ pub fn queue_wireframe_system(
         ));
 
         for transform in chunk_query.iter() {
-            let model_matrix = transform.transform * translation_matrix * scale_matrix;
+            let model_matrix = transform.to_matrix() * translation_matrix * scale_matrix;
 
             wireframe_buffer.objects.push(WireframeObjectData {
                 model_matrix: model_matrix.to_cols_array(),
