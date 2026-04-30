@@ -1,11 +1,10 @@
 use crate::{
     lifecycle::state::ClientState,
-    lifecycle::SessionTopology,
-    network::connection::{ConnectionSettings, InitiateConnection},
+    network::connection::{ConnectType, InitiateConnection},
 };
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::prelude::*;
-use shared::events::RequestSingleplayerSession;
+use shared::network::DEFAULT_LOCAL_SERVER_ADDR;
 
 #[derive(Component)]
 pub struct MainMenuUiRoot;
@@ -19,11 +18,7 @@ pub enum MainMenuButtonAction {
 #[derive(Component)]
 pub struct ServerAddrInput;
 
-pub fn spawn_main_menu(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    settings: Res<ConnectionSettings>,
-) {
+pub fn spawn_main_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
     info!("Spawning Main Menu UI...");
 
     let font = asset_server.load("client/font/Recursive_variable.ttf");
@@ -112,7 +107,7 @@ pub fn spawn_main_menu(
                 ))
                 .with_children(|parent| {
                     parent.spawn((
-                        Text::new(settings.server_addr.clone()),
+                        Text::new(DEFAULT_LOCAL_SERVER_ADDR),
                         TextFont {
                             font: font.clone(),
                             font_size: 24.0,
@@ -170,9 +165,7 @@ pub fn main_menu_button_interaction_system(
         (Changed<Interaction>, With<Button>),
     >,
     mut commands: Commands,
-    mut session_topology: ResMut<NextState<SessionTopology>>,
-    settings: Res<ConnectionSettings>,
-    mut ev_request_session: MessageWriter<RequestSingleplayerSession>,
+    server_addr_query: Query<&Text, With<ServerAddrInput>>,
 ) {
     for (interaction, mut color, mut border_color, action) in interaction_query.iter_mut() {
         match *interaction {
@@ -180,18 +173,20 @@ pub fn main_menu_button_interaction_system(
                 *color = BackgroundColor(Color::LinearRgba(LinearRgba::new(0.3, 0.3, 0.3, 1.0)));
                 *border_color = BorderColor::all(Color::WHITE);
 
-                // trigger connection
-                commands.trigger(InitiateConnection {
-                    server_addr: settings.server_addr.clone(),
-                });
+                let server_addr = server_addr_query.single().unwrap().0.clone();
 
                 match action {
                     MainMenuButtonAction::Singleplayer => {
-                        session_topology.set(SessionTopology::Internal);
-                        ev_request_session.write(RequestSingleplayerSession);
+                        commands.trigger(InitiateConnection {
+                            connect_type: ConnectType::Singleplayer,
+                            server_addr,
+                        });
                     }
                     MainMenuButtonAction::Multiplayer => {
-                        session_topology.set(SessionTopology::External);
+                        commands.trigger(InitiateConnection {
+                            connect_type: ConnectType::Multiplayer,
+                            server_addr,
+                        });
                     }
                 }
             }
@@ -209,9 +204,12 @@ pub fn main_menu_button_interaction_system(
 
 pub fn main_menu_text_input_system(
     mut char_evr: MessageReader<KeyboardInput>,
-    mut settings: ResMut<ConnectionSettings>,
     mut query: Query<&mut Text, With<ServerAddrInput>>,
 ) {
+    let Ok(mut text) = query.single_mut() else {
+        return;
+    };
+
     for event in char_evr.read() {
         if !event.state.is_pressed() {
             continue;
@@ -219,16 +217,12 @@ pub fn main_menu_text_input_system(
 
         match &event.logical_key {
             Key::Character(c) => {
-                settings.server_addr.push_str(c.as_str());
+                text.0.push_str(c.as_str());
             }
             Key::Backspace => {
-                settings.server_addr.pop();
+                text.0.pop();
             }
             _ => {}
         }
-    }
-
-    if let Ok(mut text) = query.single_mut() {
-        text.0 = settings.server_addr.clone();
     }
 }

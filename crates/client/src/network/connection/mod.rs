@@ -22,8 +22,6 @@ impl Plugin for ClientConnectionPlugin {
     fn build(&self, app: &mut App) {
         app.add_observer(initiate_connection_trigger);
 
-        app.init_resource::<ConnectionSettings>();
-
         app.add_systems(Update, handle_disconnections)
             .add_observer(handle_connections);
     }
