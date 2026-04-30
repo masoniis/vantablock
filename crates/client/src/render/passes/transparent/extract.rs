@@ -1,10 +1,9 @@
 use crate::render::chunk::{TransparentMeshComponent, VoxelMeshAsset};
-use crate::render::types::RenderTransformComponent;
 use bevy::asset::Handle;
 use bevy::ecs::prelude::*;
 use bevy::render::Extract;
 use bevy::render::sync_world::RenderEntity;
-use shared::world::chunk::TransformComponent;
+use bevy::transform::components::GlobalTransform;
 
 // INFO: -------------------------------
 //         render app components
@@ -23,22 +22,14 @@ pub struct TransparentRenderMeshComponent {
 /// A system that extracts transparent meshes from the simulation world into the render world.
 pub fn extract_transparent_meshes(
     mut commands: Commands,
-    query: Extract<
-        Query<(
-            &RenderEntity,
-            &TransparentMeshComponent,
-            &TransformComponent,
-        )>,
-    >,
+    query: Extract<Query<(&RenderEntity, &TransparentMeshComponent, &GlobalTransform)>>,
 ) {
     for (render_entity, mesh, transform) in query.iter() {
         commands.entity(render_entity.id()).insert((
             TransparentRenderMeshComponent {
                 mesh_handle: mesh.mesh_handle.clone(),
             },
-            RenderTransformComponent {
-                transform: transform.to_matrix(),
-            },
+            *transform,
         ));
     }
 }

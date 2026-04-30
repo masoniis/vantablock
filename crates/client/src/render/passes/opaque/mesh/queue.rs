@@ -1,19 +1,17 @@
 use crate::{
     input::systems::toggle_opaque_wireframe::OpaqueRenderMode,
     prelude::*,
-    render::{
-        passes::opaque::{
-            extract::OpaqueRenderMeshComponent,
-            pipeline::{Opaque3dPipeline, Opaque3dPipelineKey},
-            skybox::{OpaqueSkyboxPipeline, OpaqueSkyboxPipelineKey},
-        },
-        types::RenderTransformComponent,
+    render::passes::opaque::{
+        extract::OpaqueRenderMeshComponent,
+        pipeline::{Opaque3dPipeline, Opaque3dPipelineKey},
+        skybox::{OpaqueSkyboxPipeline, OpaqueSkyboxPipelineKey},
     },
 };
 use bevy::{
     ecs::prelude::*,
     render::render_resource::{CachedRenderPipelineId, PipelineCache, SpecializedRenderPipelines},
     render::view::{ExtractedView, Msaa},
+    transform::components::GlobalTransform,
 };
 
 #[derive(Debug)]
@@ -43,11 +41,7 @@ struct SortableOpaqueItem {
 pub fn queue_opaque_system(
     // input
     mut views_query: Query<(&ExtractedView, &Msaa, &mut Opaque3dRenderPhase)>,
-    meshes_query: Query<(
-        Entity,
-        &OpaqueRenderMeshComponent,
-        &RenderTransformComponent,
-    )>,
+    meshes_query: Query<(Entity, &OpaqueRenderMeshComponent, &GlobalTransform)>,
     render_mode: Res<OpaqueRenderMode>,
     pipeline_cache: Res<PipelineCache>,
     mut specialized_world_pipelines: ResMut<SpecializedRenderPipelines<Opaque3dPipeline>>,
@@ -86,7 +80,7 @@ pub fn queue_opaque_system(
             Vec::with_capacity(meshes_query.iter().len());
         for (entity, _mesh, transform) in meshes_query.iter() {
             // TODO: frustum culling
-            let object_position = transform.transform.w_axis.truncate();
+            let object_position = transform.translation();
             let distance_from_camera = (object_position - camera_position).length_squared();
 
             sortable_items.push(SortableOpaqueItem {

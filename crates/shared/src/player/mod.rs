@@ -3,7 +3,6 @@ pub mod components;
 pub mod movement;
 pub mod player_action;
 
-use movement::shared_player_movement_system;
 pub use player_action::PlayerAction;
 
 // INFO: ---------------------------
@@ -12,6 +11,7 @@ pub use player_action::PlayerAction;
 
 use bevy::prelude::*;
 use lightyear::prelude::input::leafwing::InputPlugin;
+use movement::shared_player_movement_system;
 
 /// A plugin that handles shared player logic.
 pub struct SharedPlayerPlugin;

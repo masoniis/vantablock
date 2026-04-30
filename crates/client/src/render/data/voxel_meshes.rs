@@ -11,8 +11,8 @@ use bevy::{
     },
     platform::collections::HashMap,
     render::Extract,
+    transform::components::Transform,
 };
-use shared::world::chunk::TransformComponent;
 
 #[derive(Resource, Default)]
 pub struct RenderMeshStorageResource {
@@ -34,13 +34,13 @@ pub fn extract_modified_voxel_meshes(
     assets: Extract<Res<Assets<VoxelMeshAsset>>>,
     opaque_meshes: Extract<
         Query<
-            (&OpaqueMeshComponent, &TransformComponent),
+            (&OpaqueMeshComponent, &Transform),
             Or<(Added<OpaqueMeshComponent>, Changed<OpaqueMeshComponent>)>,
         >,
     >,
     transparent_meshes: Extract<
         Query<
-            (&TransparentMeshComponent, &TransformComponent),
+            (&TransparentMeshComponent, &Transform),
             Or<(
                 Added<TransparentMeshComponent>,
                 Changed<TransparentMeshComponent>,
@@ -53,17 +53,21 @@ pub fn extract_modified_voxel_meshes(
     // process mesh additions and modifications via component change detection
     for (mesh, transform) in opaque_meshes.iter() {
         if let Some(asset) = assets.get(&mesh.mesh_handle) {
-            upload_queue
-                .additions
-                .push((mesh.mesh_handle.id(), asset.clone(), transform.position));
+            upload_queue.additions.push((
+                mesh.mesh_handle.id(),
+                asset.clone(),
+                transform.translation,
+            ));
         }
     }
 
     for (mesh, transform) in transparent_meshes.iter() {
         if let Some(asset) = assets.get(&mesh.mesh_handle) {
-            upload_queue
-                .additions
-                .push((mesh.mesh_handle.id(), asset.clone(), transform.position));
+            upload_queue.additions.push((
+                mesh.mesh_handle.id(),
+                asset.clone(),
+                transform.translation,
+            ));
         }
     }
 

@@ -3,7 +3,7 @@ use bevy::ecs::prelude::*;
 use bevy::math::{Quat, Vec3};
 use bevy::prelude::{Camera, Camera3d, Projection, Transform};
 use leafwing_input_manager::prelude::ActionState;
-use shared::time::{WorldClockResource, SECONDS_IN_A_DAY};
+use shared::time::{SECONDS_IN_A_DAY, WorldClockResource};
 use std::time::Duration;
 
 struct Showcase {

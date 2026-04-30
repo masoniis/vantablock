@@ -11,8 +11,8 @@ pub mod root;
 
 mod screens;
 
-use crate::lifecycle::{state::ClientState, SimulationState};
 use crate::lifecycle::state::enums::InGameState;
+use crate::lifecycle::{SimulationState, state::ClientState};
 use bevy::prelude::*;
 use shared::lifecycle::state::enums::AppState;
 
@@ -50,17 +50,20 @@ impl Plugin for VantablockUiPlugin {
         );
 
         // settings ui
-        app.add_systems(OnEnter(InGameState::Paused), screens::settings::spawn_settings_ui)
-            .add_systems(
-                Update,
-                screens::settings::settings_button_interaction_system
-                    .run_if(in_state(InGameState::Paused)),
-            );
+        app.add_systems(
+            OnEnter(InGameState::Paused),
+            screens::settings::spawn_settings_ui,
+        )
+        .add_systems(
+            Update,
+            screens::settings::settings_button_interaction_system
+                .run_if(in_state(InGameState::Paused)),
+        );
 
         // disconnected ui
         // it is spawned via trigger NetworkErrorEvent
         app.add_observer(screens::disconnected::spawn_disconnected_ui);
-        
+
         app.add_systems(
             Update,
             screens::disconnected::disconnected_ui_button_interaction_system

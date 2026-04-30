@@ -10,7 +10,7 @@ pub use ingress::*;
 
 use bevy::prelude::*;
 use lightyear::prelude::client as lightyear_client;
-use shared::network::{SharedNetworkPlugin, NETWORK_TICK_DURATION};
+use shared::network::{NETWORK_TICK_DURATION, SharedNetworkPlugin};
 use std::time::Duration;
 use systems::apply_received_chunk_data_system;
 
