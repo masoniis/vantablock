@@ -1,9 +1,13 @@
 use bevy::{ecs::system::RunSystemOnce, prelude::*};
 use std::time::{Duration, Instant};
 use {
-    client::network::{ClientNetworkPlugin, connection::InitiateConnection},
+    client::network::{
+        ClientNetworkPlugin,
+        connection::{ConnectType, InitiateConnection},
+    },
     server::network::{ServerNetworkPlugin, systems::start_udp_server},
 };
+use shared::network::DEFAULT_LOCAL_SERVER_ADDR;
 
 pub struct UdpClientServerTestEnvironment {
     pub server_app: App,
@@ -33,7 +37,8 @@ impl Default for UdpClientServerTestEnvironment {
 
         // setup client
         client_app.world_mut().trigger(InitiateConnection {
-            server_addr: "127.0.0.1:5000".to_string(),
+            connect_type: ConnectType::Multiplayer,
+            server_addr: DEFAULT_LOCAL_SERVER_ADDR.to_string(),
         });
 
         Self {

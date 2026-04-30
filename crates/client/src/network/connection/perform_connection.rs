@@ -1,7 +1,8 @@
-use crate::lifecycle::{ClientState, InGameState};
-use crate::network::connection::{ConnectionSettings, InitiateConnection};
+use crate::lifecycle::{ClientState, InGameState, SessionTopology};
+use crate::network::connection::{ConnectType, InitiateConnection};
 use bevy::prelude::*;
 use lightyear::{netcode::Key, prelude::client::*, prelude::*};
+use shared::events::RequestSingleplayerSession;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 /// Sets up a basic client.
@@ -10,22 +11,34 @@ use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 pub fn initiate_connection_trigger(
     trigger: On<InitiateConnection>,
     mut commands: Commands,
-    settings: Res<ConnectionSettings>,
     mut next_client_state: ResMut<NextState<ClientState>>,
     mut next_in_game_state: ResMut<NextState<InGameState>>,
+    mut next_session_topology: ResMut<NextState<SessionTopology>>,
+    mut ev_request_session: MessageWriter<RequestSingleplayerSession>,
 ) {
     let event = trigger.event();
-    // TODO: dont fall back to anything, just fail probably
-    let server_addr: SocketAddr = event.server_addr.parse().unwrap_or_else(|_| {
-        error!(
-            "Failed to parse server address {}. Falling back to {}",
-            event.server_addr, settings.server_addr
-        );
-        settings
-            .server_addr
-            .parse()
-            .unwrap_or_else(|_| "127.0.0.1:5000".parse().unwrap())
-    });
+
+    // handle session topology and singleplayer requests
+    match event.connect_type {
+        ConnectType::Singleplayer => {
+            next_session_topology.set(SessionTopology::Internal);
+            ev_request_session.write(RequestSingleplayerSession);
+        }
+        ConnectType::Multiplayer => {
+            next_session_topology.set(SessionTopology::External);
+        }
+    }
+
+    let server_addr: SocketAddr = match event.server_addr.parse() {
+        Ok(addr) => addr,
+        Err(e) => {
+            error!(
+                "Failed to parse server address '{}': {}. Aborting connection.",
+                event.server_addr, e
+            );
+            return;
+        }
+    };
 
     let client_addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 0));
 

@@ -2,7 +2,7 @@ use crate::world::chunk_loading::ClientChunkTracker;
 use bevy::prelude::*;
 use lightyear::prelude::server::*;
 use lightyear::prelude::*;
-use shared::network::{ChatAndSystem, NETWORK_DEFAULT_PORT, ServerMessage};
+use shared::network::{ChatAndSystem, DEFAULT_SERVER_PORT, ServerMessage};
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use tracing::{error, info};
 
@@ -20,7 +20,7 @@ pub struct MessageTimer(pub Timer);
 pub fn start_udp_server(mut commands: Commands) {
     let server_addr = SocketAddr::V4(SocketAddrV4::new(
         Ipv4Addr::UNSPECIFIED,
-        NETWORK_DEFAULT_PORT,
+        DEFAULT_SERVER_PORT,
     ));
 
     info!("Starting server listening on {}...", server_addr);
