@@ -1,8 +1,9 @@
 use bevy::prelude::*;
 use lightyear::prelude::MessageSender;
 use server::network::systems::ClientConnection;
-use server::world::chunk::manager::ServerChunkManager;
-use server::world::chunk_loading::{ClientChunkTracker, sync_chunk_data_to_clients_system};
+use server::world::chunk::chunk_map::ChunkMap;
+use server::world::chunk::components::ActiveChunk;
+use server::world::chunk_loading::{sync_chunk_data_to_clients_system, ClientChunkTracker};
 use shared::network::protocol::server::ServerMessage;
 use shared::world::chunk::{ChunkBlocksComponent, ChunkCoord, ChunkLod};
 
@@ -11,7 +12,7 @@ fn test_chunk_data_sync_to_client() {
     let mut app = App::new();
 
     // add resources
-    app.insert_resource(ServerChunkManager::default());
+    app.insert_resource(ChunkMap::default());
 
     // spawn server-side player entity
     let client_entity = app
@@ -32,13 +33,13 @@ fn test_chunk_data_sync_to_client() {
     let chunk_blocks = ChunkBlocksComponent::new_uniform_empty(ChunkLod(0));
     let chunk_entity = app
         .world_mut()
-        .spawn((ChunkCoord { pos: coord }, chunk_blocks))
+        .spawn((ChunkCoord { pos: coord }, chunk_blocks, ActiveChunk))
         .id();
 
-    // mark it as active in the manager
+    // register it in the manager
     app.world_mut()
-        .resource_mut::<ServerChunkManager>()
-        .mark_as_active(coord, chunk_entity);
+        .resource_mut::<ChunkMap>()
+        .register_chunk(coord, chunk_entity);
 
     // run the sync system
     // we need to use a manual system call or add it to a schedule

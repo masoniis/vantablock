@@ -26,7 +26,7 @@ impl PluginGroup for ServerCoreLogicPlugins {
         PluginGroupBuilder::start::<Self>()
             .add_group(lifecycle::ServerLifecyclePlugins)
             .add(network::ServerNetworkPlugin)
-            .add(world::ServerWorldPlugin)
+            .add(world::WorldPlugin)
     }
 }
 

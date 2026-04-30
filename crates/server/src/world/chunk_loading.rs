@@ -1,11 +1,11 @@
 use crate::network::systems::ClientConnection;
 use crate::prelude::*;
-use crate::world::chunk::datagen::gentask_components::NeedsGenerating;
-use crate::world::chunk::manager::ServerChunkManager;
+use crate::world::chunk::chunk_map::ChunkMap;
+use crate::world::chunk::components::{ActiveChunk, NeedsGenerating};
 use bevy::prelude::*;
 use lightyear::prelude::MessageSender;
-use shared::network::ChunkData;
 use shared::network::protocol::server::ServerMessage;
+use shared::network::ChunkData;
 use shared::world::chunk::{
     ChunkBlocksComponent, ChunkCoord, ChunkLod, LOAD_DISTANCE, WORLD_MAX_Y_CHUNK, WORLD_MIN_Y_CHUNK,
 };
@@ -23,7 +23,7 @@ pub fn manage_player_chunk_loading_system(
     player_query: Query<(&Transform, Entity), With<ClientConnection>>,
 
     // output
-    mut chunk_manager: ResMut<ServerChunkManager>,
+    mut chunk_manager: ResMut<ChunkMap>,
     mut commands: Commands,
 ) {
     for (transform, player_ent) in player_query.iter() {
@@ -44,15 +44,12 @@ pub fn manage_player_chunk_loading_system(
 
                     let coord = IVec3::new(player_chunk_pos.x + x, y, player_chunk_pos.z + z);
 
-                    if !chunk_manager.is_chunk_present_or_loading(coord) {
+                    if !chunk_manager.is_chunk_present(coord) {
                         trace!(target:"server_chunk_loading","Server: Marking chunk needs-generation at {:?}", coord);
                         let ent = commands
-                            .spawn((
-                                NeedsGenerating { lod: ChunkLod(0) },
-                                ChunkCoord { pos: coord },
-                            ))
+                            .spawn((NeedsGenerating, ChunkLod(0), ChunkCoord { pos: coord }))
                             .id();
-                        chunk_manager.mark_as_needs_generating(coord, ent);
+                        chunk_manager.register_chunk(coord, ent);
                         chunks_spurred_this_frame += 1;
                     }
                 }
@@ -69,10 +66,10 @@ pub fn manage_player_chunk_loading_system(
 
 /// Sends generated chunk data to clients that need it.
 pub fn sync_chunk_data_to_clients_system(
-    // Input
+    // input
     mut client_query: Query<(&Transform, &ClientConnection, &mut ClientChunkTracker)>,
-    chunk_query: Query<(&ChunkCoord, &ChunkBlocksComponent)>,
-    chunk_manager: Res<ServerChunkManager>,
+    chunk_query: Query<(&ChunkCoord, &ChunkBlocksComponent), With<ActiveChunk>>,
+    chunk_manager: Res<ChunkMap>,
     mut sender_query: Query<&mut MessageSender<ServerMessage>>,
 ) {
     for (transform, connection, mut tracker) in client_query.iter_mut() {
@@ -101,13 +98,10 @@ pub fn sync_chunk_data_to_clients_system(
                         continue;
                     }
 
-                    // check if chunk is generated
-                    if let Some(state) = chunk_manager.get_state(coord)
-                        && state.is_generated()
-                    {
-                        if let Some(chunk_ent) = chunk_manager.get_entity(coord)
-                            && let Ok((_coord, blocks)) = chunk_query.get(chunk_ent)
-                        {
+                    // Look up the Entity from ChunkMap::get_chunk(coord)
+                    if let Some(chunk_ent) = chunk_manager.get_chunk(coord) {
+                        // Query that Entity in the ECS to see if it has the ActiveChunk component
+                        if let Ok((_coord, blocks)) = chunk_query.get(chunk_ent) {
                             let data = extract_block_data(blocks);
                             let original_len = data.len();
 
@@ -128,8 +122,6 @@ pub fn sync_chunk_data_to_clients_system(
 
                             tracker.sent_chunks.insert(coord);
                             chunks_sent_this_frame += 1;
-                        } else {
-                            trace!("Chunk {:?} is generated but has no entity or blocks", coord);
                         }
                     }
                 }
@@ -165,4 +157,59 @@ fn extract_block_data(blocks: &ChunkBlocksComponent) -> Vec<u8> {
         }
     }
     data
+}
+
+// INFO: ---------------
+//         tests
+// ---------------------
+
+#[cfg(test)]
+mod tests {
+    use crate::network::systems::ClientConnection;
+    use crate::prelude::*;
+    use crate::world::{
+        chunk::chunk_map::ChunkMap,
+        chunk::components::NeedsGenerating,
+        chunk_loading::{manage_player_chunk_loading_system, ClientChunkTracker},
+    };
+    use bevy::prelude::*;
+    use shared::world::chunk::ChunkCoord;
+
+    #[test]
+    fn test_manage_player_chunk_loading() {
+        let mut app = App::new();
+
+        // add minimal resources
+        app.insert_resource(ChunkMap::default());
+
+        // add the system
+        app.add_systems(Update, manage_player_chunk_loading_system);
+
+        // spawn a player
+        let client_entity = app.world_mut().spawn_empty().id();
+        app.world_mut().spawn((
+            Transform::from_xyz(0.0, 32.0, 0.0),
+            ClientConnection { client_entity },
+            ClientChunkTracker::default(),
+        ));
+
+        // run once
+        app.update();
+
+        // check if chunks were requested
+        let chunk_manager = app.world().resource::<ChunkMap>();
+        assert!(
+            !chunk_manager.chunks.is_empty(),
+            "Chunk map should not be empty after player spawn"
+        );
+
+        // verify we have a chunk at (0, 1, 0) - player is at Y=32 which is chunk Y=1
+        let player_chunk_coord = IVec3::new(0, 1, 0);
+        assert!(chunk_manager.is_chunk_present(player_chunk_coord));
+
+        // verify the entity has NeedsGenerating
+        let entity = chunk_manager.get_chunk(player_chunk_coord).unwrap();
+        assert!(app.world().get::<NeedsGenerating>(entity).is_some());
+        assert!(app.world().get::<ChunkCoord>(entity).is_some());
+    }
 }

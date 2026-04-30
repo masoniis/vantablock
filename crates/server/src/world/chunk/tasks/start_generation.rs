@@ -1,24 +1,26 @@
-use crate::prelude::*;
-use crate::world::{
-    chunk::components::GeneratedChunkComponentBundle,
-    chunk::datagen::gentask_components::{ChunkGenerationTaskComponent, NeedsGenerating},
-    chunk::manager::{ServerChunkManager, ServerChunkState},
-    terrain::{
-        ActiveBiomeGenerator, ActiveClimateGenerator, ActiveTerrainGenerator, ActiveTerrainPainter,
-        BiomeMapComponent,
-        generators::{
-            biome::BiomeResultBuilder, painting::PaintResultBuilder, shaping::ChunkUniformity,
-            shaping::ShapeResultBuilder,
+use crate::{
+    prelude::*,
+    world::{
+        chunk::components::{
+            ActiveChunk, GeneratedChunkComponentBundle, Generating, NeedsGenerating,
+        },
+        chunk::tasks::components::ChunkGenerationTaskComponent,
+        terrain::{
+            generators::{
+                biome::BiomeResultBuilder, painting::PaintResultBuilder, shaping::ChunkUniformity,
+                shaping::ShapeResultBuilder,
+            },
+            ActiveBiomeGenerator, ActiveClimateGenerator, ActiveTerrainGenerator,
+            ActiveTerrainPainter, BiomeMapComponent,
         },
     },
 };
-use bevy::ecs::prelude::*;
-use bevy::tasks::AsyncComputeTaskPool;
+use bevy::{ecs::prelude::*, tasks::AsyncComputeTaskPool};
 use crossbeam::channel::unbounded;
 use shared::world::{
     biome::BiomeRegistryResource,
     block::BlockRegistry,
-    chunk::{ChunkBlocksComponent, ChunkCoord},
+    chunk::{ChunkBlocksComponent, ChunkCoord, ChunkLod},
 };
 
 /// Queries for entities needing generation and starts a limited number per frame.
@@ -27,13 +29,12 @@ use shared::world::{
 pub fn start_pending_generation_tasks_system(
     // input
     mut pending_chunks_query: Query<
-        (Entity, &NeedsGenerating, &ChunkCoord),
-        Without<ChunkGenerationTaskComponent>,
+        (Entity, &ChunkLod, &ChunkCoord),
+        (With<NeedsGenerating>, Without<ChunkGenerationTaskComponent>),
     >,
 
     // output
     mut commands: Commands,
-    mut chunk_manager: ResMut<ServerChunkManager>,
     block_registry: Res<BlockRegistry>,
     biome_registry: Res<BiomeRegistryResource>,
     biome_generator: Res<ActiveBiomeGenerator>,
@@ -43,35 +44,18 @@ pub fn start_pending_generation_tasks_system(
 ) {
     const MAX_CHUNKS_PER_FRAME: usize = 4;
 
-    for (entity, needs_generating, coord) in
-        pending_chunks_query.iter_mut().take(MAX_CHUNKS_PER_FRAME)
-    {
-        // check for cancellation
-        match chunk_manager.get_state(coord.pos) {
-            Some(ServerChunkState::NeedsGenerating {
-                entity: state_entity,
-            }) if state_entity == entity => {
-                // state is correct, proceed to start generation
-            }
-            _ => {
-                debug!(
-                    target : "chunk_loading",
-                    "Entity {:?} NeedsGenerating for chunk {} found, but manager state ({:?}) doesn't match NeedsGenerating({:?}). Assuming cancelled/stale.",
-                    entity, coord, chunk_manager.get_state(coord.pos), entity
-                );
-                continue;
-            }
-        }
-
-        let lod = needs_generating.lod;
+    for (entity, lod_comp, coord) in pending_chunks_query.iter_mut().take(MAX_CHUNKS_PER_FRAME) {
+        let lod = *lod_comp;
 
         // check if the chunk is empty according to the terrain generator
         match terrain_generator.0.determine_chunk_uniformity(coord.pos) {
             ChunkUniformity::Empty => {
                 let chunk_blocks = ChunkBlocksComponent::new_uniform_empty(lod);
 
-                commands.entity(entity).insert(chunk_blocks);
-                chunk_manager.mark_as_active(coord.pos, entity);
+                commands
+                    .entity(entity)
+                    .insert((chunk_blocks, ActiveChunk))
+                    .remove::<NeedsGenerating>();
                 continue;
             }
             ChunkUniformity::Solid => {
@@ -89,10 +73,8 @@ pub fn start_pending_generation_tasks_system(
 
                 commands
                     .entity(entity)
-                    .insert(ChunkGenerationTaskComponent { receiver })
+                    .insert((ChunkGenerationTaskComponent { receiver }, Generating))
                     .remove::<NeedsGenerating>();
-
-                chunk_manager.mark_as_generating(coord.pos, entity);
                 continue;
             }
             _ => {}
@@ -159,9 +141,7 @@ pub fn start_pending_generation_tasks_system(
 
         commands
             .entity(entity)
-            .insert(ChunkGenerationTaskComponent { receiver })
+            .insert((ChunkGenerationTaskComponent { receiver }, Generating))
             .remove::<NeedsGenerating>();
-
-        chunk_manager.mark_as_generating(coord.pos, entity);
     }
 }
