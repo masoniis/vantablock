@@ -12,15 +12,18 @@ use crate::{
         resources::CursorMovement,
         systems::toggle_opaque_wireframe::OpaqueRenderMode,
         systems::{
-            toggle_chunk_borders::ChunkBoundsToggle, toggle_chunk_borders_system,
-            toggle_cursor_system, toggle_opaque_wireframe_mode_system, toggle_pause_system,
+            lock_cursor_system, toggle_chunk_borders::ChunkBoundsToggle,
+            toggle_chunk_borders_system, toggle_opaque_wireframe_mode_system, toggle_pause_system,
+            unlock_cursor_system,
         },
     },
-    lifecycle::state::enums::InGameState,
+    lifecycle::state::enums::{ClientState, InGameState},
 };
 use bevy::{
     app::{App, Plugin, PreUpdate, Update},
-    prelude::{in_state, IntoScheduleConfigs, KeyCode, MouseButton, OnEnter, SystemCondition},
+    prelude::{
+        in_state, IntoScheduleConfigs, KeyCode, MouseButton, OnEnter, OnExit, SystemCondition,
+    },
     render::extract_resource::ExtractResourcePlugin,
 };
 use leafwing_input_manager::{
@@ -114,8 +117,9 @@ impl Plugin for ClientInputPlugin {
         );
 
         // cursor management based on game state
-        app.add_systems(OnEnter(InGameState::Playing), toggle_cursor_system)
-            .add_systems(OnEnter(InGameState::Paused), toggle_cursor_system);
+        app.add_systems(OnEnter(InGameState::Playing), lock_cursor_system)
+            .add_systems(OnExit(InGameState::Playing), unlock_cursor_system)
+            .add_systems(OnEnter(ClientState::MainMenu), unlock_cursor_system);
 
         // toggle opaque wireframe mode
         app.insert_resource(OpaqueRenderMode::default())

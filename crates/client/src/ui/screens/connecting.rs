@@ -1,5 +1,5 @@
-use bevy::prelude::*;
 use crate::lifecycle::state::enums::InGameState;
+use bevy::prelude::*;
 
 #[derive(Component)]
 pub struct ConnectingUiRoot;
@@ -49,7 +49,7 @@ pub fn spawn_connecting_ui(mut commands: Commands, asset_server: Res<AssetServer
                     ));
 
                     parent.spawn((
-                        Text::new("Please wait while we establish connection"),
+                        Text::new("Establishing connection..."),
                         TextFont {
                             font: font.clone(),
                             font_size: 16.0,

@@ -5,6 +5,7 @@ use std::time::Duration;
 /// Number of seconds it takes for a day/night cycle to complete
 pub const SECONDS_IN_A_DAY: f32 = 600.0;
 /// number of seconds to jump when using jump forward/backward commands
+#[allow(dead_code)]
 const JUMP_CLOCK_DISTANCE: f32 = 30.0;
 
 /// A resource that tracks the in-game date and time.
@@ -60,6 +61,7 @@ pub fn update_world_clock_system(
 ///
 /// Should run before update_world_clock_system
 #[instrument(skip_all)]
+#[allow(dead_code)]
 pub fn jump_world_clock_forward_system(
     // Output
     mut world_clock: ResMut<WorldClockResource>,
@@ -77,6 +79,7 @@ pub fn jump_world_clock_forward_system(
 ///
 /// Should run before update_world_clock_system
 #[instrument(skip_all)]
+#[allow(dead_code)]
 pub fn jump_world_clock_backwards_system(
     // Output
     mut world_clock: ResMut<WorldClockResource>,
