@@ -26,8 +26,7 @@ impl PluginGroup for SharedPlugins {
         PluginGroupBuilder::start::<Self>()
             .add(SharedEventsPlugin)
             .add_group(lifecycle::SharedLifecyclePlugins)
-            .add(world::biome::BiomePlugin)
-            .add(world::block::BlockPlugin)
+            .add_group(world::WorldPlugins)
             .add(time::TimeControlPlugin)
             .add(player::SharedPlayerPlugin)
     }

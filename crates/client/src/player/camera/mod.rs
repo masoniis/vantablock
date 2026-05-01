@@ -8,7 +8,7 @@ pub use spawn::*;
 //         camera plugin
 // -----------------------------
 
-use bevy::prelude::{App, IntoScheduleConfigs, Plugin, Startup, Update, in_state};
+use bevy::prelude::{in_state, App, IntoScheduleConfigs, Plugin, Startup, Update};
 use shared::lifecycle::state::enums::AppState;
 
 pub struct CameraPlugin;
@@ -19,11 +19,7 @@ impl Plugin for CameraPlugin {
 
         app.add_systems(
             Update,
-            (
-                camera_movement_system,
-                sync_player_look_to_server_system,
-                update_camera_chunk_chord_system,
-            )
+            (camera_movement_system, sync_player_look_to_server_system)
                 .chain()
                 .run_if(in_state(AppState::Running)),
         );

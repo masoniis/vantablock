@@ -1,12 +1,14 @@
-use crate::input::{
-    get_default_input_map, get_default_local_input_map, local_actions::LocalClientAction,
+use crate::{
+    input::{get_default_input_map, get_default_local_input_map, local_actions::LocalClientAction},
+    player::LocalPlayer,
 };
-use crate::player::LocalPlayer;
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::ActionState;
-use shared::player::PlayerAction;
-use shared::player::components::{LogicalPosition, Player, PlayerLook};
-use shared::world::chunk::{CHUNK_SIDE_LENGTH, ChunkCoord};
+use shared::{
+    player::components::{LogicalPosition, Player, PlayerLook},
+    player::PlayerAction,
+    world::chunk::{ChunkCoord, CHUNK_SIDE_LENGTH},
+};
 
 const DEFAULT_CAMERA_STARTING_X: f32 = (CHUNK_SIDE_LENGTH / 2) as f32;
 const DEFAULT_CAMERA_STARTING_Y: f32 = 64.0;
@@ -24,6 +26,8 @@ pub fn spawn_camera_system(mut commands: Commands) {
 
     let start_chunk = ChunkCoord::world_to_chunk_pos(start_position);
 
+    // TODO: the client shouldnt spawn its own variant of player and stuff, it should be handled by replication
+    // from the server instead to avoid dupes and stuff
     commands
         .spawn((
             Player,

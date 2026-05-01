@@ -7,9 +7,8 @@ use bevy::{
 use shared::{
     network::{ClientMessage, PlayerMovement},
     player::components::PlayerLook,
-    world::chunk::ChunkCoord,
 };
-use tracing::{debug, instrument};
+use tracing::instrument;
 
 /// The distance the near plane is set to for the camera frustum.
 pub const CAMERA_NEAR_PLANE: f32 = 1.0;
@@ -93,21 +92,4 @@ pub fn sync_player_look_to_server_system(
     let forward = Quat::from_euler(EulerRot::YXZ, look.yaw, look.pitch, 0.0) * -Vec3::Z;
 
     sender.send::<PlayerMovement>(ClientMessage::UpdateView { forward });
-}
-
-/// A system to that updates the active camera's chunk chord based on its position.
-#[instrument(skip_all)]
-pub fn update_camera_chunk_chord_system(mut query: Query<(&GlobalTransform, &mut ChunkCoord)>) {
-    for (transform, mut vicinity) in query.iter_mut() {
-        // update chunk chord if it is different
-        let new_chunk_pos = ChunkCoord::world_to_chunk_pos(transform.translation());
-        if new_chunk_pos != vicinity.pos {
-            debug!(
-                target: "camera_chunk",
-                "Entity crossed chunk boundary. Old: {:?}, New: {:?}",
-                vicinity.pos, new_chunk_pos
-            );
-            vicinity.pos = new_chunk_pos;
-        }
-    }
 }

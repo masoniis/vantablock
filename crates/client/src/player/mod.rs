@@ -1,5 +1,6 @@
 pub mod camera;
 pub mod components;
+pub mod replicated_player;
 pub mod systems;
 pub mod targeted_block;
 
@@ -12,6 +13,7 @@ pub use targeted_block::TargetedBlock;
 //         player plugin
 // -----------------------------
 
+use crate::player::replicated_player::dress_predicted_player_observer;
 use bevy::app::{App, FixedUpdate, Plugin, Update};
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use leafwing_input_manager::common_conditions::action_just_pressed;
@@ -29,6 +31,8 @@ impl Plugin for PlayerPlugin {
             FixedUpdate,
             update_target_voxel::update_targeted_block_system,
         );
+
+        app.add_observer(dress_predicted_player_observer);
 
         app.add_systems(
             Update,

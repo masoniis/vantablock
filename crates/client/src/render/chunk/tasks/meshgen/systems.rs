@@ -2,26 +2,32 @@ use crate::prelude::*;
 use crate::render::{
     block::BlockRenderDataRegistry,
     chunk::{
+        meshing::build_chunk_mesh,
+        tasks::meshgen::{components::ChunkMeshingTaskComponent, CheckForMeshing, WantsMeshing},
         ClientChunkManager, ClientChunkState, OpaqueMeshComponent, TransparentMeshComponent,
         VoxelMeshAsset,
-        meshing::build_chunk_mesh,
-        tasks::meshgen::{CheckForMeshing, WantsMeshing, components::ChunkMeshingTaskComponent},
     },
 };
 use bevy::{asset::Assets, ecs::prelude::*, prelude::*, tasks::AsyncComputeTaskPool};
-use crossbeam::channel::{TryRecvError, unbounded};
+use crossbeam::channel::{unbounded, TryRecvError};
 use shared::world::{
     block::BlockRegistry,
     chunk::{
-        CHUNK_SIDE_LENGTH, ChunkBlocksComponent, ChunkCoord, NEIGHBOR_OFFSETS,
         common::{
             chunk_scaling::{downsample_chunk, upsample_chunk},
             padded_chunk_view::{ChunkDataOption, NeighborLODs, PaddedChunk},
             thread_buffer_pool::{acquire_buffer, release_buffer},
         },
-        is_in_bounds,
+        ChunkBlocksComponent, ChunkCoord, CHUNK_SIDE_LENGTH, NEIGHBOR_OFFSETS, WORLD_MAX_Y_CHUNK,
+        WORLD_MIN_Y_CHUNK,
     },
 };
+
+/// Determines if a coord is in bounds
+pub fn is_in_bounds(coord: IVec3) -> bool {
+    let pos_y = coord.y;
+    (WORLD_MIN_Y_CHUNK..=WORLD_MAX_Y_CHUNK).contains(&pos_y)
+}
 
 /// Queries for chunks needing meshing and starts a limited number of tasks per frame.
 #[instrument(skip_all)]
