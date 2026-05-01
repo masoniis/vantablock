@@ -1,5 +1,5 @@
-pub mod actions;
 pub mod components;
+pub mod movement;
 pub mod player_action;
 
 pub use player_action::PlayerAction;
@@ -8,9 +8,9 @@ pub use player_action::PlayerAction;
 //         plugin definition
 // ---------------------------------
 
-use crate::player::actions::shared_player_movement_system;
 use bevy::prelude::*;
 use lightyear::prelude::input::leafwing::InputPlugin;
+use movement::shared_player_movement_system;
 
 /// A plugin that handles shared player logic.
 pub struct SharedPlayerPlugin;

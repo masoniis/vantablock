@@ -8,7 +8,7 @@ pub use spawn::*;
 //         camera plugin
 // -----------------------------
 
-use bevy::prelude::{in_state, App, IntoScheduleConfigs, Plugin, Startup, Update};
+use bevy::prelude::{App, IntoScheduleConfigs, Plugin, Startup, Update, in_state};
 use shared::lifecycle::state::enums::AppState;
 
 pub struct CameraPlugin;

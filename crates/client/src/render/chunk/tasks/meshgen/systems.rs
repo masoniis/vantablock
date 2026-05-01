@@ -2,24 +2,24 @@ use crate::prelude::*;
 use crate::render::{
     block::BlockRenderDataRegistry,
     chunk::{
-        meshing::build_chunk_mesh,
-        tasks::meshgen::{components::ChunkMeshingTaskComponent, CheckForMeshing, WantsMeshing},
         ClientChunkManager, ClientChunkState, OpaqueMeshComponent, TransparentMeshComponent,
         VoxelMeshAsset,
+        meshing::build_chunk_mesh,
+        tasks::meshgen::{CheckForMeshing, WantsMeshing, components::ChunkMeshingTaskComponent},
     },
 };
 use bevy::{asset::Assets, ecs::prelude::*, prelude::*, tasks::AsyncComputeTaskPool};
-use crossbeam::channel::{unbounded, TryRecvError};
+use crossbeam::channel::{TryRecvError, unbounded};
 use shared::world::{
     block::BlockRegistry,
     chunk::{
+        CHUNK_SIDE_LENGTH, ChunkBlocksComponent, ChunkCoord, NEIGHBOR_OFFSETS, WORLD_MAX_Y_CHUNK,
+        WORLD_MIN_Y_CHUNK,
         common::{
             chunk_scaling::{downsample_chunk, upsample_chunk},
             padded_chunk_view::{ChunkDataOption, NeighborLODs, PaddedChunk},
             thread_buffer_pool::{acquire_buffer, release_buffer},
         },
-        ChunkBlocksComponent, ChunkCoord, CHUNK_SIDE_LENGTH, NEIGHBOR_OFFSETS, WORLD_MAX_Y_CHUNK,
-        WORLD_MIN_Y_CHUNK,
     },
 };
 
