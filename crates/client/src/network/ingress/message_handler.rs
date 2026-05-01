@@ -17,7 +17,13 @@ impl Plugin for ClientMessageHandlerPlugin {
         app.init_resource::<Messages<WelcomeEvent>>()
             .init_resource::<Messages<ReceivedChunkDataEvent>>();
 
-        app.add_systems(Update, translate_server_messages);
+        app.add_systems(
+            Update,
+            (
+                translate_server_messages,
+                super::handle_welcome::handle_welcome_system,
+            ),
+        );
     }
 }
 
