@@ -1,3 +1,4 @@
+pub mod handle_welcome;
 pub mod message_handler;
 pub mod messages;
 

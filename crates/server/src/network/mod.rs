@@ -9,7 +9,8 @@ use lightyear::prelude::server::ServerPlugins;
 use shared::network::{NETWORK_TICK_DURATION, SharedNetworkPlugin};
 use std::time::Duration;
 use systems::{
-    MessageTimer, handle_connections, handle_disconnections, send_sync_time, start_udp_server,
+    MessageTimer, handle_connections, handle_disconnections, receive_client_messages,
+    send_sync_time, start_udp_server,
 };
 
 use crate::lifecycle::state::ServerState;
@@ -29,7 +30,7 @@ impl Plugin for ServerNetworkPlugin {
         app.insert_resource(MessageTimer(Timer::from_seconds(1.0, TimerMode::Repeating)));
 
         app.add_systems(OnExit(ServerState::Initializing), start_udp_server)
-            .add_systems(Update, send_sync_time)
+            .add_systems(Update, (send_sync_time, receive_client_messages))
             .add_observer(handle_connections)
             .add_observer(handle_disconnections);
     }

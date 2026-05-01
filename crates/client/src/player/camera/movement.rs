@@ -4,6 +4,7 @@ use bevy::{
     input::mouse::{MouseMotion, MouseWheel},
     prelude::*,
 };
+use shared::network::{ChatAndSystem, ClientMessage};
 use shared::player::components::PlayerLook;
 use shared::world::chunk::ChunkCoord;
 use tracing::{debug, instrument};
@@ -69,6 +70,29 @@ pub fn camera_movement_system(
             }
         }
     }
+}
+
+/// Sends the player's look orientation to the server.
+pub fn sync_player_look_to_server_system(
+    player_query: Query<&PlayerLook, (With<LocalPlayer>, Changed<PlayerLook>)>,
+    mut sender_query: Query<
+        &mut lightyear::prelude::MessageSender<shared::network::protocol::ClientMessage>,
+    >,
+) {
+    let Ok(look) = player_query.single() else {
+        return;
+    };
+
+    let Ok(mut sender) = sender_query.single_mut() else {
+        return;
+    };
+
+    // calculate forward vector from yaw and pitch
+    let forward = Quat::from_euler(EulerRot::YXZ, look.yaw, look.pitch, 0.0) * -Vec3::Z;
+
+    sender.send::<ChatAndSystem>(
+        ClientMessage::UpdateView { forward },
+    );
 }
 
 /// A system to that updates the active camera's chunk chord based on its position.

@@ -1,9 +1,11 @@
 use crate::world::chunk_loading::ClientChunkTracker;
 use bevy::prelude::*;
-use lightyear::prelude::server::*;
-use lightyear::prelude::*;
+use lightyear::{
+    prelude::server::*,
+prelude::*,
+};
 use shared::network::{ChatAndSystem, DEFAULT_SERVER_PORT, ServerMessage};
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use std::{net::{Ipv4Addr, SocketAddr, SocketAddrV4}, time::Duration};
 use tracing::{error, info};
 
 #[derive(Component)]
@@ -41,7 +43,13 @@ pub fn start_udp_server(mut commands: Commands) {
     });
 }
 
-pub fn handle_connections(trigger: On<Add, Connected>, mut commands: Commands) {
+pub fn handle_connections(
+    trigger: On<Add, Connected>,
+    mut commands: Commands,
+    mut sender: ServerMultiMessageSender,
+    server: Option<Single<&Server>>,
+    client_ids: Query<&RemoteId>,
+) {
     let client_entity = trigger.entity;
 
     info!("Client connected with entity: {:?}", client_entity);
@@ -66,10 +74,30 @@ pub fn handle_connections(trigger: On<Add, Connected>, mut commands: Commands) {
             ClientConnection { client_entity },
             ClientChunkTracker::default(),
             Transform::from_translation(spawn_pos),
+            Replicate::default(),
         ))
         .id();
 
     info!("Player ent spawned {:?}", player_entity);
+
+    // send welcome message
+    if let Some(server) = server {
+        if let Ok(remote_id) = client_ids.get(client_entity) {
+            if let Err(e) = sender.send::<_, ChatAndSystem>(
+                &ServerMessage::Welcome {
+                    entity_id: player_entity,
+                    spawn_pos,
+                },
+                server.into_inner(),
+                &NetworkTarget::Only(vec![**remote_id]),
+            ) {
+                error!(
+                    "Failed to send Welcome message to client {:?}: {:?}",
+                    client_entity, e
+                );
+            }
+        }
+    }
 }
 
 pub fn handle_disconnections(
@@ -107,6 +135,28 @@ pub fn send_sync_time(
             sender.send::<_, ChatAndSystem>(&message, server.into_inner(), &NetworkTarget::All)
         {
             error!("Failed to send SyncTime message: {:?}", e);
+        }
+    }
+}
+
+pub fn receive_client_messages(
+    mut query: Query<(
+        &mut MessageReceiver<shared::network::protocol::ClientMessage>,
+        &mut shared::player::components::PlayerLook,
+        &ClientConnection,
+    )>,
+) {
+    for (mut receiver, mut look, _conn) in query.iter_mut() {
+        for message in receiver.receive() {
+            match message {
+                shared::network::protocol::ClientMessage::UpdateView { forward } => {
+                    // Update server-side look component based on forward vector
+                    // This is a simplified reconstruction of yaw/pitch
+                    look.pitch = forward.y.asin();
+                    look.yaw = (-forward.z).atan2(forward.x) - std::f32::consts::FRAC_PI_2;
+                }
+                _ => {}
+            }
         }
     }
 }
