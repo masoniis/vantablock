@@ -1,12 +1,14 @@
 use crate::player::LocalPlayer;
-use bevy::ecs::relationship::Relationship;
 use bevy::{
+    ecs::relationship::Relationship,
     input::mouse::{MouseMotion, MouseWheel},
     prelude::*,
 };
-use shared::network::{ChatAndSystem, ClientMessage};
-use shared::player::components::PlayerLook;
-use shared::world::chunk::ChunkCoord;
+use shared::{
+    network::{ClientMessage, PlayerMovement},
+    player::components::PlayerLook,
+    world::chunk::ChunkCoord,
+};
 use tracing::{debug, instrument};
 
 /// The distance the near plane is set to for the camera frustum.
@@ -90,9 +92,7 @@ pub fn sync_player_look_to_server_system(
     // calculate forward vector from yaw and pitch
     let forward = Quat::from_euler(EulerRot::YXZ, look.yaw, look.pitch, 0.0) * -Vec3::Z;
 
-    sender.send::<ChatAndSystem>(
-        ClientMessage::UpdateView { forward },
-    );
+    sender.send::<PlayerMovement>(ClientMessage::UpdateView { forward });
 }
 
 /// A system to that updates the active camera's chunk chord based on its position.

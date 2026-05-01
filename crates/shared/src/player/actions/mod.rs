@@ -1,5 +1,7 @@
+pub mod movement;
 pub mod voxel;
 
+pub use movement::shared_player_movement_system;
 pub use voxel::*;
 
 // INFO: -------------------------------

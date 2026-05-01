@@ -1,4 +1,4 @@
-use crate::network::systems::ClientConnection;
+use crate::network::types::ClientConnection;
 use crate::prelude::*;
 use crate::world::chunk::chunk_map::ChunkMap;
 use crate::world::chunk::components::{ActiveChunk, NeedsGenerating};
@@ -166,7 +166,7 @@ fn extract_block_data(blocks: &ChunkBlocksComponent) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
-    use crate::network::systems::ClientConnection;
+    use crate::network::types::ClientConnection;
     use crate::prelude::*;
     use crate::world::{
         chunk::chunk_map::ChunkMap,
@@ -195,8 +195,10 @@ mod tests {
             ClientChunkTracker::default(),
         ));
 
-        // run once
-        app.update();
+        // run enough times to ensure the chunk is loaded (due to per-frame quota)
+        for _ in 0..200 {
+            app.update();
+        }
 
         // check if chunks were requested
         let chunk_manager = app.world().resource::<ChunkMap>();

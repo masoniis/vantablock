@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use lightyear::prelude::MessageSender;
-use server::network::systems::ClientConnection;
+use server::network::types::ClientConnection;
 use server::world::chunk::chunk_map::ChunkMap;
 use server::world::chunk::components::ActiveChunk;
 use server::world::chunk_loading::{ClientChunkTracker, sync_chunk_data_to_clients_system};

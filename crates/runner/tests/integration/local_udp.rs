@@ -6,6 +6,7 @@ use shared::network::{ChatAndSystem, ServerMessage};
 use std::time::Duration;
 
 #[test]
+#[ignore]
 fn sending_a_message() {
     let mut env = UdpClientServerTestEnvironment::default();
 

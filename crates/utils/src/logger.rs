@@ -48,7 +48,7 @@ pub fn attach_logger() {
     #[cfg(feature = "tracy")]
     let subscriber = subscriber.with(tracing_tracy::TracyLayer::default());
 
-    subscriber.init();
+    let _ = subscriber.try_init();
 }
 
 /// A custom formatter that prints the time, a colored prefix for crate separation,

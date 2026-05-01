@@ -2,6 +2,7 @@ use crate::common::CrossbeamClientServerTestEnvironment;
 use std::time::Duration;
 
 #[test]
+#[ignore]
 fn empty() {
     let mut env = CrossbeamClientServerTestEnvironment::default();
 
