@@ -5,9 +5,9 @@ use crate::{
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::ActionState;
 use shared::{
-    player::components::{LogicalPosition, Player, PlayerLook},
     player::PlayerAction,
-    world::chunk::{ChunkCoord, CHUNK_SIDE_LENGTH},
+    player::components::{LogicalPosition, Player, PlayerLook},
+    world::chunk::{CHUNK_SIDE_LENGTH, ChunkCoord},
 };
 
 const DEFAULT_CAMERA_STARTING_X: f32 = (CHUNK_SIDE_LENGTH / 2) as f32;

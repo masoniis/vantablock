@@ -1,4 +1,9 @@
-#[derive(Message, Serialize, Deserialize, Debug, Clone)]
+use crate::{player::PlayerAction, world::chunk::ChunkCoord};
+use bevy::prelude::*;
+use lightyear::prelude::*;
+use serde::{Deserialize, Serialize};
+
+#[derive(Message, Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum ClientMessage {
     /// A discrete input action performed by the player.
     Action(PlayerAction),
@@ -7,14 +12,18 @@ pub enum ClientMessage {
     /// Updates the server on the player's current view orientation/camera state.
     /// Necessary for authoritative targeting or raycasting calculations.
     UpdateView { forward: Vec3 },
+    /// Intent to break a block at the specified position.
+    BreakBlock { position: IVec3 },
+    /// Intent to place a block at the specified position.
+    PlaceBlock { position: IVec3, block_id: u8 },
 }
 
-#[derive(Message, Serialize, Deserialize, Debug, Clone)]
+#[derive(Message, Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum ServerMessage {
     /// Initial state sent to the client upon joining.
     Welcome { entity_id: Entity, spawn_pos: Vec3 },
-    /// Direct voxel update for a specific world position.
-    VoxelUpdate { position: IVec3, block_id: u16 },
+    /// Direct voxel update for a specific world position. Represents generalized state change broadcast.
+    VoxelUpdate { position: IVec3, block_id: u8 },
     /// Bulk data for a chunk, typically compressed or encoded from ChunkVolumeData.
     ChunkData {
         coord: ChunkCoord,
@@ -27,12 +36,6 @@ pub enum ServerMessage {
 // INFO: ---------------------------
 //         plugin definition
 // ---------------------------------
-
-use crate::player::PlayerAction;
-use crate::world::chunk::ChunkCoord;
-use bevy::prelude::*;
-use lightyear::prelude::{AppMessageExt, NetworkDirection};
-use serde::{Deserialize, Serialize};
 
 pub struct NetMessagesPlugin;
 
