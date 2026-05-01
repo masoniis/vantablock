@@ -20,6 +20,8 @@ pub struct VantablockUiPlugin;
 
 impl Plugin for VantablockUiPlugin {
     fn build(&self, app: &mut App) {
+        app.add_plugins(screens::debug_menu::DebugMenuPlugin);
+
         app.add_systems(OnEnter(AppState::Running), root::spawn_ui_root)
             .add_systems(OnExit(AppState::Running), root::despawn_ui_root);
 

@@ -6,6 +6,7 @@ use leafwing_input_manager::Actionlike;
 #[derive(Actionlike, PartialEq, Eq, Clone, Copy, Hash, Debug, Reflect)]
 pub enum LocalClientAction {
     ToggleDiagnostics,
+    ToggleDebugMenu,
     ToggleOpaqueWireframeMode,
     ToggleChunkBorders,
     TogglePause, // Assuming this is an escape menu, not pausing the actual multiplayer server!

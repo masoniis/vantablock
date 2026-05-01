@@ -67,9 +67,9 @@ pub fn get_default_local_input_map() -> InputMap<LocalClientAction> {
     // Debug/analysis tools
     input_map.insert(LocalClientAction::ToggleDiagnostics, KeyCode::F1);
     input_map.insert(LocalClientAction::ToggleDiagnostics, KeyCode::KeyU);
+    input_map.insert(LocalClientAction::ToggleDebugMenu, KeyCode::F3);
     input_map.insert(LocalClientAction::ToggleOpaqueWireframeMode, KeyCode::F2);
     input_map.insert(LocalClientAction::ToggleOpaqueWireframeMode, KeyCode::KeyO);
-    input_map.insert(LocalClientAction::ToggleChunkBorders, KeyCode::F3);
     input_map.insert(LocalClientAction::ToggleChunkBorders, KeyCode::KeyB);
 
     // Showcase actions

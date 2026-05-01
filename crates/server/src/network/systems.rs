@@ -46,7 +46,7 @@ pub fn handle_connections(trigger: On<Add, Connected>, mut commands: Commands) {
 
     info!("Client connected with entity: {:?}", client_entity);
 
-    let spawn_pos = Vec3::new(0.0, 60.0, 0.0);
+    let spawn_pos = Vec3::new(0.0, 120.0, 60.0);
 
     // ensure client entity has MessageSender and ReplicationSender
     commands
