@@ -7,12 +7,12 @@ use bevy::ecs::prelude::Component;
 /// A read-only view into the chunk's data.
 #[derive(Clone, Copy)]
 pub enum ChunkView<'a> {
-    /// The chunk is uniform (all blocks are the same).
+    /// The chunk is uniform (all blocks within it are the same type).
     ///
     /// Contains the single BlockId.
     Uniform(BlockId),
 
-    /// The chunk is dense.
+    /// The chunk is dense (not all blocks within it are the same type).
     ///
     /// Contains a high-speed reader struct for hot loops.
     Dense(VolumeDataView<'a, BlockId>),

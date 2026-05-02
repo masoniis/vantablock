@@ -8,8 +8,8 @@ pub struct ChunkMeshingTaskComponent {
     pub receiver: Receiver<(Option<OpaqueMeshData>, Option<TransparentMeshData>)>,
 }
 
-/// A signal marking that chunks should be checked for meshing. This check is a necessary
-/// optimization as chunks require all neighbors to be generated before they mesh.
+/// A signal marking that chunks should be checked for meshing. This check is necessary
+/// as chunks require all neighbors to be generated before they mesh.
 #[derive(Component)]
 pub struct CheckForMeshing;
 

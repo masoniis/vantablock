@@ -99,27 +99,12 @@ impl PaddedChunk {
                             for z in z_range.clone() {
                                 for y in y_range.clone() {
                                     // map padded coords back to source chunk coords
-                                    let src_x = if offset.x == -1 {
-                                        31
-                                    } else if offset.x == 1 {
-                                        0
-                                    } else {
-                                        x - 1
-                                    };
-                                    let src_y = if offset.y == -1 {
-                                        31
-                                    } else if offset.y == 1 {
-                                        0
-                                    } else {
-                                        y - 1
-                                    };
-                                    let src_z = if offset.z == -1 {
-                                        31
-                                    } else if offset.z == 1 {
-                                        0
-                                    } else {
-                                        z - 1
-                                    };
+                                    let src_x = (x as i32 - 1).rem_euclid(CHUNK_SIDE_LENGTH as i32)
+                                        as usize;
+                                    let src_y = (y as i32 - 1).rem_euclid(CHUNK_SIDE_LENGTH as i32)
+                                        as usize;
+                                    let src_z = (z as i32 - 1).rem_euclid(CHUNK_SIDE_LENGTH as i32)
+                                        as usize;
 
                                     let block = data.get_data(src_x, src_y, src_z);
                                     let idx = y + z * PADDED_SIZE + x * PADDED_SIZE * PADDED_SIZE;
@@ -142,7 +127,7 @@ impl PaddedChunk {
                         match cell {
                             ChunkDataOption::Generated(comp) => {
                                 if comp.lod() != center_lod {
-                                    // Handle LOD mismatch / resampling here if needed
+                                    // handle LOD mismatch / resampling here if needed
                                     write_chunk_to_buffer(offset, comp.get_view());
                                 } else {
                                     write_chunk_to_buffer(offset, comp.get_view());
@@ -151,7 +136,7 @@ impl PaddedChunk {
                             ChunkDataOption::OutOfBounds => {
                                 // out of bounds just leave it be
                             }
-                            _ => {} // Leave as Air
+                            _ => {} // leave as Air
                         }
                     }
                 }
