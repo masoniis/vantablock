@@ -13,8 +13,9 @@ pub enum ClientChunkState {
     NeedsMeshing { entity: Entity },
     /// Chunk is currently undergoing meshing
     Meshing { entity: Entity },
-    /// Chunk is fully rendered
-    Rendered { entity: Option<Entity> },
+    /// Chunk has completed its meshing pass (may or may not have produced a visible mesh).
+    /// The entity contains the authoritative block data.
+    MeshComplete { entity: Entity },
 }
 
 impl ClientChunkState {
@@ -25,7 +26,7 @@ impl ClientChunkState {
             ClientChunkState::DataReady { entity } => Some(entity),
             ClientChunkState::NeedsMeshing { entity } => Some(entity),
             ClientChunkState::Meshing { entity } => Some(entity),
-            ClientChunkState::Rendered { entity } => entity,
+            ClientChunkState::MeshComplete { entity } => Some(entity),
         }
     }
 
@@ -84,20 +85,10 @@ impl ClientChunkManager {
             .insert(coord, ClientChunkState::Meshing { entity });
     }
 
-    /// Marks that a chunk is fully rendered with a visual entity.
-    pub fn mark_as_rendered(&mut self, coord: IVec3, entity: Entity) {
-        self.chunk_states.insert(
-            coord,
-            ClientChunkState::Rendered {
-                entity: Some(entity),
-            },
-        );
-    }
-
-    /// Marks that a chunk is fully rendered but is empty (no mesh entity).
-    pub fn mark_as_rendered_empty(&mut self, coord: IVec3) {
+    /// Marks that a chunk has completed its meshing pass.
+    pub fn mark_as_mesh_complete(&mut self, coord: IVec3, entity: Entity) {
         self.chunk_states
-            .insert(coord, ClientChunkState::Rendered { entity: None });
+            .insert(coord, ClientChunkState::MeshComplete { entity });
     }
 
     /// Called when a chunk is unloaded, removing it from tracking.

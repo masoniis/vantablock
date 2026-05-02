@@ -1,6 +1,6 @@
 use crate::prelude::*;
 use crate::render::chunk::manager::ClientChunkManager;
-use crate::render::chunk::tasks::meshgen::{CheckForMeshing, WantsMeshing};
+use crate::render::chunk::tasks::{CheckForMeshing, WantsMeshing};
 use bevy::ecs::prelude::*;
 use shared::world::chunk::{ChunkCoord, ChunkMeshDirty};
 
