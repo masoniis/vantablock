@@ -1,4 +1,4 @@
-use crate::player::{BreakVoxelEvent, LocalPlayer, PlaceVoxelEvent, TargetedBlock};
+use crate::player::{BreakBlockEvent, LocalPlayer, PlaceBlockEvent, TargetedBlock};
 use bevy::ecs::prelude::{Commands, Entity, MessageReader, MessageWriter};
 use bevy::ecs::prelude::{Query, Res, With};
 use lightyear::prelude::{MessageReceiver, MessageSender};
@@ -11,44 +11,44 @@ use shared::world::chunk::{
 };
 use std::collections::HashMap;
 
-/// Fires a `BreakVoxelEvent` for the currently targeted block and sends a
+/// Fires a `BreakBlockEvent` for the currently targeted block and sends a
 /// `ClientMessage::BreakBlock` to the server.
-pub fn break_targeted_voxel_system(
+pub fn break_targeted_block_system(
     targeted_block: Res<TargetedBlock>,
-    mut break_voxel_writer: MessageWriter<BreakVoxelEvent>,
+    mut break_block_writer: MessageWriter<BreakBlockEvent>,
     mut sender_query: Query<&mut MessageSender<ClientMessage>, With<LocalPlayer>>,
 ) {
-    if let Some(voxel_pos) = targeted_block.position {
+    if let Some(block_pos) = targeted_block.position {
         // send local event for instant Client-Side Prediction (CSP)
-        break_voxel_writer.write(BreakVoxelEvent {
-            world_pos: voxel_pos,
+        break_block_writer.write(BreakBlockEvent {
+            world_pos: block_pos,
         });
 
         // send networked intent to the server
         if let Ok(mut sender) = sender_query.single_mut() {
             sender.send::<BlockUpdates>(ClientMessage::BreakBlock {
-                position: voxel_pos,
+                position: block_pos,
             });
         }
     }
 }
 
-/// Listens for `ServerMessage::VoxelUpdate` from the server (representing other players' actions or server-side changes)
-/// and translates them into local voxel events.
-pub fn handle_incoming_voxel_updates(
+/// Listens for `ServerMessage::BlockUpdate` from the server (representing other players' actions or server-side changes)
+/// and translates them into local block events.
+pub fn handle_incoming_block_updates(
     mut query: Query<&mut MessageReceiver<ServerMessage>, With<LocalPlayer>>,
-    mut break_voxel_writer: MessageWriter<BreakVoxelEvent>,
-    mut place_voxel_writer: MessageWriter<PlaceVoxelEvent>,
+    mut break_block_writer: MessageWriter<BreakBlockEvent>,
+    mut place_block_writer: MessageWriter<PlaceBlockEvent>,
 ) {
     for mut receiver in query.iter_mut() {
         for message in receiver.receive() {
-            if let ServerMessage::VoxelUpdate { position, block_id } = message {
+            if let ServerMessage::BlockUpdate { position, block_id } = message {
                 if block_id == AIR_BLOCK_ID {
-                    break_voxel_writer.write(BreakVoxelEvent {
+                    break_block_writer.write(BreakBlockEvent {
                         world_pos: position,
                     });
                 } else {
-                    place_voxel_writer.write(PlaceVoxelEvent {
+                    place_block_writer.write(PlaceBlockEvent {
                         target_pos: position,
                         block_id,
                     });
@@ -58,11 +58,11 @@ pub fn handle_incoming_voxel_updates(
     }
 }
 
-/// A system that handles the `BreakVoxelEvent` by mutating local chunk data
+/// A system that handles the `BreakBlockEvent` by mutating local chunk data
 /// and marking chunks as dirty for remeshing.
-pub fn handle_break_voxel_events_system(
+pub fn handle_break_block_events_system(
     // input
-    mut events: MessageReader<BreakVoxelEvent>,
+    mut events: MessageReader<BreakBlockEvent>,
     chunk_query: Query<(&ChunkCoord, Entity)>,
 
     // output
@@ -129,19 +129,19 @@ pub fn handle_break_voxel_events_system(
     }
 }
 
-/// Fires a `PlaceVoxelEvent` for the currently targeted block and sends a
+/// Fires a `PlaceBlockEvent` for the currently targeted block and sends a
 /// `ClientMessage::PlaceBlock` to the server.
-pub fn place_targeted_voxel_system(
+pub fn place_targeted_block_system(
     targeted_block: Res<TargetedBlock>,
-    mut place_voxel_writer: MessageWriter<PlaceVoxelEvent>,
+    mut place_block_writer: MessageWriter<PlaceBlockEvent>,
     mut sender_query: Query<&mut MessageSender<ClientMessage>, With<LocalPlayer>>,
 ) {
-    if let (Some(voxel_pos), Some(normal)) = (targeted_block.position, targeted_block.normal) {
-        let target_pos = voxel_pos + normal;
+    if let (Some(block_pos), Some(normal)) = (targeted_block.position, targeted_block.normal) {
+        let target_pos = block_pos + normal;
         let block_id = 1; // TODO: Use actual selected block ID from an inventory resource
 
         // send local event for CSP
-        place_voxel_writer.write(PlaceVoxelEvent {
+        place_block_writer.write(PlaceBlockEvent {
             target_pos,
             block_id,
         });
@@ -156,11 +156,11 @@ pub fn place_targeted_voxel_system(
     }
 }
 
-/// A system that handles the `PlaceVoxelEvent` by mutating local chunk data
+/// A system that handles the `PlaceBlockEvent` by mutating local chunk data
 /// and marking chunks as dirty for remeshing.
-pub fn handle_place_voxel_events_system(
+pub fn handle_place_block_events_system(
     // input
-    mut events: MessageReader<PlaceVoxelEvent>,
+    mut events: MessageReader<PlaceBlockEvent>,
     chunk_query: Query<(&ChunkCoord, Entity)>,
 
     // output

@@ -2,8 +2,8 @@ use crate::prelude::*;
 use crate::render::{
     block::BlockRenderDataRegistry,
     chunk::{
-        ClientChunkManager, ClientChunkState, OpaqueMeshComponent, TransparentMeshComponent,
-        VoxelMeshAsset,
+        BlockMeshAsset, ClientChunkManager, ClientChunkState, OpaqueMeshComponent,
+        TransparentMeshComponent,
         meshing::build_chunk_mesh,
         tasks::meshgen::{CheckForMeshing, WantsMeshing, components::ChunkMeshingTaskComponent},
     },
@@ -213,7 +213,7 @@ pub fn poll_chunk_meshing_tasks(
     // output
     mut commands: Commands,
     mut chunk_manager: ResMut<ClientChunkManager>,
-    mut mesh_assets: ResMut<Assets<VoxelMeshAsset>>,
+    mut mesh_assets: ResMut<Assets<BlockMeshAsset>>,
 ) {
     // poll all mesh task
     for (entity, meshing_task_component, coord) in tasks_query.iter_mut() {

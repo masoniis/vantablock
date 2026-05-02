@@ -11,7 +11,7 @@ use bevy::math::IVec3;
 /// Due to vertex pulling, 32 (shift of 4) should be he only choice that will work here
 const CHUNK_DIM_SHIFT: usize = 4;
 
-/// The voxel length of the side of a chunk.
+/// The block length of the side of a chunk.
 pub const CHUNK_SIDE_LENGTH: usize = 2 << CHUNK_DIM_SHIFT;
 pub const CHUNK_WIDTH: usize = CHUNK_SIDE_LENGTH;
 pub const CHUNK_HEIGHT: usize = CHUNK_SIDE_LENGTH;

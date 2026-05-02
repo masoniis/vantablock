@@ -1,7 +1,7 @@
 use crate::render::chunk::meshing::common::{AoLevel, FaceSide};
 use bevy::reflect::Reflect;
 
-/// A struct representing a single voxel face in the world
+/// A struct representing a single block face in the world
 #[repr(transparent)]
 #[derive(
     Debug,

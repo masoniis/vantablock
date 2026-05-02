@@ -9,7 +9,7 @@ pub type TextureId = u32;
 
 pub type TextureLoadError = String;
 
-/// A resource holding the handle to the stitched voxel texture array.
+/// A resource holding the handle to the stitched block texture array.
 #[derive(Resource, Clone, Debug, ExtractResource)]
 pub struct BlockTextureArray {
     pub handle: Handle<Image>,

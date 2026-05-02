@@ -8,7 +8,7 @@ use bevy::render::renderer::{RenderDevice, RenderQueue};
 use std::sync::Arc;
 
 /// A system that processes the `MeshesToUploadQueue` and uploads new or modified
-/// voxel meshes to the global GPU storage buffer.
+/// block meshes to the global GPU storage buffer.
 #[instrument(skip_all)]
 pub fn prepare_transparent_meshes_system(
     device: Res<RenderDevice>,
@@ -34,14 +34,14 @@ pub fn prepare_transparent_meshes_system(
         }
 
         // allocate and upload to global SSBO
-        if let Some(voxel_mesh) = chunk_memory_manager.allocate_chunk(
+        if let Some(block_mesh) = chunk_memory_manager.allocate_chunk(
             &device,
             &queue,
             &layout,
             &mesh.faces,
             world_pos.into(),
         ) {
-            gpu_mesh_storage.meshes.insert(id, Arc::new(voxel_mesh));
+            gpu_mesh_storage.meshes.insert(id, Arc::new(block_mesh));
             debug!(
                 target: "gpu_mesh_upload",
                 "Uploaded mesh {:?} to global SSBO at pos {:?}", id, world_pos

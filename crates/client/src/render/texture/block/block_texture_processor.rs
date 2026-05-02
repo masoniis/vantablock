@@ -1,4 +1,4 @@
-use super::voxel_texture_registry::{TextureId, TextureRegistryResource};
+use super::block_texture_registry::{TextureId, TextureRegistryResource};
 use crate::prelude::*;
 use crate::render::texture::error::TextureLoadError;
 use bevy::asset::RenderAssetUsages;
@@ -10,13 +10,13 @@ use image::RgbaImage;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-/// A utility for loading voxel texture folders and generating resources from them
-pub struct VoxelTextureProcessor {
+/// A utility for loading block texture folders and generating resources from them
+pub struct BlockTextureProcessor {
     base_path: PathBuf,
     texture_pack: String,
 }
 
-impl VoxelTextureProcessor {
+impl BlockTextureProcessor {
     pub fn new(assets_dir: PathBuf, texture_pack: &str) -> Self {
         Self {
             base_path: assets_dir.join("client/texture"),
@@ -48,7 +48,7 @@ impl VoxelTextureProcessor {
         // Use the paths to load pixels
         let mut images = Vec::with_capacity(paths.len() + 1);
 
-        // load/generate first image to get dimensions of all voxel textures
+        // load/generate first image to get dimensions of all block textures
         let first_pixels = if let Some(first_path) = paths.first() {
             image::open(first_path)
                 .map_err(|e| TextureLoadError::ImageError(first_path.display().to_string(), e))?
@@ -99,7 +99,7 @@ impl VoxelTextureProcessor {
         );
 
         texture_array.texture_view_descriptor = Some(TextureViewDescriptor {
-            label: Some("Voxel Texture Array View"),
+            label: Some("Block Texture Array View"),
             dimension: Some(TextureViewDimension::D2Array),
             ..Default::default()
         });

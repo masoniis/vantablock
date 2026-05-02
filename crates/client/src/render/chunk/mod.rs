@@ -6,7 +6,7 @@ pub mod tasks;
 
 pub use manager::{ClientChunkManager, ClientChunkState};
 
-pub use asset::VoxelMeshAsset;
+pub use asset::BlockMeshAsset;
 pub use components::{OpaqueMeshComponent, TransparentMeshComponent};
 use shared::FixedUpdateSet;
 pub use shared::world::chunk::ChunkMeshDirty;
@@ -22,7 +22,7 @@ pub struct ChunkMeshingPlugin;
 
 impl Plugin for ChunkMeshingPlugin {
     fn build(&self, app: &mut App) {
-        app.init_asset::<VoxelMeshAsset>();
+        app.init_asset::<BlockMeshAsset>();
         app.init_resource::<ClientChunkManager>();
 
         app.add_systems(

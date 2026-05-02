@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 pub enum ClientMessage {
     /// A discrete input action performed by the player.
     Action(PlayerAction),
-    /// A request for the server to send voxel data for a specific chunk.
+    /// A request for the server to send block data for a specific chunk.
     RequestChunk(ChunkCoord),
     /// Updates the server on the player's current view orientation/camera state.
     /// Necessary for authoritative targeting or raycasting calculations.
@@ -22,8 +22,8 @@ pub enum ClientMessage {
 pub enum ServerMessage {
     /// Initial state sent to the client upon joining.
     Welcome { entity_id: Entity, spawn_pos: Vec3 },
-    /// Direct voxel update for a specific world position. Represents generalized state change broadcast.
-    VoxelUpdate { position: IVec3, block_id: u8 },
+    /// Direct block update for a specific world position. Represents generalized state change broadcast.
+    BlockUpdate { position: IVec3, block_id: u8 },
     /// Bulk data for a chunk, typically compressed or encoded from ChunkVolumeData.
     ChunkData {
         coord: ChunkCoord,

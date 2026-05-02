@@ -97,7 +97,7 @@ impl TerrainShaper for RealisticShaper {
                 )
             };
 
-            // density is positive (solid) if this voxel's world height is below the target height
+            // density is positive (solid) if this block's world height is below the target height
             //
             // The division by 40 is arbitrary, but the more we divide by, the more impact the noise
             // function has. The less we divide by, the more impact target height has. Should probably

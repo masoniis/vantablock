@@ -1,5 +1,5 @@
 use client::render::chunk::meshing::build_chunk_mesh;
-use client::render::{block::BlockRenderDataRegistry, texture::VoxelTextureProcessor};
+use client::render::{block::BlockRenderDataRegistry, texture::BlockTextureProcessor};
 use client::settings::ClientSettings;
 use criterion::{Criterion, criterion_group, criterion_main};
 use shared::world::{
@@ -22,7 +22,7 @@ fn bench_chunk_meshing(c: &mut Criterion) {
     let client_settings = ClientSettings::load_or_create(&persistent_paths);
 
     // meshing requires textures to resolve
-    let (_texture_array, texture_registry) = VoxelTextureProcessor::new(
+    let (_texture_array, texture_registry) = BlockTextureProcessor::new(
         persistent_paths.assets_dir.clone(),
         &client_settings.texture_pack,
     )

@@ -40,8 +40,8 @@ pub fn update_targeted_block_system(
         return;
     };
 
-    // simple voxel raycast
-    let mut last_voxel_pos = None;
+    // simple block raycast
+    let mut last_block_pos = None;
 
     let mut target_pos = None;
     let mut target_normal = None;
@@ -51,26 +51,26 @@ pub fn update_targeted_block_system(
     for i in 0..steps {
         let dist = i as f32 * RAYCAST_STEP;
         let current_pos = transform.translation() + transform.forward() * dist;
-        let current_voxel_pos = current_pos.floor().as_ivec3();
+        let current_block_pos = current_pos.floor().as_ivec3();
 
-        // skip if we're still in the same voxel
-        if Some(current_voxel_pos) == last_voxel_pos {
+        // skip if we're still in the same block
+        if Some(current_block_pos) == last_block_pos {
             continue;
         }
 
-        // get block for current voxel
-        let block_id = get_block_at_world_pos(current_voxel_pos, &chunk_manager, &chunks_query);
+        // get block for current block
+        let block_id = get_block_at_world_pos(current_block_pos, &chunk_manager, &chunks_query);
 
         // check if we hit something
         if block_id != Some(AIR_BLOCK_ID) && block_id.is_some() {
-            target_pos = Some(current_voxel_pos);
-            if let Some(last_pos) = last_voxel_pos {
-                target_normal = Some(last_pos - current_voxel_pos);
+            target_pos = Some(current_block_pos);
+            if let Some(last_pos) = last_block_pos {
+                target_normal = Some(last_pos - current_block_pos);
             }
             break;
         }
 
-        last_voxel_pos = Some(current_voxel_pos);
+        last_block_pos = Some(current_block_pos);
     }
 
     targeted_block.position = target_pos;

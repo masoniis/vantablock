@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use crate::render::{
     block::BlockRenderDataRegistry,
-    texture::{BlockTextureArray, VoxelTextureProcessor},
+    texture::{BlockTextureArray, BlockTextureProcessor},
 };
 use bevy::ecs::world::CommandQueue;
 use bevy::{
@@ -35,9 +35,9 @@ pub fn start_async_registry_initialization(
 
         // texture stitching
         let (texture_array_image, texture_registry) =
-            VoxelTextureProcessor::new(paths.assets_dir.clone(), &settings.texture_pack)
+            BlockTextureProcessor::new(paths.assets_dir.clone(), &settings.texture_pack)
                 .load_and_stitch()
-                .expect("Failed to load and stitch voxel textures!");
+                .expect("Failed to load and stitch block textures!");
 
         // independent simulation block loading
         let block_registry = BlockRegistry::load_from_disk(&paths);

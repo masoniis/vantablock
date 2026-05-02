@@ -28,29 +28,29 @@ impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<TargetedBlock>();
 
-        app.add_plugins((CameraPlugin, shared::player::actions::ActionPlugin));
+        app.add_plugins(CameraPlugin);
 
         app.add_systems(
             FixedUpdate,
-            update_target_voxel::update_targeted_block_system,
+            update_target_block::update_targeted_block_system,
         );
 
         app.add_observer(dress_predicted_player_observer);
 
-        // register local voxel events
-        app.init_resource::<Messages<BreakVoxelEvent>>();
-        app.init_resource::<Messages<PlaceVoxelEvent>>();
+        // register local block events
+        app.init_resource::<Messages<BreakBlockEvent>>();
+        app.init_resource::<Messages<PlaceBlockEvent>>();
 
         app.add_systems(
             Update,
             (
-                voxel_actions::break_targeted_voxel_system
-                    .run_if(action_just_pressed(PlayerAction::BreakVoxel)),
-                voxel_actions::place_targeted_voxel_system
-                    .run_if(action_just_pressed(PlayerAction::PlaceVoxel)),
-                voxel_actions::handle_break_voxel_events_system,
-                voxel_actions::handle_place_voxel_events_system,
-                voxel_actions::handle_incoming_voxel_updates,
+                block_actions::break_targeted_block_system
+                    .run_if(action_just_pressed(PlayerAction::BreakBlock)),
+                block_actions::place_targeted_block_system
+                    .run_if(action_just_pressed(PlayerAction::PlaceBlock)),
+                block_actions::handle_break_block_events_system,
+                block_actions::handle_place_block_events_system,
+                block_actions::handle_incoming_block_updates,
             ),
         );
     }

@@ -27,7 +27,7 @@ pub enum ChunkDataOption {
 #[derive(Clone)]
 pub struct PaddedChunk {
     /// Padded chunk volume with side-length of size `PADDED_SIZE`.
-    voxels: Vec<BlockId>,
+    blocks: Vec<BlockId>,
 
     /// The LOD of the center chunk
     center_lod: ChunkLod,
@@ -159,7 +159,7 @@ impl PaddedChunk {
         }
 
         Self {
-            voxels: buffer,
+            blocks: buffer,
             center_lod,
             neighbor_lods,
             center_uniform_block,
@@ -168,7 +168,7 @@ impl PaddedChunk {
 
     /// Consumes the PaddedChunk and returns the underlying buffer.
     pub fn take_buffer(self) -> Vec<BlockId> {
-        self.voxels
+        self.blocks
     }
 
     /// Hot loop accessor.
@@ -178,7 +178,7 @@ impl PaddedChunk {
         let py = (y + 1) as usize;
         let pz = (z + 1) as usize;
         let idx = py + pz * PADDED_SIZE + px * PADDED_SIZE * PADDED_SIZE;
-        unsafe { *self.voxels.get_unchecked(idx) }
+        unsafe { *self.blocks.get_unchecked(idx) }
     }
 
     /// Gets the center uniform block option.
@@ -232,7 +232,7 @@ impl PaddedChunk {
             for z in z_range.clone() {
                 for y in y_range.clone() {
                     let idx = y + z * PADDED_SIZE + x * PADDED_SIZE * PADDED_SIZE;
-                    let block_id = self.voxels[idx];
+                    let block_id = self.blocks[idx];
                     if transparency_lut[block_id as usize] {
                         return false;
                     }

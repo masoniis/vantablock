@@ -9,11 +9,11 @@ use shared::{
     world::chunk::components::{ChunkBlocksComponent, ChunkCoord},
 };
 
-/// Handles requests from clients to modify voxels (break or place).
+/// Handles requests from clients to modify blocks (break or place).
 ///
 /// This system updates the authoritative server state and broadcasts the change
-/// to all other connected clients as a `ServerMessage::VoxelUpdate`.
-pub fn handle_client_voxel_requests(
+/// to all other connected clients as a `ServerMessage::BlockUpdate`.
+pub fn handle_client_block_requests(
     mut query: Query<(&RemoteId, &mut MessageReceiver<ClientMessage>)>,
     chunk_map: Res<ChunkMap>,
     mut blocks_query: Query<&mut ChunkBlocksComponent>,
@@ -46,7 +46,7 @@ pub fn handle_client_voxel_requests(
                 );
 
                 // broadcast state change to all other clients.
-                let update_message = ServerMessage::VoxelUpdate {
+                let update_message = ServerMessage::BlockUpdate {
                     position: world_pos,
                     block_id,
                 };
