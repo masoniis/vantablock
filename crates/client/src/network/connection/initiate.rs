@@ -8,7 +8,7 @@ use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 /// Sets up a basic client.
 ///
 /// https://cbournhonesque.github.io/lightyear/book/tutorial/build_client_server.html#client
-pub fn initiate_connection_trigger(
+pub fn on_initiate_connection(
     trigger: On<InitiateConnection>,
     mut commands: Commands,
     mut next_client_state: ResMut<NextState<ClientState>>,

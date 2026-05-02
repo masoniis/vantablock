@@ -1,27 +1,13 @@
-use bevy::prelude::*;
-use lightyear::prelude::*;
-use shared::network::protocol::ClientMessage;
+use crate::network::types::ClientConnection;
+use bevy::ecs::system::Query;
+use lightyear::prelude::MessageReceiver;
+use shared::{network::ClientMessage, player::components::PlayerLook};
 
-pub mod block_actions;
-
-use self::block_actions::handle_client_block_requests;
-use super::types::ClientConnection;
-
-pub struct ServerIngressPlugin;
-
-impl Plugin for ServerIngressPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_systems(
-            Update,
-            (receive_client_messages, handle_client_block_requests),
-        );
-    }
-}
-
+/// Receives client messages and handles them
 pub fn receive_client_messages(
     mut query: Query<(
         &mut MessageReceiver<ClientMessage>,
-        &mut shared::player::components::PlayerLook,
+        &mut PlayerLook,
         &ClientConnection,
     )>,
 ) {

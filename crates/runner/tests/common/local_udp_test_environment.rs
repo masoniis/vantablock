@@ -3,7 +3,7 @@ use shared::network::DEFAULT_LOCAL_SERVER_ADDR;
 use std::time::{Duration, Instant};
 use {
     client::network::{
-        ClientNetworkPlugin,
+        ClientNetworkPlugins,
         connection::{ConnectType, InitiateConnection},
     },
     server::network::ServerNetworkPlugin,
@@ -27,7 +27,7 @@ impl Default for UdpClientServerTestEnvironment {
 
         // networking setup
         server_app.add_plugins(ServerNetworkPlugin);
-        client_app.add_plugins(ClientNetworkPlugin);
+        client_app.add_plugins(ClientNetworkPlugins);
 
         // start udp server
         // server_app

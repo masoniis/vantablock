@@ -1,5 +1,5 @@
 use ::{
-    client::network::ClientNetworkPlugin, server::network::ServerNetworkPlugin,
+    client::network::ClientNetworkPlugins, server::network::ServerNetworkPlugin,
     shared::network::SharedNetworkPlugin,
 };
 use bevy::prelude::*;
@@ -28,8 +28,9 @@ impl Default for CrossbeamClientServerTestEnvironment {
         // networking setup
         server_app.add_plugins(SharedNetworkPlugin);
         server_app.add_plugins(ServerNetworkPlugin);
-        client_app.add_plugins(SharedNetworkPlugin);
-        client_app.add_plugins(ClientNetworkPlugin);
+
+        // client networking setup (ClientNetworkPlugins includes SharedNetworkPlugin)
+        client_app.add_plugins(ClientNetworkPlugins);
 
         // setup crossbeam connection
         setup_crossbeam_connection(&mut server_app, &mut client_app);

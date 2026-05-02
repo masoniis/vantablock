@@ -5,7 +5,7 @@ use shared::network::{ChatAndSystem, ServerMessage};
 use std::time::Duration;
 use tracing::{error, info};
 
-pub fn handle_connections(
+pub fn on_client_connect(
     trigger: On<Add, Connected>,
     mut commands: Commands,
     mut sender: ServerMultiMessageSender,
@@ -35,7 +35,7 @@ pub fn handle_connections(
             shared::player::components::LogicalPosition(spawn_pos),
             ClientConnection { client_entity },
             ClientChunkTracker::default(),
-            Replicate::default(),
+            Replicate::to_clients(NetworkTarget::All),
         ))
         .id();
 
@@ -60,7 +60,7 @@ pub fn handle_connections(
     }
 }
 
-pub fn handle_disconnections(
+pub fn on_client_disconnect(
     trigger: On<Remove, Connected>,
     mut commands: Commands,
     player_query: Query<(Entity, &ClientConnection)>,

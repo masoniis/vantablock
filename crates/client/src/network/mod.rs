@@ -1,44 +1,34 @@
 pub mod connection;
 pub mod graphics;
-pub mod ingress;
-pub mod systems;
+pub mod receive;
+pub mod send;
 
-pub use ingress::*;
+pub use receive::*;
 
 // INFO: ---------------------------
 //         plugin definition
 // ---------------------------------
 
+use bevy::app::PluginGroupBuilder;
 use bevy::prelude::*;
 use lightyear::prelude::client as lightyear_client;
-use shared::network::{NETWORK_TICK_DURATION, SharedNetworkPlugin};
+use shared::network::{SharedNetworkPlugin, NETWORK_TICK_DURATION};
 use std::time::Duration;
-use systems::apply_received_chunk_data_system;
 
-pub struct ClientNetworkPlugin;
+pub struct ClientNetworkPlugins;
 
-impl Plugin for ClientNetworkPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_plugins((
+impl PluginGroup for ClientNetworkPlugins {
+    fn build(self) -> PluginGroupBuilder {
+        PluginGroupBuilder::start::<Self>()
             // lightyear plugin group and interpolation
-            lightyear_client::ClientPlugins {
+            .add_group(lightyear_client::ClientPlugins {
                 tick_duration: Duration::from_secs_f64(NETWORK_TICK_DURATION),
-            },
-            // client's message handler
-            ingress::ClientMessageHandlerPlugin,
-            connection::ClientConnectionPlugin,
-        ));
-
-        // (protocol) must be added AFTER lightyear plugin
-        app.add_plugins(SharedNetworkPlugin);
-
-        app.add_systems(
-            Update,
-            (
-                apply_received_chunk_data_system,
-                graphics::smoothing::update_logical_position_smoothing,
-                graphics::smoothing::update_player_look_smoothing,
-            ),
-        );
+            })
+            .add(SharedNetworkPlugin)
+            // client specific networking plugins
+            .add(connection::NetworkConnectionPlugin)
+            .add(graphics::NetworkGraphicsPlugin)
+            .add(receive::NetworkReceivePlugin)
+            .add(send::NetworkSendPlugin)
     }
 }

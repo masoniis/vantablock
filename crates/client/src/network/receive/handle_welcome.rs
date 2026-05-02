@@ -1,9 +1,7 @@
-use crate::network::messages::WelcomeEvent;
+use crate::network::ecs_messages::WelcomeEvent;
 use crate::player::components::LocalPlayer;
-use bevy::ecs::message::MessageReader;
-use bevy::prelude::*;
-use shared::player::components::LogicalPosition;
-use shared::world::chunk::ChunkCoord;
+use bevy::{ecs::message::MessageReader, prelude::*};
+use shared::{player::components::LogicalPosition, world::chunk::ChunkCoord};
 
 pub fn handle_welcome_system(
     mut ev_welcome: MessageReader<WelcomeEvent>,

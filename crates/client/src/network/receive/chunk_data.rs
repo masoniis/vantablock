@@ -1,4 +1,4 @@
-use crate::network::messages::ReceivedChunkDataEvent;
+use crate::network::ecs_messages::ReceivedChunkDataEvent;
 use crate::render::chunk::manager::{ClientChunkManager, ClientChunkState};
 use bevy::ecs::message::MessageReader;
 use bevy::prelude::*;

@@ -1,19 +1,10 @@
+use crate::network::types::MessageTimer;
 use bevy::prelude::*;
-use lightyear::prelude::server::*;
-use lightyear::prelude::*;
+use lightyear::{prelude::server::*, prelude::*};
 use shared::network::{ChatAndSystem, ServerMessage};
 use tracing::{error, info};
 
-use super::types::MessageTimer;
-
-pub struct ServerEgressPlugin;
-
-impl Plugin for ServerEgressPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_systems(Update, send_sync_time);
-    }
-}
-
+/// Sends the periodic sync timer to all clients
 pub fn send_sync_time(
     mut timer: ResMut<MessageTimer>,
     time: Res<Time>,

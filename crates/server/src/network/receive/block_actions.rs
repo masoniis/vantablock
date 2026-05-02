@@ -1,6 +1,5 @@
 use crate::world::chunk::ChunkMap;
 use bevy::prelude::*;
-use lightyear::prelude::server::*;
 use lightyear::prelude::*;
 use shared::{
     network::protocol::{BlockUpdates, ClientMessage, ServerMessage},

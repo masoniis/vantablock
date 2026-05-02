@@ -42,7 +42,7 @@ impl PluginGroup for CoreClientLogicPlugins {
             .add(settings::ClientSettingsPlugin)
             .add(input::ClientInputPlugin)
             .add_group(lifecycle::LifecyclePlugins)
-            .add(network::ClientNetworkPlugin)
+            .add_group(network::ClientNetworkPlugins)
             .add(player::PlayerPlugin)
             .add(showcase::ShowcasePlugin)
     }

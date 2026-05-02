@@ -4,7 +4,7 @@ mod world_clock;
 pub use frame_clock::FrameClock;
 pub use world_clock::{SECONDS_IN_A_DAY, WorldClockResource};
 
-/// Const for configuration of fixed update tick rate and network tick rate
+/// Const for configuration of fixed update tick rate
 pub const TICKS_PER_SECOND: f64 = 20.0;
 
 // INFO: ---------------------

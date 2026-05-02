@@ -1,6 +1,6 @@
 pub mod connection;
-pub mod egress;
-pub mod ingress;
+pub mod receive;
+pub mod send;
 pub mod types;
 
 // INFO: ---------------------------
@@ -25,8 +25,8 @@ impl Plugin for ServerNetworkPlugin {
             },
             // network sub-plugins
             connection::ServerConnectionPlugin,
-            ingress::ServerIngressPlugin,
-            egress::ServerEgressPlugin,
+            receive::ServerIngressPlugin,
+            send::ServerEgressPlugin,
         ));
 
         // (protocol) must be added AFTER lightyear plugin

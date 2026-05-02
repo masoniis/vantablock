@@ -1,4 +1,6 @@
+mod initiate;
 pub mod resources;
+mod session;
 
 pub use resources::*;
 
@@ -6,23 +8,15 @@ pub use resources::*;
 //         plugin definition
 // ---------------------------------
 
-mod handle_connection_states;
-mod perform_connection;
-
 use bevy::app::{App, Plugin, Update};
-use perform_connection::initiate_connection_trigger;
 
-use crate::network::connection::handle_connection_states::{
-    handle_connections, handle_disconnections,
-};
+pub(crate) struct NetworkConnectionPlugin;
 
-pub struct ClientConnectionPlugin;
-
-impl Plugin for ClientConnectionPlugin {
+impl Plugin for NetworkConnectionPlugin {
     fn build(&self, app: &mut App) {
-        app.add_observer(initiate_connection_trigger);
+        app.add_observer(initiate::on_initiate_connection);
 
-        app.add_systems(Update, handle_disconnections)
-            .add_observer(handle_connections);
+        app.add_systems(Update, session::handle_disconnections)
+            .add_observer(session::handle_connections);
     }
 }
