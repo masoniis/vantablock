@@ -5,7 +5,6 @@ members = [
   "crates/server",
   "crates/shared",
   "crates/utils",
-  "crates/lightyear_example",
 ]
 resolver = "3"
 
