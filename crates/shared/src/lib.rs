@@ -1,6 +1,5 @@
 //! # The Vantablock Shared Library
 
-pub mod events;
 pub mod lifecycle;
 pub mod network;
 pub mod player;
@@ -15,8 +14,7 @@ pub use prelude::*;
 // -----------------------------------
 
 use bevy::app::PluginGroupBuilder;
-use bevy::ecs::message::Messages;
-use bevy::prelude::{App, Plugin, PluginGroup};
+use bevy::prelude::PluginGroup;
 
 /// A plugin group containing shared simulation and game logic plugins used by both client and server.
 pub struct SharedPlugins;
@@ -24,18 +22,9 @@ pub struct SharedPlugins;
 impl PluginGroup for SharedPlugins {
     fn build(self) -> PluginGroupBuilder {
         PluginGroupBuilder::start::<Self>()
-            .add(SharedEventsPlugin)
             .add_group(lifecycle::SharedLifecyclePlugins)
             .add_group(world::WorldPlugins)
             .add(time::TimeControlPlugin)
             .add(player::SharedPlayerPlugin)
-    }
-}
-
-struct SharedEventsPlugin;
-
-impl Plugin for SharedEventsPlugin {
-    fn build(&self, app: &mut App) {
-        app.init_resource::<Messages<events::RequestSingleplayerSession>>();
     }
 }
