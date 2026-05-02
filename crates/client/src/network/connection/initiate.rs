@@ -1,8 +1,7 @@
 use crate::lifecycle::{ClientState, InGameState, SessionTopology};
-use crate::network::connection::{ConnectType, InitiateConnection};
+use crate::network::connection::{ConnectType, InitiateConnection, RequestSingleplayerSession};
 use bevy::prelude::*;
 use lightyear::{netcode::Key, prelude::client::*, prelude::*};
-use shared::events::RequestSingleplayerSession;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 /// Sets up a basic client.
@@ -14,7 +13,6 @@ pub fn on_initiate_connection(
     mut next_client_state: ResMut<NextState<ClientState>>,
     mut next_in_game_state: ResMut<NextState<InGameState>>,
     mut next_session_topology: ResMut<NextState<SessionTopology>>,
-    mut ev_request_session: MessageWriter<RequestSingleplayerSession>,
 ) {
     let event = trigger.event();
 
@@ -22,7 +20,7 @@ pub fn on_initiate_connection(
     match event.connect_type {
         ConnectType::Singleplayer => {
             next_session_topology.set(SessionTopology::Internal);
-            ev_request_session.write(RequestSingleplayerSession);
+            commands.trigger(RequestSingleplayerSession);
         }
         ConnectType::Multiplayer => {
             next_session_topology.set(SessionTopology::External);

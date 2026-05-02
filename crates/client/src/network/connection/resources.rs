@@ -17,3 +17,8 @@ pub struct InitiateConnection {
     pub connect_type: ConnectType,
     pub server_addr: String,
 }
+
+/// Triggered by the client to request a local singleplayer server.
+/// Handled by the runner (orchestrator) to spin up a background server.
+#[derive(Event, Debug, Clone)]
+pub struct RequestSingleplayerSession;

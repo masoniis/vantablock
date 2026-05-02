@@ -1,18 +1,21 @@
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::thread;
-
 use bevy::prelude::*;
-use server::DefaultServerPlugins;
-use server::lifecycle::state::ServerState;
-use shared::events::RequestSingleplayerSession;
+use server::{DefaultServerPlugins, lifecycle::state::ServerState};
+use std::{
+    sync::Arc,
+    sync::atomic::{AtomicBool, Ordering},
+    thread,
+};
 use tracing::info;
+
+#[cfg(feature = "client")]
+use client::network::connection::RequestSingleplayerSession;
 
 pub struct OrchestratorPlugin;
 
 impl Plugin for OrchestratorPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, handle_request_singleplayer);
+        #[cfg(feature = "client")]
+        app.add_observer(handle_request_singleplayer);
     }
 }
 
@@ -24,36 +27,32 @@ pub struct LocalServerFlag(pub Arc<AtomicBool>);
 #[derive(Resource)]
 struct ServerReadyNotifier(Arc<AtomicBool>);
 
-fn handle_request_singleplayer(
-    mut commands: Commands,
-    mut ev_request_session: MessageReader<RequestSingleplayerSession>,
-) {
-    for _ in ev_request_session.read() {
-        info!("Orchestrator: Received RequestSingleplayerSession. Starting background server...");
+#[cfg(feature = "client")]
+fn handle_request_singleplayer(_trigger: On<RequestSingleplayerSession>, mut commands: Commands) {
+    info!("Orchestrator: Received RequestSingleplayerSession. Starting background server...");
 
-        // create the thread-safe flag
-        let server_is_ready = Arc::new(AtomicBool::new(false));
-        let flag_for_server = Arc::clone(&server_is_ready);
+    // create the thread-safe flag
+    let server_is_ready = Arc::new(AtomicBool::new(false));
+    let flag_for_server = Arc::clone(&server_is_ready);
 
-        // insert the flag into the Main App (so the Client can poll it)
-        commands.insert_resource(LocalServerFlag(server_is_ready));
+    // insert the flag into the Main App (so the Client can poll it)
+    commands.insert_resource(LocalServerFlag(server_is_ready));
 
-        // Spawn the background server
-        thread::spawn(move || {
-            let mut app = App::new();
-            app.add_plugins(DefaultServerPlugins);
+    // spawn the background server
+    thread::spawn(move || {
+        let mut app = App::new();
+        app.add_plugins(DefaultServerPlugins);
 
-            // pass the server's half of the flag into its ECS
-            app.insert_resource(ServerReadyNotifier(flag_for_server));
+        // pass the server's half of the flag into its ECS
+        app.insert_resource(ServerReadyNotifier(flag_for_server));
 
-            // tell the server to flip the flag the exact moment it enters NetworkingMode::Active
-            app.add_systems(OnEnter(ServerState::Running), notify_client_ready);
+        // tell the server to flip the flag the exact moment it enters NetworkingMode::Active
+        app.add_systems(OnEnter(ServerState::Running), notify_client_ready);
 
-            info!("Background Server: Booting...");
+        info!("Background Server: Booting...");
 
-            app.run();
-        });
-    }
+        app.run();
+    });
 }
 
 /// System that runs exactly once on the background thread when the port is successfully bound
