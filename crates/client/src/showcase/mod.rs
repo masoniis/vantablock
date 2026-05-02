@@ -1,9 +1,8 @@
 pub mod systems;
 
-use bevy::app::{App, Plugin, Startup, Update};
-use bevy::ecs::prelude::{IntoScheduleConfigs, Res};
-use shared::simulation::input::resources::ActionStateResource;
-use shared::simulation::input::types::SimulationAction;
+use crate::input::local_actions::LocalClientAction;
+use bevy::prelude::*;
+use leafwing_input_manager::prelude::ActionState;
 use systems::{apply_default_showcase_system, apply_showcase_system};
 
 pub struct ShowcasePlugin;
@@ -14,17 +13,24 @@ impl Plugin for ShowcasePlugin {
 
         app.add_systems(
             Update,
-            apply_showcase_system.run_if(|action_state: Res<ActionStateResource>| {
-                action_state.just_happened(SimulationAction::Showcase0)
-                    || action_state.just_happened(SimulationAction::Showcase1)
-                    || action_state.just_happened(SimulationAction::Showcase2)
-                    || action_state.just_happened(SimulationAction::Showcase3)
-                    || action_state.just_happened(SimulationAction::Showcase4)
-                    || action_state.just_happened(SimulationAction::Showcase5)
-                    || action_state.just_happened(SimulationAction::Showcase6)
-                    || action_state.just_happened(SimulationAction::Showcase7)
-                    || action_state.just_happened(SimulationAction::Showcase8)
-                    || action_state.just_happened(SimulationAction::Showcase9)
+            apply_showcase_system.run_if(|query: Query<&ActionState<LocalClientAction>>| {
+                let Some(action_state) = query.iter().next() else {
+                    return false;
+                };
+                [
+                    LocalClientAction::Showcase0,
+                    LocalClientAction::Showcase1,
+                    LocalClientAction::Showcase2,
+                    LocalClientAction::Showcase3,
+                    LocalClientAction::Showcase4,
+                    LocalClientAction::Showcase5,
+                    LocalClientAction::Showcase6,
+                    LocalClientAction::Showcase7,
+                    LocalClientAction::Showcase8,
+                    LocalClientAction::Showcase9,
+                ]
+                .iter()
+                .any(|a| action_state.just_pressed(a))
             }),
         );
     }

@@ -1,5 +1,11 @@
 [workspace]
-members = ["crates/shared", "crates/client", "crates/server", "crates/utils"]
+members = [
+  "crates/client",
+  "crates/runner",
+  "crates/server",
+  "crates/shared",
+  "crates/utils",
+]
 resolver = "3"
 
 [workspace.package]
@@ -9,6 +15,7 @@ publish = false
 
 [workspace.lints.clippy]
 type_complexity = "allow"
+too_many_arguments = "allow"
 
 # INFO: --------------------------
 #         release profiles
@@ -41,11 +48,16 @@ debug = false
 # ------------------------------
 
 [workspace.dependencies]
-# crate deps
-utils = { path = "./crates/utils", package = "vantablock-utils" }
+# other crates
+client = { path = "./crates/client", package = "vantablock-client" }
+server = { path = "./crates/server", package = "vantablock-server" }
 shared = { path = "./crates/shared", package = "vantablock-shared" }
+utils = { path = "./crates/utils", package = "vantablock-utils" }
 
-# logging/error handling deps
+# development deps
+criterion = { version = "0.5", features = ["html_reports"] }
+
+# core logging/error handling deps
 time = { version = "0.3.43", features = ["formatting", "macros"] }
 tracing = { version = "0.1.41", features = ["release_max_level_info"] }
 tracing-subscriber = { version = "0.3.20", features = [
@@ -58,31 +70,32 @@ tracing-tracy = "=0.11.4"
 
 # graphics deps
 wesl = "0.2.0"                                                               # shader compliation from WESL to WGSL
-image = { version = "0.25.6", default-features = false, features = ["png"] }
-bytemuck = { version = "1.13", features = ["derive"] }                       # gpu friendly data
 offset-allocator = "0.2.0"                                                   # gpu buffer allocation
+bytemuck = { version = "1.13", features = ["derive"] }                       # gpu friendly data
+image = { version = "0.25.6", default-features = false, features = ["png"] }
 
-# simulation related deps
-bevy = { version = "0.18.1", default-features = false, features = [
-  "default_app",      # core app/ecs/etc
-  "default_platform", # core OS features, windowing, input, etc
-  "3d_bevy_render",
-  "ui_bevy_render",
-  "bevy_asset",
-  "bevy_state",
+# game dependencies
+bevy = { version = "0.18.1", default-features = false }
+leafwing-input-manager = "0.20.0"
+lightyear = { version = "0.26.4", default-features = false, features = [
+  "replication", # allows replicating components between server and client
+  "leafwing",    # leafwing input support with built-in rollback
+  "crossbeam",   # enables crossbeam as an IO layer (for client as the host on same machine)
+  "netcode",     # needed to manage distinct conns
+  "udp",         # needed for dedicated/lan
 ] }
+
+# general utilities
 futures-lite = "2.6.1" # future utils
-
-# util deps
-sysinfo = { version = "0.37.2", default-features = false, features = [
-  "system",
-] }
 derive_more = { version = "2.0.1", features = ["deref", "deref_mut"] }
 serde = { version = "1.0.228", features = ["derive"] } # serializing
 rand = "0.9.2" # rng
 ron = "0.11.0" # parsing RON files
+zstd = "0.13"
 noise = { version = "0.9.0", default-features = false } # gen random noise
 crossbeam = "0.8.4" # thread comms
 glob = "0.3.3" # reading dirs
 directories = "6.0" # platform-specific dirs
-criterion = { version = "0.5", features = ["html_reports"] }
+sysinfo = { version = "0.37.2", default-features = false, features = [
+  "system",
+] }

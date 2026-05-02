@@ -1,8 +1,8 @@
 use super::{BlockFaceTextures, BlockRenderData};
 use crate::prelude::*;
+use crate::render::texture::{TextureId, TextureRegistryResource};
 use bevy::prelude::*;
-use shared::simulation::block::texture_registry::{TextureId, TextureRegistryResource};
-use shared::simulation::block::{
+use shared::world::block::{
     AIR_BLOCK_ID, BlockId, BlockRegistry, SOLID_BLOCK_ID, load_block_from_str,
 };
 use std::sync::Arc;

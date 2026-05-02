@@ -1,6 +1,6 @@
 use super::{OpaqueMeshData, TransparentMeshData, common::*};
 use crate::prelude::*;
-use shared::simulation::{
+use shared::world::{
     block::{BlockRegistry, block_registry::BlockId},
     chunk::{CHUNK_SIDE_LENGTH, PaddedChunk},
 };
@@ -34,7 +34,6 @@ pub fn build_hull_mesh<R>(
     let is_trans = transparency_lut[block_id as usize];
     let size = ctx.chunk_size;
 
-    // 3. OPTIMIZATION: Direct array index for texture ID (No matching/branching)
     let tex_id = texture_lut[block_id as usize];
 
     macro_rules! mesh_plane {

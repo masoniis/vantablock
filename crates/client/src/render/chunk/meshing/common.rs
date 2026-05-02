@@ -1,8 +1,9 @@
 use super::{OpaqueMeshData, TransparentMeshData};
 use crate::prelude::*;
 use crate::render::chunk::meshing::packed_face::PackedFace;
-use shared::simulation::{
-    block::{BlockId, BlockRegistry, texture_registry::TextureId},
+use crate::render::texture::TextureId;
+use shared::world::{
+    block::{BlockId, BlockRegistry},
     chunk::{NeighborLODs, PaddedChunk, types::ChunkLod},
 };
 use std::sync::Arc;
@@ -103,7 +104,7 @@ impl From<u8> for AoLevel {
     }
 }
 
-/// Represents the 6 cardinal directions (normals) for a voxel face.
+/// Represents the 6 cardinal directions (normals) for a block face.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FaceSide {

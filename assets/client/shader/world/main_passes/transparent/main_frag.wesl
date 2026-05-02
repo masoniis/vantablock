@@ -20,7 +20,7 @@ fn fs_main(
 
     let texture_color: vec4<f32> = textureSample(texture_array, texture_sampler, tex_coords, texture_index);
     if texture_color.a < 0.01 {
-      discard;
+        discard;
     }
 
     // INFO: -------------

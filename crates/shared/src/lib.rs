@@ -1,7 +1,11 @@
-pub mod load;
+//! # The Vantablock Shared Library
+
+pub mod lifecycle;
+pub mod network;
+pub mod player;
 pub mod prelude;
-pub mod simulation;
-pub mod state;
+pub mod time;
+pub mod world;
 
 pub use prelude::*;
 
@@ -18,12 +22,9 @@ pub struct SharedPlugins;
 impl PluginGroup for SharedPlugins {
     fn build(self) -> PluginGroupBuilder {
         PluginGroupBuilder::start::<Self>()
-            .add(state::SimulationLifecyclePlugin)
-            .add(simulation::asset::AssetPlugin)
-            .add(simulation::biome::BiomePlugin)
-            .add(simulation::block::BlockPlugin)
-            .add(simulation::chunk::ChunkLoadingPlugin)
-            .add(simulation::terrain::TerrainGenerationPlugin)
-            .add(simulation::time::TimeControlPlugin)
+            .add_group(lifecycle::SharedLifecyclePlugins)
+            .add_group(world::WorldPlugins)
+            .add(time::TimeControlPlugin)
+            .add(player::SharedPlayerPlugin)
     }
 }
