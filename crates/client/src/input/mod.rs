@@ -43,8 +43,8 @@ pub fn get_default_input_map() -> InputMap<PlayerAction> {
     input_map.insert(PlayerAction::MoveFaster, KeyCode::ShiftLeft);
 
     // Core player actions
-    input_map.insert(PlayerAction::BreakVoxel, MouseButton::Left);
-    input_map.insert(PlayerAction::PlaceVoxel, MouseButton::Right);
+    input_map.insert(PlayerAction::BreakBlock, MouseButton::Left);
+    input_map.insert(PlayerAction::PlaceBlock, MouseButton::Right);
 
     // Terrain gen
     input_map.insert(PlayerAction::CycleActiveTerrainGenerator, KeyCode::KeyT);

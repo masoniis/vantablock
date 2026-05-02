@@ -14,8 +14,8 @@ pub enum PlayerAction {
     MoveFaster,
 
     // World Interaction
-    BreakVoxel,
-    PlaceVoxel,
+    BreakBlock,
+    PlaceBlock,
 
     // Server-side commands
     CycleActiveTerrainGenerator,

@@ -8,7 +8,7 @@ pub mod packed_face;
 // --------------------------------------
 
 use crate::prelude::*;
-use crate::render::chunk::asset::VoxelMeshAsset;
+use crate::render::chunk::asset::BlockMeshAsset;
 use shared::world::{
     block::{
         BlockRegistry,
@@ -18,8 +18,8 @@ use shared::world::{
 };
 
 // convenience mesh types
-pub type OpaqueMeshData = VoxelMeshAsset;
-pub type TransparentMeshData = VoxelMeshAsset;
+pub type OpaqueMeshData = BlockMeshAsset;
+pub type TransparentMeshData = BlockMeshAsset;
 
 /// Main chunk meshing entry point: Build a mesh for a single chunk.
 #[instrument(skip_all, fields(chunk = %name))]

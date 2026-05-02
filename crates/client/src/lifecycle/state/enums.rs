@@ -41,7 +41,7 @@ pub enum InGameState {
     /// Establishing network connection or initializing local server.
     #[default]
     Connecting,
-    /// Receiving initial chunks and generating voxel meshes.
+    /// Receiving initial chunks and generating block meshes.
     WorldLoading,
     /// Active gameplay.
     Playing,

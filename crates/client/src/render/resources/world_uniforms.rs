@@ -30,9 +30,9 @@ pub struct ChunkRenderData {
     pub start_index: u32,
 }
 
-/// A voxel mesh handle holding the GPU allocation and index.
+/// A block mesh handle holding the GPU allocation and index.
 #[derive(Clone, Copy)]
-pub struct VoxelMesh {
+pub struct BlockMesh {
     /// Handle for the geometry (face) buffer
     pub geometry_allocation: Allocation,
     /// Handle for metadata buffer (instance index)
@@ -150,7 +150,7 @@ impl FromWorld for ChunkStorageManager {
         let layout = world.resource::<ChunkStorageBindGroupLayout>();
 
         let face_buffer = device.create_buffer(&BufferDescriptor {
-            label: Some("Global Voxel SSBO"),
+            label: Some("Global Block SSBO"),
             size: INITIAL_PHYSICAL_SIZE,
             usage: BufferUsages::STORAGE | BufferUsages::COPY_DST | BufferUsages::COPY_SRC,
             mapped_at_creation: false,
@@ -164,7 +164,7 @@ impl FromWorld for ChunkStorageManager {
         });
 
         let bind_group = device.create_bind_group(
-            Some("Global Voxel Bind Group"),
+            Some("Global Block Bind Group"),
             &layout.layout,
             &[
                 BindGroupEntry {
@@ -222,7 +222,7 @@ impl ChunkStorageManager {
             new_size = max_buffer_size;
             if required_end_byte > max_buffer_size {
                 panic!(
-                    "Voxel geometry exceeded GPU hardware limit of {} bytes!",
+                    "Block geometry exceeded GPU hardware limit of {} bytes!",
                     max_buffer_size
                 );
             }
@@ -230,13 +230,13 @@ impl ChunkStorageManager {
 
         debug!(
             target : "gpu_memory",
-            "Resizing voxel geometry buffer to {} MB",
+            "Resizing block geometry buffer to {} MB",
             new_size / 1024 / 1024
         );
 
         // new buffer
         let new_buffer = device.create_buffer(&BufferDescriptor {
-            label: Some("Global Voxel SSBO (Resized)"),
+            label: Some("Global Block SSBO (Resized)"),
             size: new_size,
             usage: BufferUsages::STORAGE | BufferUsages::COPY_DST | BufferUsages::COPY_SRC,
             mapped_at_creation: false,
@@ -255,7 +255,7 @@ impl ChunkStorageManager {
         // replace buffer and rebuild bind group
         self.face_buffer = new_buffer;
         self.bind_group = device.create_bind_group(
-            Some("Global Voxel Bind Group"),
+            Some("Global Block Bind Group"),
             &layout.layout,
             &[
                 BindGroupEntry {
@@ -278,7 +278,7 @@ impl ChunkStorageManager {
         layout: &ChunkStorageBindGroupLayout,
         faces: &[PackedFace],
         world_pos: [f32; 3],
-    ) -> Option<VoxelMesh> {
+    ) -> Option<BlockMesh> {
         if faces.is_empty() {
             return None;
         }
@@ -320,7 +320,7 @@ impl ChunkStorageManager {
             bytemuck::bytes_of(&meta_data),
         );
 
-        Some(VoxelMesh {
+        Some(BlockMesh {
             geometry_allocation,
             slot_index,
             face_count: faces.len() as u32,
@@ -328,7 +328,7 @@ impl ChunkStorageManager {
     }
 
     /// Frees all resources associated with the chunk handle.
-    pub fn free_chunk(&mut self, mesh: VoxelMesh) {
+    pub fn free_chunk(&mut self, mesh: BlockMesh) {
         self.geometry_allocator.free(mesh.geometry_allocation);
         self.slot_allocator.free(mesh.slot_index);
     }

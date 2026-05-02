@@ -104,7 +104,7 @@ impl From<u8> for AoLevel {
     }
 }
 
-/// Represents the 6 cardinal directions (normals) for a voxel face.
+/// Represents the 6 cardinal directions (normals) for a block face.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FaceSide {

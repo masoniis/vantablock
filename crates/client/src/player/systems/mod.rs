@@ -1,5 +1,5 @@
-pub mod update_target_voxel;
-pub mod voxel_actions;
+pub mod block_actions;
+pub mod update_target_block;
 
-pub use update_target_voxel::*;
-pub use voxel_actions::*;
+pub use block_actions::*;
+pub use update_target_block::*;

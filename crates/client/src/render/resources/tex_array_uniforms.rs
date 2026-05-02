@@ -58,7 +58,7 @@ impl FromWorld for TextureArrayBindGroupLayout {
     }
 }
 
-/// A resource owning the GPU data for the texture array for all voxel textures.
+/// A resource owning the GPU data for the texture array for all block textures.
 #[derive(Resource)]
 pub struct TextureArrayUniforms {
     pub bind_group: BindGroup,

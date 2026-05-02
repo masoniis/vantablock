@@ -2,9 +2,9 @@ use bevy::prelude::*;
 use lightyear::prelude::*;
 use shared::network::protocol::ClientMessage;
 
-pub mod voxel_actions;
+pub mod block_actions;
 
-use self::voxel_actions::handle_client_voxel_requests;
+use self::block_actions::handle_client_block_requests;
 use super::types::ClientConnection;
 
 pub struct ServerIngressPlugin;
@@ -13,7 +13,7 @@ impl Plugin for ServerIngressPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            (receive_client_messages, handle_client_voxel_requests),
+            (receive_client_messages, handle_client_block_requests),
         );
     }
 }

@@ -1,4 +1,4 @@
-use crate::render::chunk::{TransparentMeshComponent, VoxelMeshAsset};
+use crate::render::chunk::{BlockMeshAsset, TransparentMeshComponent};
 use bevy::asset::Handle;
 use bevy::ecs::prelude::*;
 use bevy::render::Extract;
@@ -12,7 +12,7 @@ use bevy::transform::components::GlobalTransform;
 /// A component in the render world holding the extracted mesh handle.
 #[derive(Component, Clone)]
 pub struct TransparentRenderMeshComponent {
-    pub mesh_handle: Handle<VoxelMeshAsset>,
+    pub mesh_handle: Handle<BlockMeshAsset>,
 }
 
 // INFO: -----------------------------------

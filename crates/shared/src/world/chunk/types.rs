@@ -198,7 +198,7 @@ impl<'a, T: Copy> VolumeDataWriter<'a, T> {
 //         3d chunk volume container
 // -----------------------------------------
 
-/// Generic, LOD-aware, 3D container for chunk voxel data.
+/// Generic, LOD-aware, 3D container for chunk block data.
 #[derive(Clone)]
 pub struct ChunkVolumeData<T: Send + Sync + 'static> {
     data: Arc<[T]>,
@@ -346,7 +346,7 @@ impl<T: Copy + Send + Sync + 'static> ChunkVolumeData<T> {
 
         if cfg!(debug_assertions) && (x >= self.size || y >= self.size || z >= self.size) {
             error!(
-                "get_data_unchecked: Attempted to access voxel data out of bounds: ({}, {}, {}) in a chunk of size {}",
+                "get_data_unchecked: Attempted to access block data out of bounds: ({}, {}, {}) in a chunk of size {}",
                 x, y, z, self.size
             );
         }
@@ -537,7 +537,7 @@ impl<T: Copy + Send + Sync + 'static> ChunkColumnData<T> {
     pub fn get_data_unchecked(&self, x: usize, z: usize) -> T {
         if cfg!(debug_assertions) && (x >= self.size || z >= self.size) {
             error!(
-                "get_data_unchecked: Attempted to access voxel data out of bounds: ({}, {}) in 2D chunk of size {}",
+                "get_data_unchecked: Attempted to access block data out of bounds: ({}, {}) in 2D chunk of size {}",
                 x, z, self.size
             );
         }
