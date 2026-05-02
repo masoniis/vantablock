@@ -2,13 +2,12 @@ pub mod camera;
 pub mod components;
 pub mod events;
 pub mod replicated_player;
-pub mod systems;
+mod systems;
 pub mod targeted_block;
 
 pub use camera::*;
 pub use components::*;
 pub use events::*;
-pub use systems::*;
 pub use targeted_block::TargetedBlock;
 
 // INFO: -----------------------
@@ -16,11 +15,10 @@ pub use targeted_block::TargetedBlock;
 // -----------------------------
 
 use crate::player::replicated_player::dress_predicted_player_observer;
-use bevy::app::{App, FixedUpdate, Plugin, Update};
-use bevy::ecs::message::Messages;
-use bevy::ecs::schedule::IntoScheduleConfigs;
+use bevy::prelude::*;
 use leafwing_input_manager::common_conditions::action_just_pressed;
 use shared::player::PlayerAction;
+use systems::*;
 
 pub struct PlayerPlugin;
 
@@ -44,6 +42,7 @@ impl Plugin for PlayerPlugin {
         app.add_systems(
             Update,
             (
+                welcome::handle_welcome_system,
                 block_actions::break_targeted_block_system
                     .run_if(action_just_pressed(PlayerAction::BreakBlock)),
                 block_actions::place_targeted_block_system

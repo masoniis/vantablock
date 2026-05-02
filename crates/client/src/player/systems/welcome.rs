@@ -1,10 +1,10 @@
-use crate::network::ecs_messages::WelcomeEvent;
+use crate::network::ecs_messages::WelcomeMessage;
 use crate::player::components::LocalPlayer;
 use bevy::{ecs::message::MessageReader, prelude::*};
 use shared::{player::components::LogicalPosition, world::chunk::ChunkCoord};
 
 pub fn handle_welcome_system(
-    mut ev_welcome: MessageReader<WelcomeEvent>,
+    mut ev_welcome: MessageReader<WelcomeMessage>,
     mut player_query: Query<
         (&mut LogicalPosition, &mut Transform, &mut ChunkCoord),
         With<LocalPlayer>,
