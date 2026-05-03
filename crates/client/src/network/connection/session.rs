@@ -1,5 +1,7 @@
-use crate::lifecycle::{ClientState, InGameState};
-use crate::network::connection::NetworkErrorEvent;
+use crate::{
+    lifecycle::{ClientState, InGameState},
+    network::connection::NetworkErrorEvent,
+};
 use bevy::prelude::*;
 use lightyear::prelude::{Connected, Connecting, Disconnected};
 

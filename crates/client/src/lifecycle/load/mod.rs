@@ -5,20 +5,13 @@ pub mod registries;
 //         plugin definition
 // ---------------------------------
 
-use bevy::app::{App, Plugin, PreUpdate, Update};
-use bevy::ecs::query::{Changed, With};
-use bevy::ecs::schedule::IntoScheduleConfigs;
-use bevy::ecs::system::Query;
-use bevy::prelude::{Camera, Camera3d, OnEnter};
-use bevy::state::condition::in_state;
-use bevy::state::state::OnExit;
+use bevy::prelude::*;
 use chunk_loading::manage_distance_based_chunk_loading_targets_system;
 use registries::start_async_registry_initialization;
-use shared::lifecycle::state::enums::AppState;
-use shared::world::chunk::ChunkCoord;
 use shared::{
-    SimulationLoadingPhase, cleanup_orphaned_tasks, loading_is_complete, poll_tasks,
-    start_fake_work_system, transition_to,
+    SimulationLoadingPhase, cleanup_orphaned_tasks, lifecycle::state::enums::AppState,
+    loading_is_complete, poll_tasks, start_fake_work_system, transition_to,
+    world::chunk::ChunkCoord,
 };
 
 use crate::lifecycle::SimulationState;

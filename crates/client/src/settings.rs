@@ -1,5 +1,7 @@
-use bevy::app::{App, Plugin};
-use bevy::ecs::prelude::Resource;
+use bevy::{
+    app::{App, Plugin},
+    ecs::prelude::Resource,
+};
 use serde::{Deserialize, Serialize};
 use shared::lifecycle::PersistentPathsResource;
 use std::fs;
