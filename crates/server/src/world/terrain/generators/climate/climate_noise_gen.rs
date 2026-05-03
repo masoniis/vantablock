@@ -20,7 +20,6 @@ impl ClimateNoiseGenerator {
     pub fn new(seed: u32) -> Self {
         use noise::{Fbm, OpenSimplex};
 
-        // TODO: Tune noise parameters
         Self {
             temperature_noise: Fbm::<OpenSimplex>::new(seed).set_frequency(0.005),
             precipitation_noise: Fbm::<OpenSimplex>::new(seed + 1).set_frequency(0.005),
@@ -46,15 +45,19 @@ impl ClimateNoiseGenerator {
     /// Orchestrates the filling of all 5 climate buffers
     fn orchestrate_fill(
         &self,
-        buffers: &mut super::climate_buffer_pool::ClimateBufferPool,
+        temp: &mut [f32],
+        precip: &mut [f32],
+        cont: &mut [f32],
+        erosion: &mut [f32],
+        weird: &mut [f32],
         base_x: i32,
         base_z: i32,
         size: usize,
     ) {
-        let area = size * size;
+        let chunk_area = size * size;
 
         // calculate coordinates
-        let mut coords = vec![[0.0; 2]; area];
+        let mut coords = vec![[0.0; 2]; chunk_area];
         for x in 0..size {
             for z in 0..size {
                 let idx = x * size + z;
@@ -64,27 +67,11 @@ impl ClimateNoiseGenerator {
             }
         }
 
-        self.generate_single_map(
-            &coords,
-            buffers.temperature.as_mut_slice(),
-            &self.temperature_noise,
-        );
-        self.generate_single_map(
-            &coords,
-            buffers.precipitation.as_mut_slice(),
-            &self.precipitation_noise,
-        );
-        self.generate_single_map(
-            &coords,
-            buffers.continentalness.as_mut_slice(),
-            &self.continental_noise,
-        );
-        self.generate_single_map(&coords, buffers.erosion.as_mut_slice(), &self.erosion_noise);
-        self.generate_single_map(
-            &coords,
-            buffers.weirdness.as_mut_slice(),
-            &self.weirdness_noise,
-        );
+        self.generate_single_map(&coords, temp, &self.temperature_noise);
+        self.generate_single_map(&coords, precip, &self.precipitation_noise);
+        self.generate_single_map(&coords, cont, &self.continental_noise);
+        self.generate_single_map(&coords, erosion, &self.erosion_noise);
+        self.generate_single_map(&coords, weird, &self.weirdness_noise);
     }
 }
 
@@ -97,21 +84,17 @@ impl ClimateGenerator for ClimateNoiseGenerator {
 
         CLIMATE_BUFFERS.with(|pool| {
             let mut buffers = pool.borrow_mut();
-            buffers.prepare(size);
+            let (temp, precip, cont, erosion, weird) = buffers.get_slices(size);
 
             // fill all buffers
-            self.orchestrate_fill(&mut buffers, base_pos.x, base_pos.z, size);
+            self.orchestrate_fill(
+                temp, precip, cont, erosion, weird, base_pos.x, base_pos.z, size,
+            );
 
             let mut writer = climate_map.get_data_writer();
             let area = size * size;
 
             // read results and populate into ClimateData
-            let temp = buffers.temperature.as_slice();
-            let precip = buffers.precipitation.as_slice();
-            let cont = buffers.continentalness.as_slice();
-            let erosion = buffers.erosion.as_slice();
-            let weird = buffers.weirdness.as_slice();
-
             for i in 0..area {
                 let climate_data = ClimateData {
                     temperature: temp[i],

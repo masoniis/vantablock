@@ -1,6 +1,8 @@
 use shared::world::chunk::CHUNK_SIDE_LENGTH;
 use std::cell::RefCell;
 
+const MAX_BUFFER_LEN: usize = CHUNK_SIDE_LENGTH * CHUNK_SIDE_LENGTH;
+
 /// A thread-local pool of buffers to prevent re-allocating buffers every chunk.
 pub struct ClimateBufferPool {
     pub temperature: Vec<f32>,
@@ -12,13 +14,12 @@ pub struct ClimateBufferPool {
 
 impl Default for ClimateBufferPool {
     fn default() -> Self {
-        let cap = CHUNK_SIDE_LENGTH * CHUNK_SIDE_LENGTH;
         Self {
-            temperature: vec![0.0; cap],
-            precipitation: vec![0.0; cap],
-            continentalness: vec![0.0; cap],
-            erosion: vec![0.0; cap],
-            weirdness: vec![0.0; cap],
+            temperature: vec![0.0; MAX_BUFFER_LEN],
+            precipitation: vec![0.0; MAX_BUFFER_LEN],
+            continentalness: vec![0.0; MAX_BUFFER_LEN],
+            erosion: vec![0.0; MAX_BUFFER_LEN],
+            weirdness: vec![0.0; MAX_BUFFER_LEN],
         }
     }
 }
@@ -28,17 +29,21 @@ impl ClimateBufferPool {
         Self::default()
     }
 
-    /// Resizes buffers if needed (e.g. LOD change) without re-allocating if capacity allows.
-    pub fn prepare(&mut self, size: usize) {
+    /// Returns mutable sub-slices of the exact requested length from the pre-allocated buffers.
+    pub fn get_slices(
+        &mut self,
+        size: usize,
+    ) -> (&mut [f32], &mut [f32], &mut [f32], &mut [f32], &mut [f32]) {
         let len = size * size;
-        // TODO: perhaps use less safe set_len for speed gains instead of resize
-        if self.temperature.len() < len {
-            self.temperature.resize(len, 0.0);
-            self.precipitation.resize(len, 0.0);
-            self.continentalness.resize(len, 0.0);
-            self.erosion.resize(len, 0.0);
-            self.weirdness.resize(len, 0.0);
-        }
+        debug_assert!(len <= MAX_BUFFER_LEN);
+
+        (
+            &mut self.temperature[..len],
+            &mut self.precipitation[..len],
+            &mut self.continentalness[..len],
+            &mut self.erosion[..len],
+            &mut self.weirdness[..len],
+        )
     }
 }
 

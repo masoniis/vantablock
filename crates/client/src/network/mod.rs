@@ -9,8 +9,7 @@ pub use receive::*;
 //         plugin definition
 // ---------------------------------
 
-use bevy::app::PluginGroupBuilder;
-use bevy::prelude::*;
+use bevy::{app::PluginGroupBuilder, prelude::*};
 use lightyear::prelude::client as lightyear_client;
 use shared::network::{NETWORK_TICK_DURATION, SharedNetworkPlugin};
 use std::time::Duration;
