@@ -19,7 +19,7 @@ path = "src/lib.rs"
 
 [[bin]]
 name = "vantablock"
-path = "src/bin/game.rs"
+path = "src/bin/client.rs"
 required-features = ["client"]
 
 [[bin]]
