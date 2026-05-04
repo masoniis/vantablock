@@ -37,7 +37,7 @@ fn bench_chunk_generation(c: &mut Criterion) {
     let mut world = World::new();
     world.insert_resource(PersistentPathsResource(persistent_paths.clone()));
     world.insert_resource(block_registry.clone());
-    world.init_resource::<BiomeRegistryResource>();
+    world.insert_resource(BiomeRegistryResource::load_from_disk(&persistent_paths));
 
     let biome_registry = world.resource::<BiomeRegistryResource>().clone();
 

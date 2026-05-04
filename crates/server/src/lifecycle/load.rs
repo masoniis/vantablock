@@ -4,12 +4,12 @@ use bevy::{ecs::world::CommandQueue, prelude::*, tasks::AsyncComputeTaskPool};
 pub use loading_phases::*;
 use shared::{
     lifecycle::{
-        PersistentPathsResource,
         load::{
-            LoadingAppExt, LoadingTaskComponent, NodeFinished, StartNode, cleanup_orphaned_tasks,
-            kickoff_loading_phase, loading_dag_is_complete, poll_tasks,
+            cleanup_orphaned_tasks, kickoff_loading_phase, loading_dag_is_complete, poll_tasks,
+            reset_loading_dag_state, LoadingAppExt, LoadingTaskComponent, NodeFinished, StartNode,
         },
         state::{enums::AppState, transition_to},
+        PersistentPathsResource,
     },
     world::{biome::BiomeRegistryResource, block::BlockRegistry},
 };
@@ -50,7 +50,10 @@ impl Plugin for ServerLoadPlugin {
         )
         .add_systems(
             OnExit(ServerState::Initializing),
-            cleanup_orphaned_tasks::<SimulationLoadingPhase>,
+            (
+                cleanup_orphaned_tasks::<SimulationLoadingPhase>,
+                reset_loading_dag_state::<SimulationLoadingPhase>,
+            ),
         );
     }
 }
@@ -61,10 +64,21 @@ fn transition_to_running(mut server_state: ResMut<NextState<ServerState>>) {
 
 /// Observer that handles the biome registry loading task.
 pub fn handle_biome_loading(
-    _trigger: On<StartNode<SimulationLoadingPhase>>,
+    trigger: On<StartNode<SimulationLoadingPhase>>,
     mut commands: Commands,
     persistent_paths: Res<PersistentPathsResource>,
+    existing: Option<Res<BiomeRegistryResource>>,
 ) {
+    let entity = trigger.event().entity;
+    if existing.is_some() {
+        warn!("[Simulation] BiomeRegistry already exists, skipping I/O.");
+        commands.trigger(NodeFinished {
+            node: SimulationLoadingPhase::Biomes,
+            entity,
+        });
+        return;
+    }
+
     let paths = persistent_paths.clone();
 
     let task = AsyncComputeTaskPool::get().spawn(async move {
@@ -73,7 +87,10 @@ pub fn handle_biome_loading(
         let mut queue = CommandQueue::default();
         queue.push(move |world: &mut World| {
             world.insert_resource(biome_registry);
-            world.trigger(NodeFinished(SimulationLoadingPhase::Biomes));
+            world.trigger(NodeFinished {
+                node: SimulationLoadingPhase::Biomes,
+                entity,
+            });
         });
         queue
     });
@@ -83,10 +100,21 @@ pub fn handle_biome_loading(
 
 /// Observer that handles the block registry loading task.
 pub fn handle_block_loading(
-    _trigger: On<StartNode<SimulationLoadingPhase>>,
+    trigger: On<StartNode<SimulationLoadingPhase>>,
     mut commands: Commands,
     persistent_paths: Res<PersistentPathsResource>,
+    existing: Option<Res<BlockRegistry>>,
 ) {
+    let entity = trigger.event().entity;
+    if existing.is_some() {
+        warn!("[Simulation] BlockRegistry already exists, skipping I/O.");
+        commands.trigger(NodeFinished {
+            node: SimulationLoadingPhase::Blocks,
+            entity,
+        });
+        return;
+    }
+
     let paths = persistent_paths.clone();
 
     let task = AsyncComputeTaskPool::get().spawn(async move {
@@ -95,7 +123,10 @@ pub fn handle_block_loading(
         let mut queue = CommandQueue::default();
         queue.push(move |world: &mut World| {
             world.insert_resource(block_registry);
-            world.trigger(NodeFinished(SimulationLoadingPhase::Blocks));
+            world.trigger(NodeFinished {
+                node: SimulationLoadingPhase::Blocks,
+                entity,
+            });
         });
         queue
     });

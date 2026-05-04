@@ -19,17 +19,6 @@ pub struct BiomeRegistryResource {
     name_to_id: Arc<HashMap<String, BiomeId>>,
 }
 
-impl FromWorld for BiomeRegistryResource {
-    fn from_world(_world: &mut World) -> Self {
-        // Return an empty registry. The actual loading will be done asynchronously
-        // via the LoadingAppExt framework.
-        Self {
-            definitions: Arc::new(Vec::new()),
-            name_to_id: Arc::new(HashMap::new()),
-        }
-    }
-}
-
 impl BiomeRegistryResource {
     /// Gets the definition for a given biome ID (u8).
     ///

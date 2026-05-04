@@ -34,6 +34,10 @@
 //!     Finalize,
 //! }
 //!
+//! impl LoadingDagPhase for MyLoadingPhase {
+//!     const PHASE_NAME: &'static str = "MyLoadingPhase";
+//! }
+//!
 //! fn setup(mut app: &mut App) {
 //!     app.configure_loading_phase::<MyLoadingPhase>()
 //!         .add_node(MyLoadingPhase::Assets, handle_assets)

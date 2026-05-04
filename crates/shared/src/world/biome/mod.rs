@@ -13,7 +13,7 @@ use bevy::app::{App, Plugin};
 pub struct BiomePlugin;
 
 impl Plugin for BiomePlugin {
-    fn build(&self, app: &mut App) {
-        app.init_resource::<BiomeRegistryResource>();
+    fn build(&self, _app: &mut App) {
+        // BiomeRegistry is loaded asynchronously via the LoadingDag framework.
     }
 }

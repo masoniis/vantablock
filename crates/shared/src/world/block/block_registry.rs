@@ -26,20 +26,6 @@ pub struct BlockRegistry {
     name_to_id: Arc<HashMap<String, BlockId>>,
 }
 
-impl FromWorld for BlockRegistry {
-    fn from_world(_world: &mut World) -> Self {
-        // Return an empty registry. The actual loading will be done asynchronously
-        // via the LoadingAppExt framework.
-        Self {
-            transparency_lut: Arc::new(vec![true]), // Just air
-            descriptions: Arc::new(vec![BlockDescription {
-                display_name: "Air".to_string(),
-            }]),
-            name_to_id: Arc::new(HashMap::from([("air".to_string(), AIR_BLOCK_ID)])),
-        }
-    }
-}
-
 impl BlockRegistry {
     /// Gets the description/metadata for a given block ID.
     ///
