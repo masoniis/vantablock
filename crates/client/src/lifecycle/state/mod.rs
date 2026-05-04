@@ -17,10 +17,10 @@ pub struct ClientStatePlugin;
 
 impl Plugin for ClientStatePlugin {
     fn build(&self, app: &mut App) {
-        app.init_state::<SimulationState>();
-        app.add_sub_state::<ClientState>();
-        app.add_sub_state::<InGameState>();
-        app.add_sub_state::<SessionTopology>();
+        app.init_state::<SimulationState>()
+            .add_sub_state::<ClientState>()
+            .add_sub_state::<InGameState>()
+            .add_sub_state::<SessionTopology>();
 
         // INFO: -----------------------
         //         async loading

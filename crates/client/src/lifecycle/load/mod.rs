@@ -8,21 +8,20 @@ pub use loading_phases::*;
 //         plugin definition
 // ---------------------------------
 
+use crate::lifecycle::SimulationState;
 use bevy::{prelude::*, tasks::AsyncComputeTaskPool};
 use chunk_loading::manage_distance_based_chunk_loading_targets_system;
 use registries::{
     handle_biome_loading, handle_block_loading, handle_render_registry, handle_texture_stitching,
 };
 use shared::{
-    cleanup_orphaned_tasks, kickoff_loading_phase,
+    LoadingAppExt, LoadingTaskComponent, NodeFinished, StartNode, cleanup_orphaned_tasks,
+    kickoff_loading_phase,
     lifecycle::state::{enums::AppState, transition_to},
     loading_dag_is_complete, nuke_loading_dag, poll_tasks, reset_loading_dag_state,
     start_fake_work_system,
     world::chunk::ChunkCoord,
-    LoadingAppExt, LoadingTaskComponent, NodeFinished, StartNode,
 };
-
-use crate::lifecycle::SimulationState;
 
 /// Plugin responsible for managing client-side asset and registry loading.
 pub struct ClientLoadPlugin;
@@ -30,6 +29,8 @@ pub struct ClientLoadPlugin;
 impl Plugin for ClientLoadPlugin {
     fn build(&self, app: &mut App) {
         // configure async loading DAG for app startup
+        // TODO: distribute these loading steps accross modules rather than having this
+        // be the source of all loading. Better loading modularity!!!
         app.configure_loading_phase::<AppStartupPhase>()
             .add_node(AppStartupPhase::Textures, handle_texture_stitching)
             .add_node(AppStartupPhase::Blocks, handle_block_loading)

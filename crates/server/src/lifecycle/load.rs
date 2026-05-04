@@ -1,20 +1,24 @@
 pub mod loading_phases;
 
-use bevy::{ecs::world::CommandQueue, prelude::*, tasks::AsyncComputeTaskPool};
 pub use loading_phases::*;
+
+// INFO: ---------------------------
+//         plugin definition
+// ---------------------------------
+
+use crate::lifecycle::state::ServerState;
+use bevy::{ecs::world::CommandQueue, prelude::*, tasks::AsyncComputeTaskPool};
 use shared::{
     lifecycle::{
+        PersistentPathsResource,
         load::{
-            cleanup_orphaned_tasks, kickoff_loading_phase, loading_dag_is_complete, poll_tasks,
-            reset_loading_dag_state, LoadingAppExt, LoadingTaskComponent, NodeFinished, StartNode,
+            LoadingAppExt, LoadingTaskComponent, NodeFinished, StartNode, cleanup_orphaned_tasks,
+            kickoff_loading_phase, loading_dag_is_complete, poll_tasks, reset_loading_dag_state,
         },
         state::{enums::AppState, transition_to},
-        PersistentPathsResource,
     },
     world::{biome::BiomeRegistryResource, block::BlockRegistry},
 };
-
-use crate::lifecycle::state::ServerState;
 
 pub struct ServerLoadPlugin;
 
