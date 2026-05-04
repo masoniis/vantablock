@@ -1,16 +1,27 @@
+use std::sync::atomic::{AtomicU8, Ordering};
 use time::macros::format_description;
 use tracing::{Event, Level, Subscriber};
 use tracing_subscriber::{
-    Registry,
     filter::EnvFilter,
     fmt::{
-        self, FmtContext, FormatEvent, FormatFields, format::Writer, time::FormatTime,
-        time::LocalTime,
+        self, format::Writer, time::FormatTime, time::LocalTime, FmtContext, FormatEvent,
+        FormatFields,
     },
     layer::SubscriberExt,
     prelude::*,
     registry::LookupSpan,
+    Registry,
 };
+
+// 0 = Unknown/Shared, 1 = Client, 2 = Server
+static RUNTIME_CONTEXT: AtomicU8 = AtomicU8::new(0);
+
+pub fn set_runtime_context_client() {
+    RUNTIME_CONTEXT.store(1, Ordering::Relaxed);
+}
+pub fn set_runtime_context_server() {
+    RUNTIME_CONTEXT.store(2, Ordering::Relaxed);
+}
 
 pub fn attach_logger() {
     let timer = LocalTime::new(format_description!("[hour repr:24]:[minute]:[second]"));
@@ -68,27 +79,29 @@ where
         mut writer: Writer<'_>,
         event: &Event<'_>,
     ) -> std::fmt::Result {
+        // 1. Print grey timestamp
         write!(writer, "\x1b[90m")?;
         self.timer.format_time(&mut writer)?;
         write!(writer, "\x1b[0m ")?;
 
         let target = event.metadata().target();
 
-        #[allow(unused_assignments)]
-        let mut prefix = "";
-
         if target.contains("server") {
-            prefix = "\x1b[35m[SERVER]\x1b[0m "; // magenta
+            write!(writer, "\x1b[35m[SERVER]\x1b[0m ")?;
         } else if target.contains("client") {
-            prefix = "\x1b[36m[CLIENT]\x1b[0m "; // cyan
+            write!(writer, "\x1b[36m[CLIENT]\x1b[0m ")?;
         } else if target.contains("shared") {
-            prefix = "\x1b[33m[SHARED]\x1b[0m "; // yellow
+            // give shared crate context brackets so we know if caller was server or client
+            let bracket_color = match RUNTIME_CONTEXT.load(Ordering::Relaxed) {
+                1 => "\x1b[36m", // cyan (running on Client)
+                2 => "\x1b[35m", // magenta (running on Server)
+                _ => "\x1b[33m", // yellow (unknown)
+            };
+            write!(writer, "{}[", bracket_color)?;
+            write!(writer, "\x1b[33mSHARED")?;
+            write!(writer, "{}]\x1b[0m ", bracket_color)?;
         } else {
-            prefix = "\x1b[37m[EXTERN]\x1b[0m "; // gray
-        }
-
-        if !prefix.is_empty() {
-            write!(writer, "{}", prefix)?;
+            write!(writer, "\x1b[37m[EXTERN]\x1b[0m ")?;
         }
 
         let level = *event.metadata().level();
