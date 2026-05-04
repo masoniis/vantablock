@@ -14,11 +14,12 @@ use registries::{
     handle_biome_loading, handle_block_loading, handle_render_registry, handle_texture_stitching,
 };
 use shared::{
-    LoadingAppExt, LoadingTaskComponent, NodeFinished, StartNode, cleanup_orphaned_tasks,
-    kickoff_loading_phase,
+    cleanup_orphaned_tasks, kickoff_loading_phase,
     lifecycle::state::{enums::AppState, transition_to},
-    loading_dag_is_complete, poll_tasks, start_fake_work_system,
+    loading_dag_is_complete, nuke_loading_dag, poll_tasks, reset_loading_dag_state,
+    start_fake_work_system,
     world::chunk::ChunkCoord,
+    LoadingAppExt, LoadingTaskComponent, NodeFinished, StartNode,
 };
 
 use crate::lifecycle::SimulationState;
@@ -42,6 +43,10 @@ impl Plugin for ClientLoadPlugin {
         app.add_systems(
             OnEnter(AppState::StartingUp),
             kickoff_loading_phase::<AppStartupPhase>,
+        )
+        .add_systems(
+            OnExit(AppState::StartingUp),
+            nuke_loading_dag::<AppStartupPhase>,
         );
 
         // handle transition to running state when app startup is done
@@ -69,19 +74,19 @@ impl Plugin for ClientLoadPlugin {
             .add_node(
                 SimulationLoadingPhase::FakeWork,
                 |trigger: On<StartNode<SimulationLoadingPhase>>, mut commands: Commands| {
-                    if trigger.event().0 != SimulationLoadingPhase::FakeWork {
-                        return;
-                    }
-
                     info!("Starting simulation fake work node!");
+                    let entity = trigger.event().entity;
 
                     let task = start_fake_work_system();
 
                     let wrapped_task = AsyncComputeTaskPool::get().spawn(async move {
                         let mut queue = task.await;
 
-                        queue.push(|world: &mut World| {
-                            world.trigger(NodeFinished(SimulationLoadingPhase::FakeWork));
+                        queue.push(move |world: &mut World| {
+                            world.trigger(NodeFinished {
+                                node: SimulationLoadingPhase::FakeWork,
+                                entity,
+                            });
                         });
 
                         queue
@@ -113,7 +118,10 @@ impl Plugin for ClientLoadPlugin {
         )
         .add_systems(
             OnExit(SimulationState::Loading),
-            cleanup_orphaned_tasks::<SimulationLoadingPhase>,
+            (
+                cleanup_orphaned_tasks::<SimulationLoadingPhase>,
+                reset_loading_dag_state::<SimulationLoadingPhase>,
+            ),
         );
     }
 }

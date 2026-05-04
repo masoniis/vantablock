@@ -13,11 +13,8 @@ use bevy::app::{App, Plugin};
 pub struct BlockPlugin;
 
 impl Plugin for BlockPlugin {
-    fn build(&self, app: &mut App) {
-        // insert resources
-        app.init_resource::<BlockRegistry>();
-
-        // Note: For the client, registry initialization is handled asynchronously
-        // to avoid blocking the main thread during startup.
+    fn build(&self, _app: &mut App) {
+        // Note: Registry initialization is handled asynchronously
+        // via the LoadingDag framework to avoid blocking the main thread.
     }
 }

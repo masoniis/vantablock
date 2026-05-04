@@ -15,24 +15,26 @@ pub struct LoadingTaskComponent(pub Task<CommandQueue>);
 /// 3. **Component Filters:** Each variant is attached to its own entity as a component,
 ///    allowing systems and observers to query for specific tasks.
 pub trait LoadingDagPhase:
-    Component + Reflect + Copy + Eq + std::hash::Hash + Send + Sync + 'static
+    Component + Reflect + Copy + Eq + std::hash::Hash + Send + Sync + std::fmt::Debug + 'static
 {
+    /// A human-readable name for this loading phase, used in logs and debugging.
+    const PHASE_NAME: &'static str;
 }
 
-/// Automatically implement LoadingDagPhase for any type that meets the criteria.
-impl<T: Component + Reflect + Copy + Eq + std::hash::Hash + Send + Sync + 'static> LoadingDagPhase
-    for T
-{
+/// Triggered when a loading phase node is ready to begin its task.
+#[derive(EntityEvent, Debug, Clone, Copy, PartialEq, Eq, Hash, Reflect)]
+pub struct StartNode<P: LoadingDagPhase> {
+    pub entity: Entity,
+    pub node: P,
 }
 
-/// Triggered when a loading node is ready to begin its task.
-#[derive(Event, Debug, Clone, Copy, PartialEq, Eq, Hash, Reflect)]
-pub struct StartNode<N: LoadingDagPhase>(pub N);
-
-/// Triggered when a loading node has successfully completed its task.
-#[derive(Event, Debug, Clone, Copy, PartialEq, Eq, Hash, Reflect)]
-pub struct NodeFinished<N: LoadingDagPhase>(pub N);
+/// Triggered when a loading phase node has successfully completed its task.
+#[derive(EntityEvent, Debug, Clone, Copy, PartialEq, Eq, Hash, Reflect)]
+pub struct NodeFinished<P: LoadingDagPhase> {
+    pub entity: Entity,
+    pub node: P,
+}
 
 /// Triggered when an entire loading phase has completed all its nodes.
 #[derive(Event, Debug, Clone, Copy, Reflect)]
-pub struct PhaseFinished<N: LoadingDagPhase>(pub std::marker::PhantomData<N>);
+pub struct PhaseFinished<P: LoadingDagPhase>(pub std::marker::PhantomData<P>);

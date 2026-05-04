@@ -75,7 +75,9 @@ bytemuck = { version = "1.13", features = ["derive"] }                       # g
 image = { version = "0.25.6", default-features = false, features = ["png"] }
 
 # game dependencies
-bevy = { version = "0.18.1", default-features = false }
+bevy = { version = "0.18.1", default-features = false, features = [
+  "bevy_state",
+] }
 leafwing-input-manager = "0.20.0"
 lightyear = { version = "0.26.4", default-features = false, features = [
   "replication", # allows replicating components between server and client
