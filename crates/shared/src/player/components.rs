@@ -2,11 +2,19 @@ use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::f32::consts::{PI, TAU};
 
+/// A unique identifier for a player.
+///
+/// This ID is assigned by the server and used to uniquely identify players across the network.
 #[derive(Component, Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct PlayerId(pub u64);
 
+/// Marker component for an entity that represents a player in the network.
+///
+/// **Authoritative Replication:** This component is managed and synchronized by the server.
+/// Clients MUST NOT spawn entities with this component locally. They are spawned automatically
+/// on the client via network replication when the server informs the client of a player's presence.
 #[derive(Component, Serialize, Deserialize, Clone, Debug, PartialEq, Reflect, Default)]
-pub struct Player;
+pub struct NetworkPlayer;
 
 /// The authoritative position of an entity within the fixed-step simulation.
 ///
@@ -22,11 +30,18 @@ impl Ease for LogicalPosition {
     }
 }
 
+/// Represents the orientation of a player's view.
+///
+/// Rotation is stored as Euler angles (yaw and pitch) in radians. This state is
+/// used to calculate movement vectors and camera orientation.
 #[derive(Component, Serialize, Deserialize, Clone, Debug, PartialEq, Reflect)]
 pub struct PlayerLook {
+    /// Horizontal rotation (around the Y axis) in radians.
     pub yaw: f32,
+    /// Vertical rotation (around the X axis) in radians.
     pub pitch: f32,
 }
+
 impl Default for PlayerLook {
     fn default() -> Self {
         Self {

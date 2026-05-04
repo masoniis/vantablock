@@ -1,10 +1,15 @@
 use crate::player::{
     PlayerAction,
-    components::{LogicalPosition, Player, PlayerLook},
+    components::{LogicalPosition, NetworkPlayer, PlayerLook},
 };
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::ActionState;
 
+/// A movement system shared by the client and server that updates the `LogicalPosition`
+/// of a player based on their `PlayerAction` and `PlayerLook` states.
+///
+/// The server uses this to authoritatively move the networked player entity, while the
+/// client uses it to make movement predictions.
 pub fn shared_player_movement_system(
     time: Res<Time<Fixed>>,
     mut query: Query<
@@ -13,7 +18,7 @@ pub fn shared_player_movement_system(
             &PlayerLook,
             &mut LogicalPosition,
         ),
-        With<Player>,
+        With<NetworkPlayer>,
     >,
 ) {
     let delta = time.delta_secs();
