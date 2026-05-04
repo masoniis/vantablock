@@ -20,12 +20,13 @@ pub struct BiomeRegistryResource {
 }
 
 impl FromWorld for BiomeRegistryResource {
-    fn from_world(world: &mut World) -> Self {
-        let persistent_paths = world
-            .get_resource::<PersistentPathsResource>()
-            .map(|r| r.0.clone())
-            .unwrap_or_else(PersistentPaths::resolve_client);
-        Self::load_from_disk(&persistent_paths)
+    fn from_world(_world: &mut World) -> Self {
+        // Return an empty registry. The actual loading will be done asynchronously
+        // via the LoadingAppExt framework.
+        Self {
+            definitions: Arc::new(Vec::new()),
+            name_to_id: Arc::new(HashMap::new()),
+        }
     }
 }
 
@@ -68,7 +69,7 @@ impl BiomeRegistryResource {
     }
 
     /// Internal util to load all biome from disk into a new registry instance.
-    fn load_from_disk(persistent_paths: &PersistentPaths) -> Self {
+    pub fn load_from_disk(persistent_paths: &PersistentPaths) -> Self {
         info!("Loading biome definitions from disk...");
 
         let mut biome_definitions: Vec<BiomeDefinition> = Vec::new();

@@ -22,7 +22,6 @@ impl PluginGroup for SharedLifecyclePlugins {
     fn build(self) -> PluginGroupBuilder {
         PluginGroupBuilder::start::<Self>()
             .add(paths::PathsPlugin)
-            .add(load::LoadPlugin)
             .add(scheduling::SharedSchedulingPlugin)
             .add(state::StatePlugin)
     }

@@ -1,5 +1,4 @@
 use crate::{
-    lifecycle::PersistentPathsResource,
     prelude::*,
     world::block::{BlockDescription, load_block_from_str},
 };
@@ -28,12 +27,16 @@ pub struct BlockRegistry {
 }
 
 impl FromWorld for BlockRegistry {
-    fn from_world(world: &mut World) -> Self {
-        let persistent_paths = world
-            .get_resource::<PersistentPathsResource>()
-            .map(|r| r.0.clone())
-            .unwrap_or_else(PersistentPaths::resolve_client);
-        Self::load_from_disk(&persistent_paths)
+    fn from_world(_world: &mut World) -> Self {
+        // Return an empty registry. The actual loading will be done asynchronously
+        // via the LoadingAppExt framework.
+        Self {
+            transparency_lut: Arc::new(vec![true]), // Just air
+            descriptions: Arc::new(vec![BlockDescription {
+                display_name: "Air".to_string(),
+            }]),
+            name_to_id: Arc::new(HashMap::from([("air".to_string(), AIR_BLOCK_ID)])),
+        }
     }
 }
 

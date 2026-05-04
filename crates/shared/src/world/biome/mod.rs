@@ -8,15 +8,12 @@ pub use biome_registry::{BiomeId, BiomeRegistryResource};
 //         Biome plugin
 // ----------------------------
 
-use crate::world::biome::biome_registry::initialize_biome_registry_system;
-use bevy::app::{App, Plugin, Startup};
+use bevy::app::{App, Plugin};
 
 pub struct BiomePlugin;
 
 impl Plugin for BiomePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<BiomeRegistryResource>();
-
-        app.add_systems(Startup, initialize_biome_registry_system);
     }
 }

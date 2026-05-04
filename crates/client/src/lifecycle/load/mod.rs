@@ -1,16 +1,23 @@
 pub mod chunk_loading;
+pub mod loading_phases;
 pub mod registries;
+
+pub use loading_phases::*;
 
 // INFO: ---------------------------
 //         plugin definition
 // ---------------------------------
 
-use bevy::prelude::*;
+use bevy::{prelude::*, tasks::AsyncComputeTaskPool};
 use chunk_loading::manage_distance_based_chunk_loading_targets_system;
-use registries::start_async_registry_initialization;
+use registries::{
+    handle_biome_loading, handle_block_loading, handle_render_registry, handle_texture_stitching,
+};
 use shared::{
-    SimulationLoadingPhase, cleanup_orphaned_tasks, lifecycle::state::enums::AppState,
-    loading_is_complete, poll_tasks, start_fake_work_system, transition_to,
+    LoadingAppExt, LoadingTaskComponent, NodeFinished, StartNode, cleanup_orphaned_tasks,
+    kickoff_loading_phase,
+    lifecycle::state::{enums::AppState, transition_to},
+    loading_dag_is_complete, poll_tasks, start_fake_work_system,
     world::chunk::ChunkCoord,
 };
 
@@ -21,10 +28,31 @@ pub struct ClientLoadPlugin;
 
 impl Plugin for ClientLoadPlugin {
     fn build(&self, app: &mut App) {
-        // start background registry initialization
+        // configure async loading DAG for app startup
+        app.configure_loading_phase::<AppStartupPhase>()
+            .add_node(AppStartupPhase::Textures, handle_texture_stitching)
+            .add_node(AppStartupPhase::Blocks, handle_block_loading)
+            .add_node(AppStartupPhase::Biomes, handle_biome_loading)
+            .add_node(AppStartupPhase::RenderRegistry, handle_render_registry)
+            .add_edge(AppStartupPhase::Textures, AppStartupPhase::RenderRegistry)
+            .add_edge(AppStartupPhase::Blocks, AppStartupPhase::RenderRegistry)
+            .add_edge(AppStartupPhase::Biomes, AppStartupPhase::RenderRegistry);
+
+        // kickoff the app startup loading phase when starting up
         app.add_systems(
             OnEnter(AppState::StartingUp),
-            start_async_registry_initialization,
+            kickoff_loading_phase::<AppStartupPhase>,
+        );
+
+        // handle transition to running state when app startup is done
+        app.add_systems(
+            Update,
+            (
+                poll_tasks::<AppStartupPhase>,
+                transition_to(AppState::Running).run_if(loading_dag_is_complete::<AppStartupPhase>),
+            )
+                .chain()
+                .run_if(in_state(AppState::StartingUp)),
         );
 
         app.add_systems(
@@ -36,8 +64,41 @@ impl Plugin for ClientLoadPlugin {
             ),
         );
 
-        // TODO: remove temp fake work system for testing
-        app.add_systems(OnEnter(SimulationState::Loading), start_fake_work_system);
+        // configure async loading DAG for simulation loading
+        app.configure_loading_phase::<SimulationLoadingPhase>()
+            .add_node(
+                SimulationLoadingPhase::FakeWork,
+                |trigger: On<StartNode<SimulationLoadingPhase>>, mut commands: Commands| {
+                    if trigger.event().0 != SimulationLoadingPhase::FakeWork {
+                        return;
+                    }
+
+                    info!("Starting simulation fake work node!");
+
+                    let task = start_fake_work_system();
+
+                    let wrapped_task = AsyncComputeTaskPool::get().spawn(async move {
+                        let mut queue = task.await;
+
+                        queue.push(|world: &mut World| {
+                            world.trigger(NodeFinished(SimulationLoadingPhase::FakeWork));
+                        });
+
+                        queue
+                    });
+
+                    commands.spawn((
+                        LoadingTaskComponent(wrapped_task),
+                        SimulationLoadingPhase::FakeWork,
+                    ));
+                },
+            );
+
+        // kickoff simulation loading when entering Loading state
+        app.add_systems(
+            OnEnter(SimulationState::Loading),
+            kickoff_loading_phase::<SimulationLoadingPhase>,
+        );
 
         // polling systems and tracking load state for simulation loading
         app.add_systems(
@@ -45,7 +106,7 @@ impl Plugin for ClientLoadPlugin {
             (
                 poll_tasks::<SimulationLoadingPhase>,
                 transition_to(SimulationState::Running)
-                    .run_if(loading_is_complete::<SimulationLoadingPhase>),
+                    .run_if(loading_dag_is_complete::<SimulationLoadingPhase>),
             )
                 .chain()
                 .run_if(in_state(SimulationState::Loading)),

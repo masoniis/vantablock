@@ -1,5 +1,5 @@
 pub mod enums;
-pub mod systems;
+mod systems;
 
 pub use systems::transition_to;
 

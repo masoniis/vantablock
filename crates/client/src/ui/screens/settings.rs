@@ -1,4 +1,4 @@
-use crate::lifecycle::state::enums::{ClientState, InGameState};
+use crate::lifecycle::state::{ClientState, InGameState};
 use bevy::prelude::*;
 use lightyear::prelude::client::{Disconnect, NetcodeClient};
 

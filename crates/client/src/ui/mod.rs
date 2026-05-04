@@ -4,15 +4,14 @@
 //! that are more relevant to them (like inventory and crosshair).
 
 pub mod root;
+mod screens;
+mod widgets;
 
 // INFO: -------------------
 //         ui plugin
 // -------------------------
 
-mod screens;
-
-use crate::lifecycle::state::enums::InGameState;
-use crate::lifecycle::{SimulationState, state::ClientState};
+use crate::lifecycle::{state::ClientState, state::InGameState, SimulationState};
 use bevy::prelude::*;
 use shared::lifecycle::state::enums::AppState;
 

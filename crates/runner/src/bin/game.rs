@@ -5,13 +5,13 @@ use bevy::{
     prelude::info,
 };
 use client::{lifecycle::scheduling::RenderPrepSet, prelude::*};
-use utils::attach_logger;
 use vantablock_runner::orchestrator::OrchestratorPlugin;
 
 /// The main entrypoint for the entire game.
 #[instrument(skip_all, fields(name = "main"))]
 fn main() {
-    attach_logger();
+    utils::set_runtime_context_client();
+    utils::attach_logger();
 
     info!("Building client app...");
 

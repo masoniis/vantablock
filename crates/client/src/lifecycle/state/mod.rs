@@ -1,4 +1,4 @@
-pub mod enums;
+mod enums;
 
 pub use enums::*;
 
@@ -6,17 +6,11 @@ pub use enums::*;
 //         plugin definition
 // ---------------------------------
 
-use bevy::prelude::*;
-use bevy::window::PrimaryWindow;
-use bevy::{
-    prelude::{App, Plugin},
-    state::app::AppExtStates,
-};
-use shared::transition_to;
+use crate::lifecycle::load::{AppStartupPhase, SimulationLoadingPhase};
+use bevy::{prelude::*, state::app::AppExtStates, window::PrimaryWindow};
 use shared::{
+    lifecycle::load::cleanup_orphaned_tasks, lifecycle::state::enums::AppState, transition_to,
     FixedUpdateSet,
-    lifecycle::load::{AppStartupLoadingPhase, cleanup_orphaned_tasks},
-    lifecycle::state::enums::AppState,
 };
 
 pub struct ClientStatePlugin;
@@ -47,7 +41,12 @@ impl Plugin for ClientStatePlugin {
         // load cleanup to run after transitions
         app.add_systems(
             OnExit(AppState::StartingUp),
-            cleanup_orphaned_tasks::<AppStartupLoadingPhase>,
+            cleanup_orphaned_tasks::<AppStartupPhase>,
+        );
+
+        app.add_systems(
+            OnExit(SimulationState::Loading),
+            cleanup_orphaned_tasks::<SimulationLoadingPhase>,
         );
 
         // configure system sets to be state-bound

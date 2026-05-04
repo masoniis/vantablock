@@ -1,4 +1,4 @@
-use crate::lifecycle::state::enums::ClientState;
+use crate::lifecycle::state::ClientState;
 use crate::network::connection::NetworkErrorEvent;
 use bevy::prelude::*;
 
