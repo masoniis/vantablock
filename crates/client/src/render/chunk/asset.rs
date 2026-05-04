@@ -10,5 +10,5 @@ use std::sync::Arc;
 #[derive(Asset, Reflect, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct BlockMeshAsset {
     pub name: String,
-    pub faces: Arc<Vec<PackedFace>>,
+    pub faces: Arc<[PackedFace]>,
 }

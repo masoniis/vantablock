@@ -11,7 +11,7 @@ mod widgets;
 //         ui plugin
 // -------------------------
 
-use crate::lifecycle::{state::ClientState, state::InGameState, SimulationState};
+use crate::lifecycle::{SimulationState, state::ClientState, state::InGameState};
 use bevy::prelude::*;
 use shared::lifecycle::state::enums::AppState;
 

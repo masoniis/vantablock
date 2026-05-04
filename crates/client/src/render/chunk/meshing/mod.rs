@@ -3,6 +3,8 @@ pub mod dense;
 pub mod hull;
 pub mod packed_face;
 
+pub use packed_face::PackedFace;
+
 // INFO: --------------------------------
 //         public mesh entrypoint
 // --------------------------------------

@@ -9,8 +9,8 @@ use crate::{
 use bevy::{asset::Assets, ecs::world::CommandQueue, prelude::*, tasks::AsyncComputeTaskPool};
 use shared::{
     lifecycle::{
-        load::{LoadingTaskComponent, NodeFinished, StartNode},
         PersistentPathsResource,
+        load::{LoadingTaskComponent, NodeFinished, StartNode},
     },
     world::{biome::BiomeRegistryResource, block::BlockRegistry},
 };

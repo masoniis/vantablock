@@ -9,8 +9,8 @@ pub use enums::*;
 use crate::lifecycle::load::{AppStartupPhase, SimulationLoadingPhase};
 use bevy::{prelude::*, state::app::AppExtStates, window::PrimaryWindow};
 use shared::{
-    lifecycle::load::cleanup_orphaned_tasks, lifecycle::state::enums::AppState, transition_to,
-    FixedUpdateSet,
+    FixedUpdateSet, lifecycle::load::cleanup_orphaned_tasks, lifecycle::state::enums::AppState,
+    transition_to,
 };
 
 pub struct ClientStatePlugin;
