@@ -1,4 +1,4 @@
-use crate::lifecycle::state::enums::InGameState;
+use crate::lifecycle::state::InGameState;
 use bevy::prelude::*;
 
 #[derive(Component)]

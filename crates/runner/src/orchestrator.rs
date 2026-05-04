@@ -40,6 +40,8 @@ fn handle_request_singleplayer(_trigger: On<RequestSingleplayerSession>, mut com
 
     // spawn the background server
     thread::spawn(move || {
+        utils::set_runtime_context_server();
+
         let mut app = App::new();
         app.add_plugins(DefaultServerPlugins);
 

@@ -6,6 +6,7 @@ use tracing::info;
 /// for a client running singleplayer, though not through the main entrypoint.
 fn main() {
     // initialize logging
+    utils::set_runtime_context_server();
     utils::attach_logger();
 
     info!("Building server app...");

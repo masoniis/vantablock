@@ -1,3 +1,4 @@
+pub mod load;
 pub mod state;
 
 // INFO: ---------------------------
@@ -12,6 +13,8 @@ pub struct ServerLifecyclePlugins;
 
 impl PluginGroup for ServerLifecyclePlugins {
     fn build(self) -> PluginGroupBuilder {
-        PluginGroupBuilder::start::<Self>().add(state::StatePlugin)
+        PluginGroupBuilder::start::<Self>()
+            .add(state::StatePlugin)
+            .add(load::ServerLoadPlugin)
     }
 }

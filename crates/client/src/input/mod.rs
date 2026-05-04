@@ -17,12 +17,12 @@ use crate::{
             unlock_cursor_system,
         },
     },
-    lifecycle::state::enums::{ClientState, InGameState},
+    lifecycle::state::{ClientState, InGameState},
 };
 use bevy::{
     app::{App, Plugin, PreUpdate, Update},
     prelude::{
-        IntoScheduleConfigs, KeyCode, MouseButton, OnEnter, OnExit, SystemCondition, in_state,
+        in_state, IntoScheduleConfigs, KeyCode, MouseButton, OnEnter, OnExit, SystemCondition,
     },
     render::extract_resource::ExtractResourcePlugin,
 };

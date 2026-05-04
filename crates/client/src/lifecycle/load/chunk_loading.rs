@@ -1,8 +1,12 @@
-use crate::prelude::*;
-use crate::render::chunk::manager::{ClientChunkManager, ClientChunkState};
-use bevy::ecs::prelude::*;
-use bevy::math::IVec3;
-use bevy::prelude::{Camera, Camera3d};
+use crate::{
+    prelude::*,
+    render::chunk::manager::{ClientChunkManager, ClientChunkState},
+};
+use bevy::{
+    ecs::prelude::*,
+    math::IVec3,
+    prelude::{Camera, Camera3d},
+};
 use shared::world::chunk::{ChunkCoord, LOAD_DISTANCE, WORLD_MAX_Y_CHUNK, WORLD_MIN_Y_CHUNK};
 use std::collections::HashSet;
 
@@ -10,10 +14,10 @@ use std::collections::HashSet;
 /// This system manages chunk lifecycle transitions from Unloaded to AwaitingData.
 #[instrument(skip_all)]
 pub fn manage_distance_based_chunk_loading_targets_system(
-    // Input
+    // input
     camera_query: Query<(&Camera, &ChunkCoord), With<Camera3d>>,
 
-    // Output
+    // output
     mut chunk_manager: ResMut<ClientChunkManager>,
     mut commands: Commands,
 ) {

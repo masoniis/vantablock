@@ -2,15 +2,15 @@ use std::sync::atomic::{AtomicU8, Ordering};
 use time::macros::format_description;
 use tracing::{Event, Level, Subscriber};
 use tracing_subscriber::{
+    Registry,
     filter::EnvFilter,
     fmt::{
-        self, format::Writer, time::FormatTime, time::LocalTime, FmtContext, FormatEvent,
-        FormatFields,
+        self, FmtContext, FormatEvent, FormatFields, format::Writer, time::FormatTime,
+        time::LocalTime,
     },
     layer::SubscriberExt,
     prelude::*,
     registry::LookupSpan,
-    Registry,
 };
 
 // 0 = Unknown/Shared, 1 = Client, 2 = Server
@@ -79,7 +79,6 @@ where
         mut writer: Writer<'_>,
         event: &Event<'_>,
     ) -> std::fmt::Result {
-        // 1. Print grey timestamp
         write!(writer, "\x1b[90m")?;
         self.timer.format_time(&mut writer)?;
         write!(writer, "\x1b[0m ")?;

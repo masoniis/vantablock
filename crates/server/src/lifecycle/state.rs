@@ -1,8 +1,4 @@
-use bevy::{
-    ecs::system::ResMut,
-    prelude::{StateSet, SubStates},
-    state::state::{NextState, OnEnter},
-};
+use bevy::prelude::{AppExtStates, StateSet, SubStates};
 use shared::lifecycle::state::enums::AppState;
 
 /// Detailed lifecycle state of the dedicated or local background server.
@@ -34,23 +30,12 @@ pub enum ServerState {
 //         plugin definition
 // ---------------------------------
 
-use bevy::{
-    prelude::{App, Plugin},
-    state::app::AppExtStates,
-};
+use bevy::prelude::{App, Plugin};
 
 pub struct StatePlugin;
 
 impl Plugin for StatePlugin {
     fn build(&self, app: &mut App) {
         app.add_sub_state::<ServerState>();
-
-        // immediately set to running since no initialize steps at the moment
-        app.add_systems(
-            OnEnter(ServerState::Initializing),
-            |mut server_state: ResMut<NextState<ServerState>>| {
-                server_state.set(ServerState::Running);
-            },
-        );
     }
 }
