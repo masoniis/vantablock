@@ -93,7 +93,7 @@ fn bench_chunk_generation(c: &mut Criterion) {
     //         paint benching
     // ------------------------------
 
-    let surface_painter = SimpleSurfacePainter::default();
+    let surface_painter = SimpleSurfacePainter;
     group.bench_function("painting", |b| {
         b.iter(|| {
             let biome_map = BiomeMapComponent::new_empty(ChunkLod(0));

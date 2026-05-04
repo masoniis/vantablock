@@ -63,7 +63,7 @@ impl Plugin for ClientLoadPlugin {
 
         app.add_systems(
             PreUpdate,
-            (manage_distance_based_chunk_loading_targets_system).run_if(
+            manage_distance_based_chunk_loading_targets_system.run_if(
                 |q: Query<(&Camera, &ChunkCoord), (With<Camera3d>, Changed<ChunkCoord>)>| {
                     q.iter().any(|(c, _)| c.is_active)
                 },

@@ -27,6 +27,14 @@
 //! ## Example
 //!
 //! ```rust
+//! # use bevy::prelude::*;
+//! # use shared::lifecycle::*;
+//! # #[derive(States, Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+//! # enum MyState { #[default] Loading }
+//! # fn handle_assets(_: On<StartNode<MyLoadingPhase>>) {}
+//! # fn handle_registry(_: On<StartNode<MyLoadingPhase>>) {}
+//! # fn handle_finalize(_: On<StartNode<MyLoadingPhase>>) {}
+//!
 //! #[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Hash, Reflect)]
 //! enum MyLoadingPhase {
 //!     Assets,

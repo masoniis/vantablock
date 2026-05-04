@@ -1,5 +1,5 @@
 use crate::{player::PlayerAction, world::chunk::ChunkCoord};
-use bevy::prelude::*;
+use bevy::{ecs::entity::MapEntities, prelude::*};
 use lightyear::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -21,7 +21,10 @@ pub enum ClientMessage {
 #[derive(Message, Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum ServerMessage {
     /// Initial state sent to the client upon joining.
-    Welcome { entity_id: Entity, spawn_pos: Vec3 },
+    Welcome {
+        client_player_entity: Entity,
+        spawn_pos: Vec3,
+    },
     /// Direct block update for a specific world position. Represents generalized state change broadcast.
     BlockUpdate { position: IVec3, block_id: u8 },
     /// Bulk data for a chunk, typically compressed or encoded from ChunkVolumeData.
@@ -31,6 +34,18 @@ pub enum ServerMessage {
     },
     /// Synchronizes the authoritative game time across all clients.
     SyncTime { game_time: f32, tick: u64 },
+}
+
+impl MapEntities for ServerMessage {
+    fn map_entities<M: EntityMapper>(&mut self, entity_mapper: &mut M) {
+        if let ServerMessage::Welcome {
+            client_player_entity: entity_id,
+            ..
+        } = self
+        {
+            *entity_id = entity_mapper.get_mapped(*entity_id);
+        }
+    }
 }
 
 // INFO: ---------------------------

@@ -4,6 +4,7 @@ use shared::world::chunk::ChunkCoord;
 
 #[derive(Message)]
 pub struct WelcomeMessage {
+    pub entity: Entity,
     pub spawn_pos: Vec3,
 }
 

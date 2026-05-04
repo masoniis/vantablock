@@ -13,13 +13,13 @@ pub use types::*;
 //         plugin definition
 // ---------------------------------
 
-use bevy::app::{App, Plugin, Update};
+use bevy::app::{App, Plugin, PreUpdate};
 use systems::update_chunk_coords_system;
 
 pub struct ChunkPlugin;
 
 impl Plugin for ChunkPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, update_chunk_coords_system);
+        app.add_systems(PreUpdate, update_chunk_coords_system);
     }
 }

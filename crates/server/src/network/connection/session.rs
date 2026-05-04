@@ -28,7 +28,7 @@ pub fn on_client_connect(
         ))
         .insert(MessageSender::<ServerMessage>::default());
 
-    let player_entity = commands
+    let client_player_entity = commands
         .spawn((
             shared::player::components::NetworkPlayer,
             shared::player::components::PlayerLook::default(),
@@ -39,14 +39,14 @@ pub fn on_client_connect(
         ))
         .id();
 
-    info!("Player ent spawned {:?}", player_entity);
+    info!("Player ent spawned {:?}", client_player_entity);
 
     // send welcome message
     if let Some(server) = server
         && let Ok(remote_id) = client_ids.get(client_entity)
         && let Err(e) = sender.send::<_, ChatAndSystem>(
             &ServerMessage::Welcome {
-                entity_id: player_entity,
+                client_player_entity,
                 spawn_pos,
             },
             server.into_inner(),

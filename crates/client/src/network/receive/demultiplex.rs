@@ -19,8 +19,14 @@ pub fn translate_server_network_messages(
     for mut receiver in query.iter_mut() {
         for message in receiver.receive() {
             match message {
-                ServerMessage::Welcome { spawn_pos, .. } => {
-                    ev_welcome.write(WelcomeMessage { spawn_pos });
+                ServerMessage::Welcome {
+                    client_player_entity,
+                    spawn_pos,
+                } => {
+                    ev_welcome.write(WelcomeMessage {
+                        entity: client_player_entity,
+                        spawn_pos,
+                    });
                 }
                 ServerMessage::ChunkData { coord, data } => {
                     ev_chunk.write(ReceivedCompressedChunkMessage { coord, data });
