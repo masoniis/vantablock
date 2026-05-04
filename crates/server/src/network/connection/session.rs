@@ -30,7 +30,7 @@ pub fn on_client_connect(
 
     let player_entity = commands
         .spawn((
-            shared::player::components::Player,
+            shared::player::components::NetworkPlayer,
             shared::player::components::PlayerLook::default(),
             shared::player::components::LogicalPosition(spawn_pos),
             ClientConnection { client_entity },
