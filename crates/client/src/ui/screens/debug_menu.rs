@@ -1,5 +1,5 @@
 use crate::{
-    input::local_actions::LocalClientAction,
+    input::local_actions::ClientAction,
     render::chunk::manager::{ClientChunkManager, ClientChunkState},
 };
 use bevy::{
@@ -43,14 +43,14 @@ impl Plugin for DebugMenuPlugin {
 
 fn toggle_debug_menu_system(
     mut debug_state: ResMut<DebugMenuState>,
-    action_query: Query<&ActionState<LocalClientAction>>,
+    action_query: Query<&ActionState<ClientAction>>,
     mut commands: Commands,
     root_query: Query<Entity, With<DebugMenuRoot>>,
     asset_server: Res<AssetServer>,
 ) {
     let mut just_pressed = false;
     for action_state in action_query.iter() {
-        if action_state.just_pressed(&LocalClientAction::ToggleDebugMenu) {
+        if action_state.just_pressed(&ClientAction::ToggleDebugMenu) {
             just_pressed = true;
             break;
         }

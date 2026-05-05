@@ -1,15 +1,16 @@
 use crate::{network::types::ClientConnection, world::chunk_loading::ClientChunkTracker};
 use bevy::prelude::*;
-use lightyear::{prelude::server::*, prelude::*};
-use shared::network::{ChatAndSystem, ServerMessage};
+use lightyear::prelude::*;
+use shared::{
+    network::ServerMessage,
+    player::components::{LogicalPosition, NetworkPlayer, PlayerLook, PlayerOwner},
+};
 use std::time::Duration;
 use tracing::{error, info};
 
 pub fn on_client_connect(
     trigger: On<Add, Connected>,
     mut commands: Commands,
-    mut sender: ServerMultiMessageSender,
-    server: Option<Single<&Server>>,
     client_ids: Query<&RemoteId>,
 ) {
     let client_entity = trigger.entity;
@@ -17,6 +18,15 @@ pub fn on_client_connect(
     info!("Client connected with entity: {:?}", client_entity);
 
     let spawn_pos = Vec3::new(0.0, 120.0, 60.0);
+
+    let Ok(remote_id) = client_ids.get(client_entity) else {
+        error!(
+            "Could not find RemoteId for client entity {:?}",
+            client_entity
+        );
+        return;
+    };
+    let client_id = **remote_id;
 
     // ensure client entity has MessageSender and ReplicationSender
     commands
@@ -30,9 +40,10 @@ pub fn on_client_connect(
 
     let client_player_entity = commands
         .spawn((
-            shared::player::components::NetworkPlayer,
-            shared::player::components::PlayerLook::default(),
-            shared::player::components::LogicalPosition(spawn_pos),
+            NetworkPlayer,
+            PlayerOwner(client_id),
+            PlayerLook::default(),
+            LogicalPosition(spawn_pos),
             ClientConnection { client_entity },
             ClientChunkTracker::default(),
             Replicate::to_clients(NetworkTarget::All),
@@ -40,24 +51,6 @@ pub fn on_client_connect(
         .id();
 
     info!("Player ent spawned {:?}", client_player_entity);
-
-    // send welcome message
-    if let Some(server) = server
-        && let Ok(remote_id) = client_ids.get(client_entity)
-        && let Err(e) = sender.send::<_, ChatAndSystem>(
-            &ServerMessage::Welcome {
-                client_player_entity,
-                spawn_pos,
-            },
-            server.into_inner(),
-            &NetworkTarget::Only(vec![**remote_id]),
-        )
-    {
-        error!(
-            "Failed to send Welcome message to client {:?}: {:?}",
-            client_entity, e
-        );
-    }
 }
 
 pub fn on_client_disconnect(

@@ -10,8 +10,7 @@ pub use messages::{ClientMessage, NetMessagesPlugin, ServerMessage};
 //         plugin definition
 // ---------------------------------
 
-use bevy::app::PluginGroupBuilder;
-use bevy::prelude::*;
+use bevy::{app::PluginGroupBuilder, prelude::*};
 
 pub struct NetworkProtocolPlugins;
 

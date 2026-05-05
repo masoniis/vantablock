@@ -1,4 +1,4 @@
-use crate::network::ecs_messages::{ReceivedCompressedChunkMessage, WelcomeMessage};
+use crate::network::ecs_messages::ReceivedCompressedChunkMessage;
 use bevy::{ecs::message::MessageWriter, prelude::*};
 use lightyear::prelude::MessageReceiver;
 use shared::network::protocol::ServerMessage;
@@ -13,21 +13,11 @@ pub fn translate_server_network_messages(
     // incoming network messages
     mut query: Query<&mut MessageReceiver<ServerMessage>>,
     // outgoing ECS messages
-    mut ev_welcome: MessageWriter<WelcomeMessage>,
     mut ev_chunk: MessageWriter<ReceivedCompressedChunkMessage>,
 ) {
     for mut receiver in query.iter_mut() {
         for message in receiver.receive() {
             match message {
-                ServerMessage::Welcome {
-                    client_player_entity,
-                    spawn_pos,
-                } => {
-                    ev_welcome.write(WelcomeMessage {
-                        entity: client_player_entity,
-                        spawn_pos,
-                    });
-                }
                 ServerMessage::ChunkData { coord, data } => {
                     ev_chunk.write(ReceivedCompressedChunkMessage { coord, data });
                 }

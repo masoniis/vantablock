@@ -1,4 +1,4 @@
-use crate::input::local_actions::LocalClientAction;
+use crate::input::local_actions::ClientAction;
 use bevy::ecs::prelude::*;
 use bevy::math::{Quat, Vec3};
 use bevy::prelude::{Camera, Camera3d, Projection, Transform};
@@ -79,7 +79,7 @@ pub fn apply_showcase_system(
             &mut Transform,
             &Camera,
             &mut Projection,
-            &ActionState<LocalClientAction>,
+            &ActionState<ClientAction>,
         ),
         With<Camera3d>,
     >,
@@ -96,19 +96,19 @@ pub fn apply_showcase_system(
         return;
     }
 
-    let showcase_idx = if action_state.just_pressed(&LocalClientAction::Showcase0) {
+    let showcase_idx = if action_state.just_pressed(&ClientAction::Showcase0) {
         0
-    } else if action_state.just_pressed(&LocalClientAction::Showcase1) {
+    } else if action_state.just_pressed(&ClientAction::Showcase1) {
         1
-    } else if action_state.just_pressed(&LocalClientAction::Showcase2) {
+    } else if action_state.just_pressed(&ClientAction::Showcase2) {
         2
-    } else if action_state.just_pressed(&LocalClientAction::Showcase3) {
+    } else if action_state.just_pressed(&ClientAction::Showcase3) {
         3
-    } else if action_state.just_pressed(&LocalClientAction::Showcase4) {
+    } else if action_state.just_pressed(&ClientAction::Showcase4) {
         4
-    } else if action_state.just_pressed(&LocalClientAction::Showcase5) {
+    } else if action_state.just_pressed(&ClientAction::Showcase5) {
         5
-    } else if action_state.just_pressed(&LocalClientAction::Showcase6) {
+    } else if action_state.just_pressed(&ClientAction::Showcase6) {
         6
     } else {
         return;

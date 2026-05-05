@@ -15,6 +15,8 @@ pub const CAMERA_NEAR_PLANE: f32 = 1.0;
 const MOUSE_SENSITIVITY: f32 = 0.1;
 
 /// A system that updates the active camera's position and orientation based on user input.
+// TODO: make camera movement more versatile in it's own module. Enable the ability for
+// player follow camera, debug/freecam camera (move camera but not player), etc
 #[instrument(skip_all)]
 #[allow(clippy::too_many_arguments)]
 pub fn camera_movement_system(

@@ -3,8 +3,8 @@
 //! This module is for reusable ui stuff and general screens. Other UI may exist within modules
 //! that are more relevant to them (like inventory and crosshair).
 
-pub mod root;
 mod screens;
+mod systems;
 mod widgets;
 
 // INFO: -------------------
@@ -21,19 +21,31 @@ impl Plugin for VantablockUiPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(screens::debug_menu::DebugMenuPlugin);
 
-        app.add_systems(OnEnter(AppState::Running), root::spawn_ui_root)
-            .add_systems(OnExit(AppState::Running), root::despawn_ui_root);
+        app.add_systems(OnEnter(AppState::Running), systems::spawn_ui_root)
+            .add_systems(OnExit(AppState::Running), systems::despawn_ui_root);
 
         // starting up ui
         app.add_systems(
             OnEnter(SimulationState::Loading),
-            screens::starting_up_ui::spawn_starting_up_ui,
+            (
+                systems::spawn_menu_camera_system,
+                screens::starting_up_ui::spawn_starting_up_ui,
+            ),
+        );
+
+        // game ui
+        app.add_systems(
+            OnEnter(ClientState::InGame),
+            systems::despawn_menu_camera_system,
         );
 
         // main menu ui
         app.add_systems(
             OnEnter(ClientState::MainMenu),
-            screens::main_menu::spawn_main_menu,
+            (
+                systems::spawn_menu_camera_system,
+                screens::main_menu::spawn_main_menu,
+            ),
         )
         .add_systems(
             Update,
@@ -64,6 +76,11 @@ impl Plugin for VantablockUiPlugin {
         // disconnected ui
         // it is spawned via trigger NetworkErrorEvent
         app.add_observer(screens::disconnected::spawn_disconnected_ui);
+
+        app.add_systems(
+            OnEnter(ClientState::Error),
+            systems::spawn_menu_camera_system,
+        );
 
         app.add_systems(
             Update,

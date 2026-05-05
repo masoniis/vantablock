@@ -1,17 +1,19 @@
 use bevy::prelude::Reflect;
 use leafwing_input_manager::Actionlike;
 
-/// Actions that are local to the client and do not affect the server's state.
-/// These are typically used for UI toggles, debug views, and local camera controls.
+/// Actions that are local to the client and do not affect the server's state or the player/character.
+///
+/// These are typically used for UI toggles, debug views, etc.
 #[derive(Actionlike, PartialEq, Eq, Clone, Copy, Hash, Debug, Reflect)]
-pub enum LocalClientAction {
+pub enum ClientAction {
+    // random stuff
     ToggleDiagnostics,
     ToggleDebugMenu,
     ToggleOpaqueWireframeMode,
     ToggleChunkBorders,
-    TogglePause, // Assuming this is an escape menu, not pausing the actual multiplayer server!
+    TogglePause,
 
-    // Showcase actions
+    // showcase actions
     Showcase0,
     Showcase1,
     Showcase2,

@@ -2,7 +2,7 @@
 //         plugin definition
 // ---------------------------------
 
-use crate::player::components::{LogicalPosition, NetworkPlayer, PlayerLook};
+use crate::player::components::{LogicalPosition, NetworkPlayer, PlayerLook, PlayerOwner};
 use bevy::prelude::*;
 use lightyear::prelude::{
     AppComponentExt, InterpolationRegistrationExt, PredictionRegistrationExt,
@@ -13,6 +13,7 @@ pub struct NetComponentsPlugin;
 impl Plugin for NetComponentsPlugin {
     fn build(&self, app: &mut App) {
         app.register_component::<NetworkPlayer>();
+        app.register_component::<PlayerOwner>();
 
         app.register_component::<PlayerLook>()
             .add_prediction()

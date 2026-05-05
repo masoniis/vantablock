@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use lightyear::prelude::PeerId;
 use serde::{Deserialize, Serialize};
 use std::f32::consts::{PI, TAU};
 
@@ -7,6 +8,10 @@ use std::f32::consts::{PI, TAU};
 /// This ID is assigned by the server and used to uniquely identify players across the network.
 #[derive(Component, Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct PlayerId(pub u64);
+
+/// Replicated component that identifies which client owns this player entity.
+#[derive(Component, Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct PlayerOwner(pub PeerId);
 
 /// Marker component for an entity that represents a player in the network.
 ///
