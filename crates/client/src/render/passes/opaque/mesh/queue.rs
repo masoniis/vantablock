@@ -79,7 +79,6 @@ pub fn queue_opaque_system(
         let mut sortable_items: Vec<SortableOpaqueItem> =
             Vec::with_capacity(meshes_query.iter().len());
         for (entity, _mesh, transform) in meshes_query.iter() {
-            // TODO: frustum culling
             let object_position = transform.translation();
             let distance_from_camera = (object_position - camera_position).length_squared();
 

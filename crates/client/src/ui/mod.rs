@@ -4,88 +4,34 @@
 //! that are more relevant to them (like inventory and crosshair).
 
 mod screens;
-mod systems;
+pub mod systems;
 mod widgets;
 
 // INFO: -------------------
 //         ui plugin
 // -------------------------
 
-use crate::lifecycle::{SimulationState, state::ClientState, state::InGameState};
+use crate::lifecycle::state::ClientLifecycleState;
 use bevy::prelude::*;
-use shared::lifecycle::state::enums::AppState;
 
 pub struct VantablockUiPlugin;
 
 impl Plugin for VantablockUiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(screens::debug_menu::DebugMenuPlugin);
-
-        app.add_systems(OnEnter(AppState::Running), systems::spawn_ui_root)
-            .add_systems(OnExit(AppState::Running), systems::despawn_ui_root);
-
-        // starting up ui
-        app.add_systems(
-            OnEnter(SimulationState::Loading),
-            (
-                systems::spawn_menu_camera_system,
-                screens::starting_up_ui::spawn_starting_up_ui,
-            ),
-        );
+        // screen plugins
+        app.add_plugins((
+            screens::LaunchingClientScreenPlugin,
+            screens::main_menu::MainMenuUiPlugin,
+            screens::connecting::ConnectingUiPlugin,
+            screens::settings::SettingsUiPlugin,
+            screens::disconnected::DisconnectedUiPlugin,
+            screens::debug_menu::DebugMenuPlugin,
+        ));
 
         // game ui
         app.add_systems(
-            OnEnter(ClientState::InGame),
+            OnEnter(ClientLifecycleState::InGame),
             systems::despawn_menu_camera_system,
-        );
-
-        // main menu ui
-        app.add_systems(
-            OnEnter(ClientState::MainMenu),
-            (
-                systems::spawn_menu_camera_system,
-                screens::main_menu::spawn_main_menu,
-            ),
-        )
-        .add_systems(
-            Update,
-            (
-                screens::main_menu::main_menu_button_interaction_system,
-                screens::main_menu::main_menu_text_input_system,
-            )
-                .run_if(in_state(ClientState::MainMenu)),
-        );
-
-        // connecting ui
-        app.add_systems(
-            OnEnter(InGameState::Connecting),
-            screens::connecting::spawn_connecting_ui,
-        );
-
-        // settings ui
-        app.add_systems(
-            OnEnter(InGameState::Paused),
-            screens::settings::spawn_settings_ui,
-        )
-        .add_systems(
-            Update,
-            screens::settings::settings_button_interaction_system
-                .run_if(in_state(InGameState::Paused)),
-        );
-
-        // disconnected ui
-        // it is spawned via trigger NetworkErrorEvent
-        app.add_observer(screens::disconnected::spawn_disconnected_ui);
-
-        app.add_systems(
-            OnEnter(ClientState::Error),
-            systems::spawn_menu_camera_system,
-        );
-
-        app.add_systems(
-            Update,
-            screens::disconnected::disconnected_ui_button_interaction_system
-                .run_if(in_state(ClientState::Error)),
         );
     }
 }

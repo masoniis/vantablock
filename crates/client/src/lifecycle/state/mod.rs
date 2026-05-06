@@ -6,19 +6,14 @@ pub use enums::*;
 //         plugin definition
 // ---------------------------------
 
-use crate::lifecycle::load::{AppStartupPhase, SimulationLoadingPhase};
 use bevy::{prelude::*, state::app::AppExtStates, window::PrimaryWindow};
-use shared::{
-    FixedUpdateSet, lifecycle::load::cleanup_orphaned_tasks, lifecycle::state::enums::AppState,
-    transition_to,
-};
+use shared::{FixedUpdateSet, lifecycle::state::AppState};
 
 pub struct ClientStatePlugin;
 
 impl Plugin for ClientStatePlugin {
     fn build(&self, app: &mut App) {
-        app.init_state::<SimulationState>()
-            .add_sub_state::<ClientState>()
+        app.add_sub_state::<ClientLifecycleState>()
             .add_sub_state::<InGameState>()
             .add_sub_state::<SessionTopology>();
 
@@ -26,34 +21,14 @@ impl Plugin for ClientStatePlugin {
         //         async loading
         // -----------------------------
 
-        // polling systems for simulation-linked client state transitions
-        app.add_systems(
-            Update,
-            (
-                // transition from loading to main menu once simulation is ready
-                transition_to(ClientState::MainMenu)
-                    .run_if(in_state(ClientState::Loading))
-                    .run_if(in_state(SimulationState::Running)),
-            )
-                .run_if(in_state(AppState::Running)),
-        );
-
         // load cleanup to run after transitions
-        app.add_systems(
-            OnExit(AppState::StartingUp),
-            cleanup_orphaned_tasks::<AppStartupPhase>,
-        );
-
-        app.add_systems(
-            OnExit(SimulationState::Loading),
-            cleanup_orphaned_tasks::<SimulationLoadingPhase>,
-        );
+        // (handled automatically by Bevy despawn_recursive now)
 
         // configure system sets to be state-bound
         app.configure_sets(
             FixedUpdate,
             (FixedUpdateSet::PreUpdate, FixedUpdateSet::MainLogic)
-                .run_if(in_state(ClientState::InGame)),
+                .run_if(in_state(ClientLifecycleState::InGame)),
         );
 
         // INFO: ---------------------------

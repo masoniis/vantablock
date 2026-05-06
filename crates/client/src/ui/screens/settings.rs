@@ -1,4 +1,4 @@
-use crate::lifecycle::state::{ClientState, InGameState};
+use crate::lifecycle::state::{ClientLifecycleState, InGameState};
 use bevy::prelude::*;
 use lightyear::prelude::client::{Disconnect, NetcodeClient};
 
@@ -9,6 +9,18 @@ pub struct SettingsUiRoot;
 pub enum SettingsButtonAction {
     Resume,
     Disconnect,
+}
+
+pub struct SettingsUiPlugin;
+
+impl Plugin for SettingsUiPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(OnEnter(InGameState::Paused), spawn_settings_ui)
+            .add_systems(
+                Update,
+                settings_button_interaction_system.run_if(in_state(InGameState::Paused)),
+            );
+    }
 }
 
 pub fn spawn_settings_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
@@ -107,7 +119,7 @@ pub fn settings_button_interaction_system(
         (Changed<Interaction>, With<Button>),
     >,
     mut next_in_game_state: ResMut<NextState<InGameState>>,
-    mut next_client_state: ResMut<NextState<ClientState>>,
+    mut next_client_state: ResMut<NextState<ClientLifecycleState>>,
     mut commands: Commands,
     client_query: Query<Entity, With<NetcodeClient>>,
 ) {
@@ -127,7 +139,7 @@ pub fn settings_button_interaction_system(
                             commands.trigger(Disconnect { entity });
                         }
 
-                        next_client_state.set(ClientState::MainMenu);
+                        next_client_state.set(ClientLifecycleState::MainMenu);
                     }
                 }
             }

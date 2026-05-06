@@ -1,5 +1,5 @@
 use crate::lifecycle::load::dag::{
-    components::{LoadingDagPhase, LoadingTaskComponent, NodeFinished, PhaseFinished, StartNode},
+    components::{LoadingDagPhase, LoadingTaskComponent, NodeCompleted, PhaseFinished, StartNode},
     resource::LoadingDag,
 };
 use bevy::{
@@ -10,9 +10,18 @@ use bevy::{
 /// A generic system that automatically identifies and kicks off all root nodes
 /// (those with no dependencies) for a specific loading phase.
 pub fn kickoff_loading_phase<P: LoadingDagPhase>(
-    mut dag: ResMut<LoadingDag<P>>,
+    dag: Option<ResMut<LoadingDag<P>>>,
     mut commands: Commands,
 ) {
+    let Some(mut dag) = dag else {
+        info!(
+            "[{}] Phase is not configured (no tasks registered). Transitioning immediately.",
+            P::PHASE_NAME
+        );
+        commands.trigger(PhaseFinished::<P>(std::marker::PhantomData));
+        return;
+    };
+
     if !dag.started_nodes.is_empty() {
         warn!(
             "[{}] Started nodes is not empty but kickoff was called!",
@@ -51,10 +60,7 @@ pub fn kickoff_loading_phase<P: LoadingDagPhase>(
         dag.started_nodes.push(node);
         // trigger targeted observer for this specific phase node entity
         if let Some(entity) = dag.node_entities.get(&node) {
-            commands.trigger(StartNode {
-                node,
-                entity: *entity,
-            });
+            commands.entity(*entity).trigger(StartNode);
         } else {
             warn!(
                 "[{}] Attempted to start node '{:?}' without a registered entity",
@@ -67,13 +73,25 @@ pub fn kickoff_loading_phase<P: LoadingDagPhase>(
 
 /// Coordinator observer that evaluates dependencies whenever a phase node finishes.
 ///
-/// This system listens for `NodeFinished<P>` globally and triggers the next ready phase nodes.
+/// This system listens for `NodeCompleted` globally and triggers the next ready phase nodes.
 pub fn evaluate_dag_dependencies<P: LoadingDagPhase>(
-    event: On<NodeFinished<P>>,
+    event: On<NodeCompleted>,
     mut commands: Commands,
     mut dag: ResMut<LoadingDag<P>>,
 ) {
-    let finished_node = event.event().node;
+    let finished_node = event.event().node_type;
+
+    // we only care about nodes that are part of THIS DAG
+    if !dag.dependencies.contains_key(&finished_node) {
+        return;
+    }
+
+    if !dag.started_nodes.contains(&finished_node) {
+        warn!(
+            "Dag node completed but hasn't started. This likely means the node was duplicated accross multiple loading DAGs which is not an advised pattern. Ignoring the completion..."
+        );
+        return;
+    }
 
     if !dag.completed_nodes.contains(&finished_node) {
         dag.completed_nodes.push(finished_node);
@@ -82,7 +100,13 @@ pub fn evaluate_dag_dependencies<P: LoadingDagPhase>(
         let completed = dag.completed_nodes.len();
         let total = dag.dependencies.len();
 
-        info!("[{}] Progress: {}/{}", P::PHASE_NAME, completed, total);
+        info!(
+            "[{}] Progress: {}/{} (Finished {})",
+            P::PHASE_NAME,
+            completed,
+            total,
+            event.event().node_name,
+        );
 
         // check if the entire phase is complete
         if completed == total && total > 0 {
@@ -111,18 +135,19 @@ pub fn evaluate_dag_dependencies<P: LoadingDagPhase>(
 
         // trigger targeted
         if let Some(entity) = dag.node_entities.get(&node) {
-            commands.trigger(StartNode {
-                node,
-                entity: *entity,
-            });
+            commands.entity(*entity).trigger(StartNode);
         }
     }
 }
 
-/// Generic cleanup system that clears the temporary state of the dag (completed and started nodes.
+/// Generic cleanup system that clears the temporary state of the dag (completed and started nodes).
 ///
 /// Enables reuse of the loading phase by resetting its state to the original form.
-pub fn reset_loading_dag_state<P: LoadingDagPhase>(mut dag: ResMut<LoadingDag<P>>) {
+pub fn reset_loading_dag_state<P: LoadingDagPhase>(dag: Option<ResMut<LoadingDag<P>>>) {
+    let Some(mut dag) = dag else {
+        return;
+    };
+
     dag.started_nodes.clear();
     dag.completed_nodes.clear();
 
@@ -132,9 +157,13 @@ pub fn reset_loading_dag_state<P: LoadingDagPhase>(mut dag: ResMut<LoadingDag<P>
     );
 }
 
-/// System that destroys the dag preventing it from every being usable again. Only use this for
+/// System that destroys the dag preventing it from ever being usable again. Only use this for
 /// loading dags that will never be used again. Useful for clearing up the resources and memory.
-pub fn nuke_loading_dag<P: LoadingDagPhase>(mut commands: Commands, dag: Res<LoadingDag<P>>) {
+pub fn nuke_loading_dag<P: LoadingDagPhase>(mut commands: Commands, dag: Option<Res<LoadingDag<P>>>) {
+    let Some(dag) = dag else {
+        return;
+    };
+
     for entity in dag.node_entities.values() {
         commands.entity(*entity).despawn();
     }
@@ -147,12 +176,12 @@ pub fn nuke_loading_dag<P: LoadingDagPhase>(mut commands: Commands, dag: Res<Loa
     );
 }
 
-/// A generic polling system that checks if phase tasks of a specific marker have finished.
+/// A global polling system that checks if any loading tasks have finished.
 ///
-/// When a phase task finishes, this system applies the tasks' returned commands and despawns
+/// When a loading task finishes, this system applies the tasks' returned commands and despawns
 /// the task entity.
-pub fn poll_tasks<P: LoadingDagPhase>(
-    mut tasks: Query<(Entity, &mut LoadingTaskComponent), With<P>>,
+pub fn poll_all_loading_tasks(
+    mut tasks: Query<(Entity, &mut LoadingTaskComponent)>,
     mut commands: Commands,
 ) {
     for (entity, mut task) in &mut tasks {
@@ -165,21 +194,7 @@ pub fn poll_tasks<P: LoadingDagPhase>(
     }
 }
 
-/// A generic cleanup system for orphaned phase tasks.
-pub fn cleanup_orphaned_tasks<P: LoadingDagPhase>(
-    mut commands: Commands,
-    query: Query<Entity, (With<LoadingTaskComponent>, With<P>)>,
-) {
-    for entity in &query {
-        warn!(
-            "Cleaning up orphaned task for phase node type: {}",
-            P::PHASE_NAME
-        );
-        commands.entity(entity).try_despawn();
-    }
-}
-
 /// Returns true if the DAG for the specified phase type is complete.
 pub fn loading_dag_is_complete<P: LoadingDagPhase>(dag: Option<Res<LoadingDag<P>>>) -> bool {
-    dag.is_some_and(|d| d.completed_nodes.len() == d.dependencies.len())
+    dag.is_none_or(|d| d.completed_nodes.len() == d.dependencies.len())
 }

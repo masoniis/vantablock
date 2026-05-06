@@ -1,5 +1,5 @@
 use crate::{
-    lifecycle::{ClientState, InGameState},
+    lifecycle::{ClientLifecycleState, InGameState},
     network::connection::NetworkErrorEvent,
 };
 use bevy::prelude::*;
@@ -30,7 +30,7 @@ pub fn handle_disconnections(
     mut removed_connected: RemovedComponents<Connected>,
     // query to see if they were given the Disconnected state
     disconnected_query: Query<&Disconnected>,
-    mut next_client_state: ResMut<NextState<ClientState>>,
+    mut next_client_state: ResMut<NextState<ClientLifecycleState>>,
     mut commands: Commands,
 ) {
     // did any entity stop connecting OR stop being connected this frame?
@@ -48,7 +48,7 @@ pub fn handle_disconnections(
                 reason_str
             );
 
-            next_client_state.set(ClientState::Error);
+            next_client_state.set(ClientLifecycleState::Error);
             commands.trigger(NetworkErrorEvent {
                 reason: reason_str.to_string(),
             });

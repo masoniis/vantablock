@@ -1,6 +1,7 @@
 use crate::{
-    lifecycle::state::ClientState,
+    lifecycle::state::ClientLifecycleState,
     network::connection::{ConnectType, InitiateConnection},
+    ui::systems::spawn_menu_camera_system,
 };
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::prelude::*;
@@ -17,6 +18,25 @@ pub enum MainMenuButtonAction {
 
 #[derive(Component)]
 pub struct ServerAddrInput;
+
+pub struct MainMenuUiPlugin;
+
+impl Plugin for MainMenuUiPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(
+            OnEnter(ClientLifecycleState::MainMenu),
+            (spawn_menu_camera_system, spawn_main_menu),
+        )
+        .add_systems(
+            Update,
+            (
+                main_menu_button_interaction_system,
+                main_menu_text_input_system,
+            )
+                .run_if(in_state(ClientLifecycleState::MainMenu)),
+        );
+    }
+}
 
 pub fn spawn_main_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
     info!("Spawning Main Menu UI...");
@@ -35,7 +55,7 @@ pub fn spawn_main_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
                 ..Default::default()
             },
             MainMenuUiRoot,
-            DespawnOnExit(ClientState::MainMenu),
+            DespawnOnExit(ClientLifecycleState::MainMenu),
         ))
         .with_children(|parent| {
             // title

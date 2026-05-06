@@ -1,13 +1,14 @@
 use crate::player::{BreakBlockEvent, LocalPlayer, PlaceBlockEvent, TargetedBlock};
-use bevy::ecs::prelude::{Commands, Entity, MessageReader, MessageWriter};
-use bevy::ecs::prelude::{Query, Res, With};
+use bevy::ecs::prelude::*;
 use lightyear::prelude::{MessageReceiver, MessageSender};
-use shared::network::protocol::{BlockUpdates, ClientMessage, ServerMessage};
-use shared::prelude::IVec3;
-use shared::world::block::block_registry::AIR_BLOCK_ID;
-use shared::world::chunk::{
-    CHUNK_SIDE_LENGTH,
-    components::{ChunkBlocksComponent, ChunkCoord, ChunkMeshDirty},
+use shared::{
+    network::protocol::{BlockUpdates, ClientMessage, ServerMessage},
+    prelude::IVec3,
+    world::block::block_registry::AIR_BLOCK_ID,
+    world::chunk::{
+        CHUNK_SIDE_LENGTH,
+        components::{ChunkBlocksComponent, ChunkCoord, ChunkMeshDirty},
+    },
 };
 use std::collections::HashMap;
 
@@ -138,7 +139,7 @@ pub fn place_targeted_block_system(
 ) {
     if let (Some(block_pos), Some(normal)) = (targeted_block.position, targeted_block.normal) {
         let target_pos = block_pos + normal;
-        let block_id = 1; // TODO: Use actual selected block ID from an inventory resource
+        let block_id = 1;
 
         // send local event for CSP
         place_block_writer.write(PlaceBlockEvent {

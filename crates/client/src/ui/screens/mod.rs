@@ -1,6 +1,8 @@
 pub mod connecting;
 pub mod debug_menu;
 pub mod disconnected;
+mod launching_client;
 pub mod main_menu;
 pub mod settings;
-pub mod starting_up_ui;
+
+pub use launching_client::LaunchingClientScreenPlugin;

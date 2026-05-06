@@ -1,12 +1,14 @@
+use crate::lifecycle::load::{LoadBiomes, NodeCompleted, StartNode};
 use crate::{
     lifecycle::PersistentPathsResource,
     prelude::*,
     world::biome::biome_definition::{BiomeDefinition, load_biome_from_str},
 };
 use bevy::asset::AssetServer;
-use bevy::ecs::prelude::*;
+use bevy::ecs::world::CommandQueue;
+use bevy::prelude::*;
+use bevy::tasks::AsyncComputeTaskPool;
 use std::{collections::HashMap, sync::Arc};
-use utils::PersistentPaths;
 
 pub type BiomeId = u8;
 
@@ -130,6 +132,41 @@ impl BiomeRegistryResource {
             name_to_id: Arc::new(name_to_id),
         }
     }
+}
+
+/// An asynchronous loading observer for the biome registry.
+///
+/// This is triggered when the biome loading node is ready to begin.
+pub fn load_biome_registry(
+    trigger: On<StartNode>,
+    mut commands: Commands,
+    persistent_paths: Res<PersistentPathsResource>,
+    existing: Option<Res<BiomeRegistryResource>>,
+) {
+    if existing.is_some() {
+        debug!("BiomeRegistry already exists, skipping I/O.");
+        commands.trigger(NodeCompleted::of::<LoadBiomes>());
+        return;
+    }
+
+    let paths = persistent_paths.0.clone();
+    let node_entity = trigger.0.entity();
+
+    let task = AsyncComputeTaskPool::get().spawn(async move {
+        let biome_registry = BiomeRegistryResource::load_from_disk(&paths);
+
+        let mut queue = CommandQueue::default();
+        queue.push(move |world: &mut World| {
+            world.insert_resource(biome_registry);
+            world.trigger(NodeCompleted::of::<LoadBiomes>());
+        });
+        queue
+    });
+
+    // Spawn the task as a child of the node entity
+    commands.entity(node_entity).with_children(|parent| {
+        parent.spawn(LoadingTaskComponent(task));
+    });
 }
 
 // INFO: ------------------------------
