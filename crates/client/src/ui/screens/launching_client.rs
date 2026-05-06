@@ -1,12 +1,28 @@
+use crate::{lifecycle::ClientLifecycleState, ui::systems::spawn_menu_camera_system};
 use bevy::prelude::*;
 
-use crate::lifecycle::SimulationState;
+// INFO: ---------------------------
+//         plugin definition
+// ---------------------------------
 
-#[derive(Component)]
-pub struct StartingUpUiRoot;
+pub struct LaunchingClientScreenPlugin;
 
-pub fn spawn_starting_up_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
-    info!("Spawning StartingUp UI...");
+impl Plugin for LaunchingClientScreenPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(
+            OnEnter(ClientLifecycleState::Launching),
+            (spawn_menu_camera_system, spawn_launching_client_screen),
+        );
+    }
+}
+
+// INFO: ------------------------------
+//         interface definition
+// ------------------------------------
+
+/// A UI intended to appear for the duration of the `ClientState::Loading` state.
+fn spawn_launching_client_screen(mut commands: Commands, asset_server: Res<AssetServer>) {
+    info!("Spawning Launching UI...");
 
     let font = asset_server.load("client/font/Recursive_variable.ttf");
 
@@ -20,8 +36,7 @@ pub fn spawn_starting_up_ui(mut commands: Commands, asset_server: Res<AssetServe
                 justify_content: JustifyContent::Center,
                 ..Default::default()
             },
-            StartingUpUiRoot,
-            DespawnOnExit(SimulationState::Loading),
+            DespawnOnExit(ClientLifecycleState::Launching),
         ))
         .with_children(|parent| {
             parent
@@ -39,7 +54,7 @@ pub fn spawn_starting_up_ui(mut commands: Commands, asset_server: Res<AssetServe
                 ))
                 .with_children(|parent| {
                     parent.spawn((
-                        Text::new("StartingUp..."),
+                        Text::new("Launching..."),
                         TextFont {
                             font: font.clone(),
                             font_size: 32.0,

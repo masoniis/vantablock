@@ -1,11 +1,15 @@
+use crate::lifecycle::PersistentPathsResource;
+use crate::lifecycle::load::{LoadBlocks, NodeCompleted, StartNode};
 use crate::{
     prelude::*,
     world::block::{BlockDescription, load_block_from_str},
 };
 use bevy::ecs::prelude::*;
+use bevy::ecs::world::CommandQueue;
+use bevy::prelude::*;
+use bevy::tasks::AsyncComputeTaskPool;
 use std::collections::HashMap;
 use std::sync::Arc;
-use utils::PersistentPaths;
 
 pub type BlockId = u8;
 /// ID of the default "air" block.
@@ -61,15 +65,15 @@ impl BlockRegistry {
         let mut descriptions_vec: Vec<BlockDescription> = Vec::new();
         let mut name_to_id: HashMap<String, BlockId> = HashMap::new();
 
-        // INFO: ---------------------------------------
-        //          manual air block registration (ID 0)
-        // ---------------------------------------------
+        // INFO: ----------------------------------------------
+        //         manual air block registration (ID 0)
+        // ----------------------------------------------------
 
         let air_desc = BlockDescription {
             display_name: "Air".to_string(),
         };
 
-        let air_id = register_block(
+        let air_id = Self::register_block(
             "air".to_string(),
             true,
             air_desc,
@@ -122,7 +126,7 @@ impl BlockRegistry {
                         && let Ok((render_props, desc_props)) = load_block_from_str(&ron_string)
                     {
                         if name == "stone" {
-                            register_block(
+                            Self::register_block(
                                 name.clone(),
                                 render_props.is_transparent,
                                 desc_props,
@@ -133,7 +137,7 @@ impl BlockRegistry {
                             );
                             stone_was_loaded = true;
                         } else {
-                            register_block(
+                            Self::register_block(
                                 name.clone(),
                                 render_props.is_transparent,
                                 desc_props,
@@ -171,38 +175,73 @@ impl BlockRegistry {
             name_to_id: Arc::new(name_to_id),
         }
     }
+
+    fn register_block(
+        name: String,
+        is_transparent: bool,
+        desc: BlockDescription,
+        force_id: Option<BlockId>,
+        transparency_vec: &mut Vec<bool>,
+        descriptions_vec: &mut Vec<BlockDescription>,
+        name_to_id: &mut HashMap<String, BlockId>,
+    ) -> BlockId {
+        // force id into slot
+        if let Some(target_id) = force_id {
+            let idx = target_id as usize;
+            if idx < transparency_vec.len() {
+                transparency_vec[idx] = is_transparent;
+                descriptions_vec[idx] = desc;
+                name_to_id.insert(name.to_lowercase(), target_id);
+                target_id
+            } else {
+                panic!(
+                    "Critical: Attempted to force block '{}' to ID {} but registry length is {}",
+                    name,
+                    target_id,
+                    transparency_vec.len()
+                );
+            }
+        } else {
+            let id = transparency_vec.len() as BlockId;
+            transparency_vec.push(is_transparent);
+            descriptions_vec.push(desc);
+            name_to_id.insert(name.to_lowercase(), id);
+            id
+        }
+    }
 }
 
-fn register_block(
-    name: String,
-    is_transparent: bool,
-    desc: BlockDescription,
-    force_id: Option<BlockId>,
-    transparency_vec: &mut Vec<bool>,
-    descriptions_vec: &mut Vec<BlockDescription>,
-    name_to_id: &mut HashMap<String, BlockId>,
-) -> BlockId {
-    // force id into slot
-    if let Some(target_id) = force_id {
-        let idx = target_id as usize;
-        if idx < transparency_vec.len() {
-            transparency_vec[idx] = is_transparent;
-            descriptions_vec[idx] = desc;
-            name_to_id.insert(name.to_lowercase(), target_id);
-            target_id
-        } else {
-            panic!(
-                "Critical: Attempted to force block '{}' to ID {} but registry length is {}",
-                name,
-                target_id,
-                transparency_vec.len()
-            );
-        }
-    } else {
-        let id = transparency_vec.len() as BlockId;
-        transparency_vec.push(is_transparent);
-        descriptions_vec.push(desc);
-        name_to_id.insert(name.to_lowercase(), id);
-        id
+/// An asynchronous loading observer for the block registry.
+///
+/// This is triggered when the block loading node is ready to begin.
+pub fn load_block_registry(
+    trigger: On<StartNode>,
+    mut commands: Commands,
+    persistent_paths: Res<PersistentPathsResource>,
+    existing: Option<Res<BlockRegistry>>,
+) {
+    if existing.is_some() {
+        debug!("BlockRegistry already exists, skipping I/O.");
+        commands.trigger(NodeCompleted::of::<LoadBlocks>());
+        return;
     }
+
+    let paths = persistent_paths.0.clone();
+    let node_entity = trigger.0.entity();
+
+    let task = AsyncComputeTaskPool::get().spawn(async move {
+        let block_registry = BlockRegistry::load_from_disk(&paths);
+
+        let mut queue = CommandQueue::default();
+        queue.push(move |world: &mut World| {
+            world.insert_resource(block_registry);
+            world.trigger(NodeCompleted::of::<LoadBlocks>());
+        });
+        queue
+    });
+
+    // Spawn the task as a child of the node entity
+    commands.entity(node_entity).with_children(|parent| {
+        parent.spawn(LoadingTaskComponent(task));
+    });
 }

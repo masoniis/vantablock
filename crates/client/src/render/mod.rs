@@ -44,6 +44,7 @@ pub struct VantablockRenderPlugin;
 impl Plugin for VantablockRenderPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(shaders::VantablockShaderPlugin);
+        app.add_plugins(texture::BlockTexturePlugin);
         app.add_plugins(block::BlockRenderPlugin);
         app.add_plugins(chunk::ChunkMeshingPlugin);
 

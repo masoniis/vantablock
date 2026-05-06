@@ -1,38 +1,43 @@
 use bevy::ecs::world::CommandQueue;
 use bevy::prelude::*;
 use bevy::tasks::Task;
+use std::any::TypeId;
 
 #[derive(Component)]
 pub struct LoadingTaskComponent(pub Task<CommandQueue>);
 
-/// A trait that defines the requirements for a type to be used as a node identifier
-/// in the asynchronous loading DAG.
-///
-/// Types implementing this trait (usually enums) serve three purposes:
-/// 1. **Unique Identifiers:** Each variant represents a distinct task in the loading graph.
-/// 2. **Phase Markers:** The enum type itself distinguishes between different loading phases
-///    (e.g., `AppStartupLoadingPhase` vs `SimulationLoadingPhase`).
-/// 3. **Component Filters:** Each variant is attached to its own entity as a component,
-///    allowing systems and observers to query for specific tasks.
-pub trait LoadingDagPhase:
-    Component + Reflect + Copy + Eq + std::hash::Hash + Send + Sync + std::fmt::Debug + 'static
-{
+/// A trait that defines the requirements for a type to be used as a marker
+/// for a specific loading phase (e.g., SimulationPhase, AppStartupLoadingPhase).
+pub trait LoadingDagPhase: Send + Sync + 'static {
     /// A human-readable name for this loading phase, used in logs and debugging.
     const PHASE_NAME: &'static str;
 }
 
 /// Triggered when a loading phase node is ready to begin its task.
+///
+/// This is triggered on the entity representing the node.
 #[derive(EntityEvent, Debug, Clone, Copy, PartialEq, Eq, Hash, Reflect)]
-pub struct StartNode<P: LoadingDagPhase> {
-    pub entity: Entity,
-    pub node: P,
-}
+pub struct StartNode(pub Entity);
 
 /// Triggered when a loading phase node has successfully completed its task.
-#[derive(EntityEvent, Debug, Clone, Copy, PartialEq, Eq, Hash, Reflect)]
-pub struct NodeFinished<P: LoadingDagPhase> {
-    pub entity: Entity,
-    pub node: P,
+#[derive(Event, Debug, Clone, Reflect)]
+pub struct NodeCompleted {
+    pub node_type: TypeId,
+    pub node_name: String,
+}
+
+impl NodeCompleted {
+    /// Helper method to construct a NodeCompleted event for a specific type.
+    pub fn of<T: 'static>() -> Self {
+        Self {
+            node_type: TypeId::of::<T>(),
+            node_name: std::any::type_name::<T>()
+                .split("::")
+                .last()
+                .unwrap_or("Unknown")
+                .to_string(),
+        }
+    }
 }
 
 /// Triggered when an entire loading phase has completed all its nodes.

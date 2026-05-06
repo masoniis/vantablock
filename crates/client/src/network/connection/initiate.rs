@@ -1,4 +1,4 @@
-use crate::lifecycle::{ClientState, InGameState, SessionTopology};
+use crate::lifecycle::{ClientLifecycleState, InGameState, SessionTopology};
 use crate::network::connection::{ConnectType, InitiateConnection, RequestSingleplayerSession};
 use bevy::prelude::*;
 use lightyear::{netcode::Key, prelude::client::*, prelude::*};
@@ -10,7 +10,7 @@ use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 pub fn on_initiate_connection(
     trigger: On<InitiateConnection>,
     mut commands: Commands,
-    mut next_client_state: ResMut<NextState<ClientState>>,
+    mut next_client_state: ResMut<NextState<ClientLifecycleState>>,
     mut next_in_game_state: ResMut<NextState<InGameState>>,
     mut next_session_topology: ResMut<NextState<SessionTopology>>,
 ) {
@@ -70,6 +70,6 @@ pub fn on_initiate_connection(
     });
 
     // transition to game state
-    next_client_state.set(ClientState::InGame);
+    next_client_state.set(ClientLifecycleState::InGame);
     next_in_game_state.set(InGameState::Connecting);
 }

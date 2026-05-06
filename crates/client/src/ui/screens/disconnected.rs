@@ -1,5 +1,7 @@
-use crate::lifecycle::state::ClientState;
-use crate::network::connection::NetworkErrorEvent;
+use crate::{
+    lifecycle::state::ClientLifecycleState, network::connection::NetworkErrorEvent,
+    ui::systems::spawn_menu_camera_system,
+};
 use bevy::prelude::*;
 
 #[derive(Component)]
@@ -7,6 +9,23 @@ pub struct DisconnectedUiRoot;
 
 #[derive(Component)]
 pub struct RetryButton;
+
+pub struct DisconnectedUiPlugin;
+
+impl Plugin for DisconnectedUiPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_observer(spawn_disconnected_ui)
+            .add_systems(
+                OnEnter(ClientLifecycleState::Error),
+                spawn_menu_camera_system,
+            )
+            .add_systems(
+                Update,
+                disconnected_ui_button_interaction_system
+                    .run_if(in_state(ClientLifecycleState::Error)),
+            );
+    }
+}
 
 pub fn spawn_disconnected_ui(
     trigger: On<NetworkErrorEvent>,
@@ -31,7 +50,7 @@ pub fn spawn_disconnected_ui(
                 ..Default::default()
             },
             DisconnectedUiRoot,
-            DespawnOnExit(ClientState::Error),
+            DespawnOnExit(ClientLifecycleState::Error),
         ))
         .with_children(|parent| {
             parent
@@ -109,12 +128,12 @@ pub fn disconnected_ui_button_interaction_system(
         (&Interaction, &mut BackgroundColor),
         (Changed<Interaction>, With<Button>, With<RetryButton>),
     >,
-    mut next_client_state: ResMut<NextState<ClientState>>,
+    mut next_client_state: ResMut<NextState<ClientLifecycleState>>,
 ) {
     for (interaction, mut color) in interaction_query.iter_mut() {
         match *interaction {
             Interaction::Pressed => {
-                next_client_state.set(ClientState::MainMenu);
+                next_client_state.set(ClientLifecycleState::MainMenu);
             }
             Interaction::Hovered => {
                 *color = BackgroundColor(Color::LinearRgba(LinearRgba::new(0.3, 0.3, 0.3, 0.9)));

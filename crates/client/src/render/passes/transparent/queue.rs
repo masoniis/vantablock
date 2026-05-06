@@ -49,8 +49,6 @@ pub fn queue_and_prepare_transparent_system(
         // collect sortable items for the render pass
         let mut sortable_items: Vec<PhaseItem> = Vec::with_capacity(meshes_query.iter().len());
         for (entity, _mesh, transform) in meshes_query.iter() {
-            // TODO: frustum culling here using view.frustum or Bevy's ViewVisibility
-
             let object_position = transform.translation();
             let distance_from_camera = (object_position - camera_position).length_squared();
 

@@ -18,7 +18,7 @@ use crate::{
             toggle_opaque_wireframe_mode_system, toggle_pause_system, unlock_cursor_system,
         },
     },
-    lifecycle::state::{ClientState, InGameState},
+    lifecycle::state::{ClientLifecycleState, InGameState},
 };
 use bevy::{
     app::{App, Plugin, PreUpdate, Update},
@@ -53,7 +53,10 @@ impl Plugin for ClientInputPlugin {
         // cursor management based on game state
         app.add_systems(OnEnter(InGameState::Playing), lock_cursor_system)
             .add_systems(OnExit(InGameState::Playing), unlock_cursor_system)
-            .add_systems(OnEnter(ClientState::MainMenu), unlock_cursor_system);
+            .add_systems(
+                OnEnter(ClientLifecycleState::MainMenu),
+                unlock_cursor_system,
+            );
 
         // INFO: ---------------------------------------
         //         general keybind-based actions
@@ -62,7 +65,8 @@ impl Plugin for ClientInputPlugin {
         // ensure device events (mouse movement) are only processed in-game
         app.add_systems(
             PreUpdate,
-            systems::processing::device_events_system.run_if(in_state(ClientState::InGame)),
+            systems::processing::device_events_system
+                .run_if(in_state(ClientLifecycleState::InGame)),
         );
 
         // inputs that only run if in game state
@@ -81,7 +85,7 @@ impl Plugin for ClientInputPlugin {
                 toggle_chunk_borders_system
                     .run_if(action_just_pressed(ClientAction::ToggleChunkBorders)),
             )
-                .run_if(in_state(ClientState::InGame)),
+                .run_if(in_state(ClientLifecycleState::InGame)),
         );
     }
 }

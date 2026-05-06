@@ -1,30 +1,14 @@
-use bevy::{
-    prelude::{StateSet, SubStates},
-    state::state::States,
-};
-use shared::lifecycle::state::enums::AppState;
-
-/// A state representing whether the server simulation is currently loading, paused or executing.
-// TODO: should no longer need once simulation is fully server-sided
-#[derive(States, Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub enum SimulationState {
-    #[default]
-    /// The simulation is preparing to start.
-    Loading,
-    /// The simulation is active and ticking.
-    Running,
-    /// The simulation is paused.
-    Paused,
-}
+use bevy::prelude::{StateSet, SubStates};
+use shared::lifecycle::state::AppState;
 
 /// High-level client state.
 /// Sub-state of `AppState::Running`.
 #[derive(SubStates, Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[source(AppState = AppState::Running)]
-pub enum ClientState {
+pub enum ClientLifecycleState {
     /// Initial asset loading, shader compilation, and warmup.
     #[default]
-    Loading,
+    Launching,
     /// User is in the main menu.
     MainMenu,
     /// A world session is active (local or remote).
@@ -36,7 +20,7 @@ pub enum ClientState {
 /// Detailed session lifecycle.
 /// Sub-state of `ClientState::InGame`.
 #[derive(SubStates, Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-#[source(ClientState = ClientState::InGame)]
+#[source(ClientLifecycleState = ClientLifecycleState::InGame)]
 pub enum InGameState {
     /// Establishing network connection or initializing local server.
     #[default]
@@ -54,7 +38,7 @@ pub enum InGameState {
 /// Tracks the network topology and authority level of the active session.
 /// Sub-state of `ClientState::InGame`.
 #[derive(SubStates, Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-#[source(ClientState = ClientState::InGame)]
+#[source(ClientLifecycleState = ClientLifecycleState::InGame)]
 pub enum SessionTopology {
     /// The client is running a local background server (Singleplayer).
     /// The client has Host authority to pause the game, run server commands, etc.

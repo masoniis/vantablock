@@ -12,8 +12,7 @@ pub use state::*;
 //         plugin definition
 // ---------------------------------
 
-use bevy::app::PluginGroupBuilder;
-use bevy::prelude::PluginGroup;
+use bevy::{app::PluginGroupBuilder, prelude::PluginGroup};
 
 /// A plugin group containing shared lifecycle stuff.
 pub struct SharedLifecyclePlugins;
@@ -24,5 +23,6 @@ impl PluginGroup for SharedLifecyclePlugins {
             .add(paths::PathsPlugin)
             .add(scheduling::SharedSchedulingPlugin)
             .add(state::StatePlugin)
+            .add(load::StartupLoadPlugin)
     }
 }

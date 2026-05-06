@@ -4,6 +4,14 @@ use bevy::prelude::*;
 #[derive(Component)]
 pub struct ConnectingUiRoot;
 
+pub struct ConnectingUiPlugin;
+
+impl Plugin for ConnectingUiPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(OnEnter(InGameState::Connecting), spawn_connecting_ui);
+    }
+}
+
 pub fn spawn_connecting_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
     info!("Spawning Connecting UI...");
 

@@ -7,7 +7,7 @@ pub use movement::*;
 // -----------------------------
 
 use bevy::prelude::{App, IntoScheduleConfigs, Plugin, Update, in_state};
-use shared::lifecycle::state::enums::AppState;
+use shared::lifecycle::state::AppState;
 
 pub struct CameraPlugin;
 

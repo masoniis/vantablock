@@ -14,7 +14,7 @@ pub fn spawn_menu_camera_system(
         return;
     }
 
-    info!("Spawning temporary lobby camera.");
+    info!("Spawning 2d menu camera.");
 
     commands.spawn((MainMenuCamera, Camera2d));
 }
@@ -25,7 +25,7 @@ pub fn despawn_menu_camera_system(
     query: Query<Entity, With<MainMenuCamera>>,
 ) {
     for entity in query.iter() {
-        info!("Despawning temporary lobby camera.");
+        info!("Despawning 2d menu camera.");
         commands.entity(entity).despawn();
     }
 }

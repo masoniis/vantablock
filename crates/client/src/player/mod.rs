@@ -14,7 +14,7 @@ pub use targeted_block::TargetedBlock;
 //         player plugin
 // -----------------------------
 
-use crate::lifecycle::ClientState;
+use crate::lifecycle::ClientLifecycleState;
 use bevy::prelude::*;
 use leafwing_input_manager::common_conditions::action_just_pressed;
 use shared::player::PlayerAction;
@@ -49,7 +49,7 @@ impl Plugin for PlayerPlugin {
                 block_actions::handle_place_block_events_system,
                 block_actions::handle_incoming_block_updates,
             )
-                .run_if(in_state(ClientState::InGame)),
+                .run_if(in_state(ClientLifecycleState::InGame)),
         );
     }
 }
