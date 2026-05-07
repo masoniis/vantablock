@@ -1,4 +1,4 @@
-use crate::network::ecs_messages::ReceivedCompressedChunkMessage;
+use crate::network::InboundCompressedChunkMessage;
 use bevy::{ecs::message::MessageWriter, prelude::*};
 use lightyear::prelude::MessageReceiver;
 use shared::network::protocol::ServerMessage;
@@ -13,13 +13,13 @@ pub fn translate_server_network_messages(
     // incoming network messages
     mut query: Query<&mut MessageReceiver<ServerMessage>>,
     // outgoing ECS messages
-    mut ev_chunk: MessageWriter<ReceivedCompressedChunkMessage>,
+    mut ev_chunk: MessageWriter<InboundCompressedChunkMessage>,
 ) {
     for mut receiver in query.iter_mut() {
         for message in receiver.receive() {
             match message {
                 ServerMessage::ChunkData { coord, data } => {
-                    ev_chunk.write(ReceivedCompressedChunkMessage { coord, data });
+                    ev_chunk.write(InboundCompressedChunkMessage { coord, data });
                 }
                 ServerMessage::SyncTime { game_time, tick } => {
                     info!("SyncTime received: game_time={}, tick={}", game_time, tick);

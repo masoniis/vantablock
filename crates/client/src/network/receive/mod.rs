@@ -1,5 +1,5 @@
-pub mod demultiplex;
-pub mod ecs_messages;
+mod demultiplex;
+mod ecs_messages;
 
 pub use ecs_messages::*;
 
@@ -13,7 +13,7 @@ pub struct NetworkReceivePlugin;
 
 impl Plugin for NetworkReceivePlugin {
     fn build(&self, app: &mut App) {
-        app.add_message::<ReceivedCompressedChunkMessage>();
+        app.add_message::<InboundCompressedChunkMessage>();
 
         app.add_systems(Update, demultiplex::translate_server_network_messages);
     }

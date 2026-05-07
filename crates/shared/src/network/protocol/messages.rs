@@ -3,10 +3,11 @@ use bevy::prelude::*;
 use lightyear::prelude::*;
 use serde::{Deserialize, Serialize};
 
+/// A protocol defining all the direct client messages that a client communicates
+/// to the server. Note that this only defines the boundaries for message comms
+/// while the client also has other means of communication like replication.
 #[derive(Message, Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum ClientMessage {
-    /// A discrete input action performed by the player.
-    Action(PlayerAction),
     /// A request for the server to send block data for a specific chunk.
     RequestChunk(ChunkCoord),
     /// Updates the server on the player's current view orientation/camera state.
@@ -18,6 +19,9 @@ pub enum ClientMessage {
     PlaceBlock { position: IVec3, block_id: u8 },
 }
 
+/// A protocol defining all the direct server messages that a server communicates
+/// to its clients. Note that this only defines the boundaries for message comms
+/// while the server also has other means of communication like replication.
 #[derive(Message, Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum ServerMessage {
     /// Direct block update for a specific world position. Represents generalized state change broadcast.

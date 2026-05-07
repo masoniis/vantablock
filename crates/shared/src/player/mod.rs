@@ -1,7 +1,8 @@
 pub mod components;
 pub mod movement;
-pub mod player_action;
+mod player_action;
 
+pub use components::*;
 pub use player_action::PlayerAction;
 
 // INFO: ---------------------------
@@ -20,6 +21,10 @@ impl Plugin for SharedPlayerPlugin {
     fn build(&self, app: &mut App) {
         // handle leafwing inputs via lightyear
         app.add_plugins(InputPlugin::<PlayerAction>::default());
+
+        // NOTE: this resource only exists as a sink, without it
+        // leafwing will complain when no players exist since there
+        // is no action states to  handle
         app.init_resource::<ActionState<PlayerAction>>();
 
         app.add_systems(FixedUpdate, shared_player_movement_system);

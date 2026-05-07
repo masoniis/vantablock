@@ -1,10 +1,14 @@
 use crate::player::{LocalPlayer, TargetedBlock};
 use crate::prelude::*;
 use crate::render::chunk::manager::ClientChunkManager;
-use bevy::ecs::relationship::Relationship;
-use bevy::prelude::{Camera, Camera3d, ChildOf, Entity, GlobalTransform, Query, Res, ResMut, With};
-use shared::world::chunk::{ChunkCoord, chunk_blocks::ChunkView};
-use shared::world::{block::block_registry::AIR_BLOCK_ID, chunk::ChunkBlocksComponent};
+use bevy::{
+    ecs::relationship::Relationship,
+    prelude::{Camera, Camera3d, ChildOf, Entity, GlobalTransform, Query, Res, ResMut, With},
+};
+use shared::{
+    world::chunk::{ChunkCoord, chunk_blocks::ChunkView},
+    world::{block::block_registry::AIR_BLOCK_ID, chunk::ChunkBlocksComponent},
+};
 
 /// Max raycast traverse distance in blocks
 const RAYCAST_MAX_DIST: f32 = 8.0;
