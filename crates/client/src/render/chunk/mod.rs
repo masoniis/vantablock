@@ -13,11 +13,10 @@ pub use shared::world::chunk::ChunkMeshDirty;
 //         plugin definition
 // ---------------------------------
 
-use crate::network::ecs_messages::ReceivedDecompressedChunkMessage;
 use crate::render::chunk::tasks::{
     apply_decompressed_chunk_data_system, decompress_chunk_data_system,
-    manage_distance_based_chunk_meshing_targets_system, poll_decompression_tasks_system,
-    promote_newly_generated_chunks_system,
+    decompression::DecompressedChunkMessage, manage_distance_based_chunk_meshing_targets_system,
+    poll_decompression_tasks_system, promote_newly_generated_chunks_system,
 };
 use bevy::{
     app::{App, FixedUpdate, Plugin, PreUpdate, Update},
@@ -34,7 +33,7 @@ impl Plugin for ChunkMeshingPlugin {
         app.init_asset::<BlockMeshAsset>();
         app.init_resource::<ClientChunkManager>();
 
-        app.add_message::<ReceivedDecompressedChunkMessage>();
+        app.add_message::<DecompressedChunkMessage>();
 
         app.add_systems(
             PreUpdate,

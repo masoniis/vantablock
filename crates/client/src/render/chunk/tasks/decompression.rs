@@ -1,17 +1,23 @@
-use crate::network::ecs_messages::{
-    ReceivedCompressedChunkMessage, ReceivedDecompressedChunkMessage,
+use crate::{
+    network::InboundCompressedChunkMessage,
+    render::{
+        chunk::manager::{ClientChunkManager, ClientChunkState},
+        chunk::tasks::components::DecompressionTask,
+    },
 };
-use crate::render::chunk::manager::{ClientChunkManager, ClientChunkState};
-use crate::render::chunk::tasks::components::DecompressionTask;
-use bevy::ecs::message::{MessageReader, MessageWriter};
-use bevy::prelude::*;
-use bevy::tasks::AsyncComputeTaskPool;
+use bevy::{prelude::*, tasks::AsyncComputeTaskPool};
 use futures_lite::future;
 use shared::world::chunk::{ChunkBlocksComponent, ChunkCoord, ChunkLod};
 
+#[derive(Message)]
+pub struct DecompressedChunkMessage {
+    pub coord: ChunkCoord,
+    pub data: Vec<u8>,
+}
+
 pub fn decompress_chunk_data_system(
     mut commands: Commands,
-    mut ev_compressed: MessageReader<ReceivedCompressedChunkMessage>,
+    mut ev_compressed: MessageReader<InboundCompressedChunkMessage>,
 ) {
     let thread_pool = AsyncComputeTaskPool::get();
 
@@ -36,12 +42,12 @@ pub fn decompress_chunk_data_system(
 pub fn poll_decompression_tasks_system(
     mut commands: Commands,
     mut tasks: Query<(Entity, &mut DecompressionTask)>,
-    mut ev_decompressed: MessageWriter<ReceivedDecompressedChunkMessage>,
+    mut ev_decompressed: MessageWriter<DecompressedChunkMessage>,
 ) {
     for (entity, mut task) in tasks.iter_mut() {
         if let Some((coord, data)) = future::block_on(future::poll_once(&mut task.0)) {
             if !data.is_empty() {
-                ev_decompressed.write(ReceivedDecompressedChunkMessage { coord, data });
+                ev_decompressed.write(DecompressedChunkMessage { coord, data });
             }
             commands.entity(entity).despawn();
         }
@@ -49,7 +55,7 @@ pub fn poll_decompression_tasks_system(
 }
 
 pub fn apply_decompressed_chunk_data_system(
-    mut ev_chunk: MessageReader<ReceivedDecompressedChunkMessage>,
+    mut ev_chunk: MessageReader<DecompressedChunkMessage>,
     mut chunk_manager: ResMut<ClientChunkManager>,
     mut commands: Commands,
 ) {

@@ -6,9 +6,9 @@ pub use channels::*;
 pub use components::NetComponentsPlugin;
 pub use messages::{ClientMessage, NetMessagesPlugin, ServerMessage};
 
-// INFO: ---------------------------
-//         plugin definition
-// ---------------------------------
+// INFO: ---------------------------------
+//         plugin group definition
+// ---------------------------------------
 
 use bevy::{app::PluginGroupBuilder, prelude::*};
 

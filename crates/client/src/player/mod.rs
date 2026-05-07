@@ -40,7 +40,7 @@ impl Plugin for PlayerPlugin {
         app.add_systems(
             Update,
             (
-                setup_replicated_players::setup_replicated_players_system,
+                setup_replicated_players::dress_replicated_players_system,
                 block_actions::break_targeted_block_system
                     .run_if(action_just_pressed(PlayerAction::BreakBlock)),
                 block_actions::place_targeted_block_system

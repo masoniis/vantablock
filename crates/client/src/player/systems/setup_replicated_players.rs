@@ -3,17 +3,19 @@ use bevy::prelude::*;
 use lightyear::prelude::client::*;
 use shared::player::components::{LogicalPosition, NetworkPlayer, PlayerOwner};
 
-pub fn setup_replicated_players_system(
+/// A system that watches for new replicated players in the ECS world and dresses them with
+/// the extra necessary components.
+pub fn dress_replicated_players_system(
     mut commands: Commands,
-    // Query for newly replicated players that haven't been dressed yet.
-    // We use LogicalPosition instead of Transform because Transform isn't replicated from the server.
+    // query for newly replicated players that haven't been dressed yet.
     new_players: Query<(Entity, &PlayerOwner, &LogicalPosition), Added<NetworkPlayer>>,
-    // Get the local client's connection info to verify ownership
+    // get the local client's connection info to verify ownership
     netcode_client: Query<&NetcodeClient>,
 ) {
     let Some(client) = netcode_client.iter().next() else {
         return;
     };
+
     let local_client_id = client.id();
 
     for (entity, owner, logical_pos) in new_players.iter() {
@@ -24,7 +26,7 @@ pub fn setup_replicated_players_system(
             dress_local_player(entity, spawn_pos, &mut commands);
         } else {
             info!("This is a REMOTE player! Dressing entity {:?}...", entity);
-            // Remote players still need a Transform for the smoothing/interpolation systems to work
+            // remote players still need a Transform for the smoothing/interpolation systems to work
             commands
                 .entity(entity)
                 .insert(Transform::from_translation(spawn_pos));

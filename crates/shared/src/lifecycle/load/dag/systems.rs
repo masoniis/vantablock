@@ -14,7 +14,7 @@ pub fn kickoff_loading_phase<P: LoadingDagPhase>(
     mut commands: Commands,
 ) {
     let Some(mut dag) = dag else {
-        info!(
+        warn!(
             "[{}] Phase is not configured (no tasks registered). Transitioning immediately.",
             P::PHASE_NAME
         );
@@ -159,7 +159,10 @@ pub fn reset_loading_dag_state<P: LoadingDagPhase>(dag: Option<ResMut<LoadingDag
 
 /// System that destroys the dag preventing it from ever being usable again. Only use this for
 /// loading dags that will never be used again. Useful for clearing up the resources and memory.
-pub fn nuke_loading_dag<P: LoadingDagPhase>(mut commands: Commands, dag: Option<Res<LoadingDag<P>>>) {
+pub fn nuke_loading_dag<P: LoadingDagPhase>(
+    mut commands: Commands,
+    dag: Option<Res<LoadingDag<P>>>,
+) {
     let Some(dag) = dag else {
         return;
     };
