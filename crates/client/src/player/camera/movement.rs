@@ -4,7 +4,6 @@ use crate::{
 };
 use bevy::{
     ecs::relationship::Relationship,
-    input::mouse::MouseWheel,
     prelude::*,
 };
 use leafwing_input_manager::prelude::ActionState;
@@ -43,32 +42,25 @@ pub fn local_camera_look_system(
 #[instrument(skip_all)]
 #[allow(clippy::too_many_arguments)]
 pub fn camera_movement_system(
-    // input
-    mut mouse_wheel: MessageReader<MouseWheel>,
-
     // output
-    mut player_query: Query<Entity, With<LocalPlayer>>,
+    player_query: Query<(Entity, &ActionState<ClientAction>), With<LocalPlayer>>,
     mut camera_query: Query<(&Camera, &mut Projection, &ChildOf), With<Camera3d>>,
 ) {
-    if player_query.is_empty() {
+    let Ok((player_entity, action_state)) = player_query.single() else {
         return;
-    }
-    let player_entity = player_query.single_mut().unwrap();
+    };
 
-    // handle zoom using native Bevy mouse wheel events
-    let mut yoffset_scroll = 0.0;
-    for ev in mouse_wheel.read() {
-        yoffset_scroll += ev.y;
-    }
+    // handle zoom using leafwing action state
+    let zoom_delta = action_state.value(&ClientAction::Zoom);
 
-    if yoffset_scroll != 0.0 {
+    if zoom_delta != 0.0 {
         for (camera, mut projection, parent) in camera_query.iter_mut() {
             if camera.is_active
                 && parent.get() == player_entity
                 && let Projection::Perspective(ref mut perspective) = *projection
             {
                 let mut current_fov_deg = perspective.fov.to_degrees();
-                current_fov_deg -= yoffset_scroll;
+                current_fov_deg -= zoom_delta;
                 current_fov_deg = current_fov_deg.clamp(1.0, 45.0);
                 perspective.fov = current_fov_deg.to_radians();
             }

@@ -9,6 +9,8 @@ pub enum ClientAction {
     // continuous inputs
     #[actionlike(DualAxis)]
     Look,
+    #[actionlike(Axis)]
+    Zoom,
 
     // random stuff
     ToggleDiagnostics,
