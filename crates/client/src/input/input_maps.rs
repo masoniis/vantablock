@@ -1,6 +1,6 @@
 use crate::input::local_actions::ClientAction;
 use bevy::prelude::{KeyCode, MouseButton};
-use leafwing_input_manager::prelude::InputMap;
+use leafwing_input_manager::prelude::{InputMap, MouseMove};
 use shared::player::PlayerAction;
 
 /// Provides the default input mapping for the game.
@@ -15,11 +15,8 @@ pub fn get_default_player_action_input_map() -> InputMap<PlayerAction> {
     input_map.insert(PlayerAction::MoveFaster, KeyCode::ShiftLeft);
 
     // core player actions
-    input_map.insert(PlayerAction::BreakBlock, MouseButton::Left);
-    input_map.insert(PlayerAction::PlaceBlock, MouseButton::Right);
-
-    // terrain gen
-    input_map.insert(PlayerAction::CycleActiveTerrainGenerator, KeyCode::KeyT);
+    input_map.insert(PlayerAction::PrimaryInteract, MouseButton::Left);
+    input_map.insert(PlayerAction::SecondaryInteract, MouseButton::Right);
 
     // game time control
     input_map.insert(PlayerAction::JumpGameTimeForward, KeyCode::ArrowRight);
@@ -32,6 +29,9 @@ pub fn get_default_player_action_input_map() -> InputMap<PlayerAction> {
 /// Provides the default local input mapping for the game.
 pub fn get_default_client_action_input_map() -> InputMap<ClientAction> {
     let mut input_map = InputMap::default();
+
+    // orientation
+    input_map.insert_dual_axis(ClientAction::Look, MouseMove::default());
 
     // misc
     input_map.insert(ClientAction::TogglePause, KeyCode::Escape);

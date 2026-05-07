@@ -6,20 +6,26 @@ use serde::{Deserialize, Serialize};
 /// These actions represent the authoritative state changes requested by the player.
 #[derive(Actionlike, PartialEq, Eq, Clone, Copy, Hash, Debug, Reflect, Serialize, Deserialize)]
 pub enum PlayerAction {
-    // Movement
+    /// Move the player forward.
     MoveForward,
+    /// Move the player backward.
     MoveBackward,
+    /// Move the player to the left.
     MoveLeft,
+    /// Move the player to the right.
     MoveRight,
+    /// Sprint or move at a faster pace.
     MoveFaster,
 
-    // World Interaction
-    BreakBlock,
-    PlaceBlock,
+    /// Primary interaction intent (e.g., breaking a block).
+    PrimaryInteract,
+    /// Secondary interaction intent (e.g., placing a block).
+    SecondaryInteract,
 
-    // Server-side commands
-    CycleActiveTerrainGenerator,
+    /// Request to jump the game time forward.
     JumpGameTimeForward,
+    /// Request to jump the game time backward.
     JumpGameTimeBackward,
+    /// Request to toggle game time pausing.
     PauseGameTime,
 }

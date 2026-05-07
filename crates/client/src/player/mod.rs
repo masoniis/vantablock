@@ -28,23 +28,24 @@ impl Plugin for PlayerPlugin {
 
         app.add_plugins(CameraPlugin);
 
-        app.add_systems(
-            FixedUpdate,
-            update_target_block::update_targeted_block_system,
-        );
-
         // register local block events
         app.init_resource::<Messages<BreakBlockEvent>>();
         app.init_resource::<Messages<PlaceBlockEvent>>();
+
+        app.add_systems(
+            PostUpdate,
+            update_target_block::update_targeted_block_system
+                .run_if(in_state(ClientLifecycleState::InGame)),
+        );
 
         app.add_systems(
             Update,
             (
                 setup_replicated_players::dress_replicated_players_system,
                 block_actions::break_targeted_block_system
-                    .run_if(action_just_pressed(PlayerAction::BreakBlock)),
+                    .run_if(action_just_pressed(PlayerAction::PrimaryInteract)),
                 block_actions::place_targeted_block_system
-                    .run_if(action_just_pressed(PlayerAction::PlaceBlock)),
+                    .run_if(action_just_pressed(PlayerAction::SecondaryInteract)),
                 block_actions::handle_break_block_events_system,
                 block_actions::handle_place_block_events_system,
                 block_actions::handle_incoming_block_updates,

@@ -3,11 +3,15 @@ use crate::{
         input_maps::{get_default_client_action_input_map, get_default_player_action_input_map},
         local_actions::ClientAction,
     },
-    player::components::LocalPlayer,
+    player::components::{LocalPlayer, LocalPlayerCamera},
 };
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::ActionState;
-use shared::{player::PlayerAction, player::components::LogicalPosition, world::chunk::ChunkCoord};
+use shared::{
+    player::components::{LogicalPosition, PlayerLook},
+    player::PlayerAction,
+    world::chunk::ChunkCoord,
+};
 
 /// Attaches all local-only components and children to the local player entity.
 pub fn dress_local_player(entity: Entity, spawn_pos: Vec3, commands: &mut Commands) {
@@ -19,6 +23,7 @@ pub fn dress_local_player(entity: Entity, spawn_pos: Vec3, commands: &mut Comman
             get_default_player_action_input_map(),
             ActionState::<ClientAction>::default(),
             get_default_client_action_input_map(),
+            PlayerLook::default(),
             LogicalPosition(spawn_pos),
             Transform::from_translation(spawn_pos),
             ChunkCoord {
@@ -31,6 +36,7 @@ pub fn dress_local_player(entity: Entity, spawn_pos: Vec3, commands: &mut Comman
             // gap
             parent.spawn((
                 Camera3d::default(),
+                LocalPlayerCamera,
                 Projection::Perspective(PerspectiveProjection {
                     fov: 45.0f32.to_radians(),
                     near: 0.1,

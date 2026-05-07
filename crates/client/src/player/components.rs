@@ -4,3 +4,7 @@ use bevy::prelude::Component;
 /// Used for camera tracking and local input gathering. Do NOT network this.
 #[derive(Component)]
 pub struct LocalPlayer;
+
+/// Marker for the local player's camera.
+#[derive(Component)]
+pub struct LocalPlayerCamera;

@@ -1,6 +1,6 @@
 use crate::player::{
-    PlayerAction,
     components::{LogicalPosition, NetworkPlayer, PlayerLook},
+    PlayerAction,
 };
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::ActionState;
@@ -51,3 +51,4 @@ pub fn shared_player_movement_system(
         }
     }
 }
+
