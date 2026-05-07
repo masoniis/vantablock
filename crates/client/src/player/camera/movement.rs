@@ -1,58 +1,59 @@
-use crate::player::LocalPlayer;
+use crate::{
+    input::local_actions::ClientAction,
+    player::LocalPlayer,
+};
 use bevy::{
     ecs::relationship::Relationship,
-    input::mouse::{MouseMotion, MouseWheel},
+    input::mouse::MouseWheel,
     prelude::*,
 };
-use shared::{
-    network::{ClientMessage, PlayerMovement},
-    player::components::PlayerLook,
-};
+use leafwing_input_manager::prelude::ActionState;
+use shared::player::components::PlayerLook;
 use tracing::instrument;
 
 /// The distance the near plane is set to for the camera frustum.
 pub const CAMERA_NEAR_PLANE: f32 = 1.0;
 const MOUSE_SENSITIVITY: f32 = 0.1;
 
-/// A system that updates the active camera's position and orientation based on user input.
-// TODO: make camera movement more versatile in it's own module. Enable the ability for
-// player follow camera, debug/freecam camera (move camera but not player), etc
+/// A system that handles player rotation in Update for maximum smoothness.
+///
+/// This system updates the authoritative `PlayerLook` component on the local player.
+/// Since `PlayerLook` is registered for prediction, these changes are replicated
+/// to the server.
+pub fn local_camera_look_system(
+    mut player_query: Query<(&ActionState<ClientAction>, &mut PlayerLook), With<LocalPlayer>>,
+) {
+    let Ok((action_state, mut look)) = player_query.single_mut() else {
+        return;
+    };
+
+    let look_delta = action_state.axis_pair(&ClientAction::Look);
+
+    if look_delta.x != 0.0 || look_delta.y != 0.0 {
+        look.yaw -= (look_delta.x * MOUSE_SENSITIVITY).to_radians();
+        look.pitch -= (look_delta.y * MOUSE_SENSITIVITY).to_radians();
+
+        // clamp pitch to avoid flipping
+        look.pitch = look.pitch.clamp(-89.0f32.to_radians(), 89.0f32.to_radians());
+    }
+}
+
+/// A system that handles the 3rd person zoom. Rotation and Position is updated via the
+/// shared movement system and visual smoothing.
 #[instrument(skip_all)]
 #[allow(clippy::too_many_arguments)]
 pub fn camera_movement_system(
     // input
-    mut mouse_motion: MessageReader<MouseMotion>,
     mut mouse_wheel: MessageReader<MouseWheel>,
 
     // output
-    mut player_query: Query<(Entity, &mut PlayerLook), With<LocalPlayer>>,
+    mut player_query: Query<Entity, With<LocalPlayer>>,
     mut camera_query: Query<(&Camera, &mut Projection, &ChildOf), With<Camera3d>>,
 ) {
     if player_query.is_empty() {
         return;
     }
-    let (player_entity, mut look) = player_query.single_mut().unwrap();
-
-    // update rotation using native Bevy mouse motion events
-    let mut xoffset = 0.0;
-    let mut yoffset = 0.0;
-    for ev in mouse_motion.read() {
-        xoffset += ev.delta.x;
-        yoffset += ev.delta.y;
-    }
-
-    if xoffset != 0.0 || yoffset != 0.0 {
-        xoffset *= MOUSE_SENSITIVITY;
-        yoffset *= MOUSE_SENSITIVITY;
-
-        look.yaw -= xoffset.to_radians();
-        look.pitch -= yoffset.to_radians();
-
-        // clamp pitch to avoid flipping
-        look.pitch = look
-            .pitch
-            .clamp(-89.0f32.to_radians(), 89.0f32.to_radians());
-    }
+    let player_entity = player_query.single_mut().unwrap();
 
     // handle zoom using native Bevy mouse wheel events
     let mut yoffset_scroll = 0.0;
@@ -73,25 +74,4 @@ pub fn camera_movement_system(
             }
         }
     }
-}
-
-/// Sends the player's look orientation to the server.
-pub fn sync_player_look_to_server_system(
-    player_query: Query<&PlayerLook, (With<LocalPlayer>, Changed<PlayerLook>)>,
-    mut sender_query: Query<
-        &mut lightyear::prelude::MessageSender<shared::network::protocol::ClientMessage>,
-    >,
-) {
-    let Ok(look) = player_query.single() else {
-        return;
-    };
-
-    let Ok(mut sender) = sender_query.single_mut() else {
-        return;
-    };
-
-    // calculate forward vector from yaw and pitch
-    let forward = Quat::from_euler(EulerRot::YXZ, look.yaw, look.pitch, 0.0) * -Vec3::Z;
-
-    sender.send::<PlayerMovement>(ClientMessage::UpdateView { forward });
 }

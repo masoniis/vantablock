@@ -1,4 +1,4 @@
-use crate::{player::PlayerAction, world::chunk::ChunkCoord};
+use crate::world::chunk::ChunkCoord;
 use bevy::prelude::*;
 use lightyear::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -17,6 +17,8 @@ pub enum ClientMessage {
     BreakBlock { position: IVec3 },
     /// Intent to place a block at the specified position.
     PlaceBlock { position: IVec3, block_id: u8 },
+    /// Request the server to jump the game time by a specific amount.
+    RequestTimeJump { amount: f32 },
 }
 
 /// A protocol defining all the direct server messages that a server communicates

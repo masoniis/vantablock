@@ -37,23 +37,14 @@ impl Ease for LogicalPosition {
 
 /// Represents the orientation of a player's view.
 ///
-/// Rotation is stored as Euler angles (yaw and pitch) in radians. This state is
-/// used to calculate movement vectors and camera orientation.
-#[derive(Component, Serialize, Deserialize, Clone, Debug, PartialEq, Reflect)]
+/// This is replicated from server to clients, while each individual
+/// client updates it thorugh the `PlayerAction` messages.
+#[derive(Component, Serialize, Deserialize, Clone, Debug, PartialEq, Reflect, Default)]
 pub struct PlayerLook {
     /// Horizontal rotation (around the Y axis) in radians.
     pub yaw: f32,
     /// Vertical rotation (around the X axis) in radians.
     pub pitch: f32,
-}
-
-impl Default for PlayerLook {
-    fn default() -> Self {
-        Self {
-            yaw: 0.0,
-            pitch: 0.0,
-        }
-    }
 }
 
 impl Ease for PlayerLook {

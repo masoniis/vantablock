@@ -6,6 +6,10 @@ use leafwing_input_manager::Actionlike;
 /// These are typically used for UI toggles, debug views, etc.
 #[derive(Actionlike, PartialEq, Eq, Clone, Copy, Hash, Debug, Reflect)]
 pub enum ClientAction {
+    // continuous inputs
+    #[actionlike(DualAxis)]
+    Look,
+
     // random stuff
     ToggleDiagnostics,
     ToggleDebugMenu,
