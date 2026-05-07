@@ -5,5 +5,5 @@
 .direnv
 
 # project specific
-/target
-.dev_data
+target
+vantadev

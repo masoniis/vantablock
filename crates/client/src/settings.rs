@@ -1,5 +1,9 @@
-use bevy::ecs::prelude::Resource;
+use bevy::{
+    app::{App, Plugin},
+    ecs::prelude::Resource,
+};
 use serde::{Deserialize, Serialize};
+use shared::lifecycle::PersistentPathsResource;
 use std::fs;
 use tracing::{info, warn};
 use utils::PersistentPaths;
@@ -56,5 +60,21 @@ impl ClientSettings {
         }
 
         default_config
+    }
+}
+
+/// A plugin that automatically loads or creates the [`ClientSettings`] resource.
+pub struct ClientSettingsPlugin;
+
+impl Plugin for ClientSettingsPlugin {
+    fn build(&self, app: &mut App) {
+        // if paths isn't already there, this will trigger the resolve (via PathsPlugin being added before this)
+        let paths = app
+            .world()
+            .get_resource::<PersistentPathsResource>()
+            .map(|r| r.0.clone())
+            .unwrap_or_else(PersistentPaths::resolve_client);
+
+        app.insert_resource(ClientSettings::load_or_create(&paths));
     }
 }
