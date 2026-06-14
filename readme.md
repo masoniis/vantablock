@@ -3,6 +3,9 @@
 [![GitHub Repository](https://img.shields.io/badge/GitHub-Repository-blue?style=flat&logo=github)](https://github.com/masoniis/vantablock)
 ![Rust Version](https://img.shields.io/badge/rustc-1.88.0%2B-orange.svg)
 
+![sample-render1](./assets/repo/render.png)
+![sample-render2](./assets/repo/render2.png)
+
 ## Table of contents
 
 - [Build and run the project](#how-to-run-the-project)
