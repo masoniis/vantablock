@@ -1,18 +1,22 @@
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
-/// Toggles the OS cursor visibility and lock state on the primary window.
-pub fn toggle_cursor_system(mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>) {
+/// Locks the OS cursor and hides it.
+pub fn lock_cursor_system(mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>) {
     let Ok(mut cursor) = cursor_query.single_mut() else {
         return;
     };
 
-    // toggle visibiility
-    cursor.visible = !cursor.visible;
+    cursor.visible = false;
+    cursor.grab_mode = CursorGrabMode::Locked;
+}
 
-    if cursor.visible {
-        cursor.grab_mode = CursorGrabMode::None;
-    } else {
-        cursor.grab_mode = CursorGrabMode::Locked;
-    }
+/// Unlocks the OS cursor and shows it.
+pub fn unlock_cursor_system(mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>) {
+    let Ok(mut cursor) = cursor_query.single_mut() else {
+        return;
+    };
+
+    cursor.visible = true;
+    cursor.grab_mode = CursorGrabMode::None;
 }

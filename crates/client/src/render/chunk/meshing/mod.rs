@@ -3,13 +3,15 @@ pub mod dense;
 pub mod hull;
 pub mod packed_face;
 
+pub use packed_face::PackedFace;
+
 // INFO: --------------------------------
 //         public mesh entrypoint
 // --------------------------------------
 
 use crate::prelude::*;
-use crate::render::chunk::asset::VoxelMeshAsset;
-use shared::simulation::{
+use crate::render::chunk::asset::BlockMeshAsset;
+use shared::world::{
     block::{
         BlockRegistry,
         block_registry::{AIR_BLOCK_ID, BlockId},
@@ -18,8 +20,8 @@ use shared::simulation::{
 };
 
 // convenience mesh types
-pub type OpaqueMeshData = VoxelMeshAsset;
-pub type TransparentMeshData = VoxelMeshAsset;
+pub type OpaqueMeshData = BlockMeshAsset;
+pub type TransparentMeshData = BlockMeshAsset;
 
 /// Main chunk meshing entry point: Build a mesh for a single chunk.
 #[instrument(skip_all, fields(chunk = %name))]

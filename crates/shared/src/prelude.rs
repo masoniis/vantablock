@@ -2,7 +2,7 @@
 //         crate imports
 // -----------------------------
 
-pub use crate::simulation::scheduling::*;
+pub use crate::lifecycle::*;
 pub use utils::*;
 
 // INFO: -------------------------------

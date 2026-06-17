@@ -5,8 +5,8 @@ import package::world::main_passes::{
 import package::world::lib::{
   vertex_pulling::{
     pull_global_vertex_position,
-    get_voxel_uv,
-    get_voxel_normal
+    get_block_uv,
+    get_block_normal
   },
   face_unpacking::{unpack_face}
 };
@@ -53,7 +53,7 @@ fn vs_main(
 
     var final_pos = world_pos_vec3;
     let wobble = sin((world_pos_vec3.x + world_pos_vec3.z) * 23.0 + environment.time) * 0.05;
-    final_pos.y += wobble - 0.05; // offset to ensure vertices below voxels next to it
+    final_pos.y += wobble - 0.05; // offset to ensure vertices below blocks next to it
 
     // INFO: -------------------------
     //         output for frag
@@ -65,11 +65,10 @@ fn vs_main(
     out.clip_position = camera.view_proj * vec4<f32>(final_pos, 1.0);
     out.clip_pos_for_fog = out.clip_position;
 
-    out.normal = get_voxel_normal(face.normal_index);
+    out.normal = get_block_normal(face.normal_index);
     out.color = vec3<f32>(1.0, 1.0, 1.0);
-    out.tex_coords = get_voxel_uv(vert_idx_in_quad);
+    out.tex_coords = get_block_uv(vert_idx_in_quad);
     out.texture_index = face.texture_id;
 
     return out;
 }
-

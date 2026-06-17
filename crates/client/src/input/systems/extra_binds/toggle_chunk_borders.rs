@@ -1,7 +1,10 @@
 use crate::prelude::*;
-use bevy::ecs::{resource::Resource, system::ResMut};
+use bevy::{
+    ecs::{resource::Resource, system::ResMut},
+    render::extract_resource::ExtractResource,
+};
 
-#[derive(Resource, Default)]
+#[derive(Resource, ExtractResource, Default, Clone)]
 pub struct ChunkBoundsToggle {
     pub enabled: bool,
 }

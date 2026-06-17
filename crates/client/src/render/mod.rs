@@ -1,27 +1,29 @@
 pub mod block;
 pub mod chunk;
 pub mod data;
-pub mod pipeline;
+pub mod passes;
+pub mod resources;
 pub mod scheduling;
+pub mod shaders;
 pub mod texture;
 pub mod types;
 
 pub use data::*;
+pub use scheduling::VantablockNode;
 
 // INFO: --------------------------------
 //         render world interface
 // --------------------------------------
 
+use crate::input::systems::toggle_chunk_borders::ChunkBoundsToggle;
+use crate::input::systems::toggle_opaque_wireframe::OpaqueRenderMode;
+use crate::player::TargetedBlock;
 use crate::prelude::*;
 use crate::render::{
     chunk::{OpaqueMeshComponent, TransparentMeshComponent},
-    pipeline::{
-        RenderGraphEdgesPlugin, WorldRenderPassesPlugin,
-        main_passes::{
-            bounding_box_pass::extract::WireframeToggleState,
-            opaque_pass::{extract::extract_opaque_meshes, startup::OpaqueRenderMode},
-            transparent_pass::extract::extract_transparent_meshes,
-        },
+    passes::{
+        RenderGraphEdgesPlugin, WorldRenderPassesPlugin, opaque::extract::extract_opaque_meshes,
+        transparent::extract::extract_transparent_meshes,
     },
     texture::BlockTextureArray,
 };
@@ -33,14 +35,16 @@ use bevy::{
         sync_world::SyncToRenderWorld,
     },
 };
-use shared::simulation::block::TargetedBlock;
+#[cfg(feature = "dev")]
+use bevy::{camera::ClearColor, color::Color};
 
-/// Plugin responsible for attaching our custom render logic to Bevy's native RenderApp
+/// Plugin responsible for attaching custom render logic to Bevy's native RenderApp
 pub struct VantablockRenderPlugin;
 
 impl Plugin for VantablockRenderPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(pipeline::shader_registry::VantablockShaderPlugin);
+        app.add_plugins(shaders::VantablockShaderPlugin);
+        app.add_plugins(texture::BlockTexturePlugin);
         app.add_plugins(block::BlockRenderPlugin);
         app.add_plugins(chunk::ChunkMeshingPlugin);
 
@@ -51,12 +55,12 @@ impl Plugin for VantablockRenderPlugin {
             ExtractResourcePlugin::<RenderTimeResource>::default(),
             ExtractResourcePlugin::<OpaqueRenderMode>::default(),
             ExtractResourcePlugin::<TargetedBlock>::default(),
-        ));
-
-        app.add_plugins((
-            ExtractResourcePlugin::<WireframeToggleState>::default(),
             ExtractResourcePlugin::<BlockTextureArray>::default(),
         ));
+
+        // red clear color for dev testing
+        #[cfg(feature = "dev")]
+        app.insert_resource(ClearColor(Color::linear_rgb(1.0, 0.0, 0.0)));
 
         // INFO: ------------------------------------
         //         main world synchronization
@@ -94,6 +98,7 @@ impl Plugin for VantablockRenderPlugin {
 pub fn pre_setup_render_sub_app(sub_app: &mut SubApp) {
     // resources for rendering
     sub_app
+        .init_resource::<ChunkBoundsToggle>()
         .init_resource::<RenderTimeResource>()
         .init_resource::<RenderMeshStorageResource>()
         .init_resource::<MeshesToUploadQueue>();

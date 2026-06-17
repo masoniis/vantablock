@@ -1,12 +1,19 @@
 use super::{BlockFaceTextures, BlockRenderData};
 use crate::prelude::*;
+use crate::render::texture::{TextureId, TextureRegistryResource};
+use bevy::ecs::world::CommandQueue;
 use bevy::prelude::*;
-use shared::simulation::block::texture_registry::{TextureId, TextureRegistryResource};
-use shared::simulation::block::{
+use bevy::tasks::AsyncComputeTaskPool;
+use shared::lifecycle::PersistentPathsResource;
+use shared::lifecycle::load::{LoadingTaskComponent, NodeCompleted, StartNode};
+use shared::world::block::{
     AIR_BLOCK_ID, BlockId, BlockRegistry, SOLID_BLOCK_ID, load_block_from_str,
 };
 use std::sync::Arc;
-use utils::PersistentPaths;
+
+/// Marker node for loading client-specific render data for blocks.
+#[derive(Component)]
+pub struct LoadRenderRegistry;
 
 /// Client-only visual mapping data for blocks.
 #[derive(Resource, Clone, Default)]
@@ -164,4 +171,36 @@ impl BlockRenderDataRegistry {
             render_data: Arc::new(render_data),
         }
     }
+}
+
+/// An asynchronous loading observer for the render registry.
+///
+/// This is triggered when the render registry loading node is ready to begin.
+pub fn handle_render_registry(
+    trigger: On<StartNode>,
+    mut commands: Commands,
+    persistent_paths: Res<PersistentPathsResource>,
+    block_registry: Res<BlockRegistry>,
+    texture_registry: Res<TextureRegistryResource>,
+) {
+    let paths = persistent_paths.0.clone();
+    let blocks = block_registry.clone();
+    let textures = texture_registry.clone();
+    let node_entity = trigger.0.entity();
+
+    let task = AsyncComputeTaskPool::get().spawn(async move {
+        let render_registry = BlockRenderDataRegistry::load_from_disk(&paths, &blocks, &textures);
+
+        let mut queue = CommandQueue::default();
+        queue.push(move |world: &mut World| {
+            world.insert_resource(render_registry);
+            world.trigger(NodeCompleted::of::<LoadRenderRegistry>());
+        });
+        queue
+    });
+
+    // Spawn the task as a child of the node entity
+    commands.entity(node_entity).with_children(|parent| {
+        parent.spawn(LoadingTaskComponent(task));
+    });
 }

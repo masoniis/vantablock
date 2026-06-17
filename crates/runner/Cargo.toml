@@ -1,0 +1,61 @@
+[package]
+name = "vantablock-runner"
+description = "binaries for vantablock"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+default-run = "vantablock"
+
+[package.metadata.packager]
+product-name = "Vantablock"
+identifier = "com.masoniis.vantablock"
+resources = ["../../assets", "../../readme.md"]
+icons = ["../../assets/client/icon.png"]
+binaries = [{ path = "client", main = true }]
+
+[lib]
+name = "vantablock_runner"
+path = "src/lib.rs"
+
+[[bin]]
+name = "vantablock"
+path = "src/bin/client.rs"
+required-features = ["client"]
+
+[[bin]]
+name = "vantablock-server"
+path = "src/bin/server.rs"
+required-features = ["server"]
+
+[features]
+# binary features
+default = ["client"]
+# for the client (hosting capability as well)
+client = [
+  "dep:client",
+  "dep:server",
+  "bevy/default_platform",
+  "bevy/3d_bevy_render",
+  "bevy/ui_bevy_render",
+]
+# for hosting a headless dedicated server
+server = ["dep:server"]
+
+# development features
+dev = ["client?/dev"]
+tracy = ["client?/tracy"]
+distribution = ["client?/distribution"]
+
+
+[dependencies]
+client = { workspace = true, optional = true }
+server = { workspace = true, optional = true }
+shared = { workspace = true }
+utils = { workspace = true }
+
+bevy = { workspace = true, features = ["bevy_asset"] }
+tracing = { workspace = true }
+
+[dev-dependencies]
+lightyear = { workspace = true }
+crossbeam-channel = "0.5"
