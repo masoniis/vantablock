@@ -22,9 +22,9 @@
 
 Activate the [project's flake](./flake.nix) to set up the environment and all dependencies. For `direnv` users, the `.envrc` is set up to use the flake by default.
 
-Then simply use any scripts from the `justfile`:
+Then simply use any scripts from the `.justfile` (run `just` to list them all):
 
-1. `just` to compile and run the debug binary (slow)
+1. `just run` to compile and run the debug binary (slow)
 2. `just run-fast` to compile and run the release binary (fast)
 
 </details>

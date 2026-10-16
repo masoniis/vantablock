@@ -20,24 +20,29 @@ client  := "vantablock-client"
 server  := "vantablock-server"
 runner  := "vantablock-runner"
 
+# lists all available recipes, in file order so niche groups stay at the bottom
+[private]
+default:
+    @just --list --unsorted
+
 # INFO: ------------------------
 #         core execution
 # ------------------------------
 
-default: client
-
 # runs the client via debug profile
+[group("core")]
 client *args:
     cargo run -p {{runner}} --bin vantablock {{args}}
 
 # runs the server via debug profile
+[group("core")]
 server *args:
     cargo run -p {{runner}} --bin vantablock-server --no-default-features --features server {{args}}
 
 # runs the client via max-optimization release profile
+[group("core")]
 release *args:
     cargo run -p {{runner}} --bin vantablock --profile distribution --features distribution {{args}}
-
 
 alias run := client
 alias run-fast := release
@@ -47,25 +52,30 @@ alias run-fast := release
 # -------------------------------------
 
 # runs cargo check across the workspace
+[group("development")]
 check *args:
     cargo check --all-targets {{args}}
 
 # runs clippy across the workspace
+[group("development")]
 clippy *args:
     cargo clippy {{args}}
 
 # fix compiler-fixable issues
+[group("development")]
 fix *args:
     cargo fix --all-targets --allow-dirty {{args}}
 
-# runs nix fmt (rustfmt + nixpkgs-fmt)
+# runs nix fmt (rust, nix, wgsl/wesl, and prettier formatters)
+[group("development")]
 fmt:
     nix fmt
 
-# cleans ephemeral dirs
+# cleans build artifacts and local dev data
+[group("development")]
 clean:
-	rm -rf target/
-	rm -rf .dev_data/
+    rm -rf target/
+    rm -rf vantadev/
 
 alias lint := check
 alias clip := clippy
@@ -75,26 +85,32 @@ alias clip := clippy
 # ------------------------------------
 
 # runs all workspace tests
+[group("testing")]
 test *args:
     cargo nextest run {{args}}
 
 # compiles benchmarks as tests to check for runtime errors
+[group("testing")]
 test-bench:
     cargo check --benches
     cargo test --benches
 
-# runs benchmarks and opens html report once finished
+# runs client benchmarks and opens html report once finished
+[group("testing")]
 bench-client *args:
     cargo bench -p {{client}} {{args}}
     @echo "Opening Criterion report..."
     -{{ open_cmd }} target/criterion/report/index.html
 
+# runs server benchmarks and opens html report once finished
+[group("testing")]
 bench-server *args:
     cargo bench -p {{server}} {{args}}
     @echo "Opening Criterion report..."
     -{{ open_cmd }} target/criterion/report/index.html
 
 # full pre-push verification suite
+[group("testing")]
 ready *args:
     cargo check --benches
     cargo clippy -- -D warnings
@@ -105,19 +121,23 @@ ready *args:
 # ------------------------------
 
 # packages the client for distribution
+[group("build")]
 package profile="distribution":
     cargo build -p {{runner}} --bin vantablock --profile {{profile}} --features distribution
     cargo packager -p {{runner}} --bin vantablock --profile {{ if profile == "dev" { "debug" } else { profile } }}
 
 # packages the server for distribution
+[group("build")]
 server-package profile="distribution":
     cargo build -p {{runner}} --bin vantablock-server --no-default-features --features server --profile {{profile}}
 
 # runs the texture processor utility
+[group("build")]
 texture:
     cargo run -p {{client}} --bin texture_processor
 
 # strips macOS quarantine attributes from the app bundle
+[group("build")]
 sign:
     xattr -cr /Applications/Vantablock.app
 
@@ -125,12 +145,13 @@ sign:
 #         profiling & tracing
 # -----------------------------------
 
-# Shows the ASM associated with a rust file.
-# requires https://crates.io/crates/cargo-show-asm
+# shows the ASM associated with a rust file (requires cargo-show-asm)
+[group("profiling")]
 asm path:
     cargo asm -p {{runner}} --bin vantablock --color {{path}}
 
-# launch tracy if it isn't already running
+# launches tracy if it isn't already running, then runs the client with tracing
+[group("profiling")]
 trace *args:
     #!/usr/bin/env bash
     if pgrep -x "tracy" > /dev/null; then
@@ -143,14 +164,17 @@ trace *args:
     cargo run -p {{runner}} --bin vantablock --features tracy {{args}}
 
 # runs the client with Bevy-specific debug features
+[group("profiling")]
 debug_bevy *args:
     cargo run -p {{runner}} --bin vantablock --features bevy/trace,bevy/track_location,bevy/debug {{args}}
 
 # runs the client with verbose wgpu logging
+[group("profiling")]
 debug_wgpu *args:
     RUST_LOG=wgpu=trace cargo run -p {{runner}} --bin vantablock {{args}}
 
-# targeted tracing, call without args to list targets found in source.
+# targeted tracing, call without args to list targets found in source
+[group("profiling")]
 debug *args:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -184,11 +208,13 @@ windows_temp := if os_family == "windows" { "" \
 }
 windows_wsl_target_dir := windows_temp + "\\vantablock-target"
 
-# compiles and runs the client natively on Windows from within WSL
 # requires cargo, just, and VS build tools on Windows host:
 # - winget install just
 # - winget install rustup
 # - winget install --id Microsoft.VisualStudio.2022.BuildTools --override "--passive --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+
+# compiles and runs the client natively on Windows from within WSL
+[group("advanced")]
 wsl *args:
     @echo "Compiling Windows target ({{windows_wsl_target_dir}})"
     @WSL_PATH=$(wslpath -w .)
