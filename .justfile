@@ -44,6 +44,16 @@ server *args:
 release *args:
     cargo run -p {{runner}} --bin vantablock --profile distribution --features distribution {{args}}
 
+# runs the client with the bevy remote protocol (BRP) enabled for agent/tool control
+[group("core")]
+brp *args:
+    cargo run -p {{runner}} --bin vantablock --features brp {{args}}
+
+# builds the BRP-enabled client so the bevy_brp_mcp server can launch it
+[group("core")]
+brp-build *args:
+    cargo build -p {{runner}} --bin vantablock --features brp {{args}}
+
 alias run := client
 alias run-fast := release
 

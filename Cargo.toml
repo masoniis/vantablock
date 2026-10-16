@@ -87,6 +87,9 @@ lightyear = { version = "0.26.4", default-features = false, features = [
   "udp",         # needed for dedicated/lan
 ] }
 
+# development tooling
+bevy_brp_extras = "0.19.0" # remote protocol (BRP) methods for agent-driven testing, pinned to bevy 0.18
+
 # general utilities
 futures-lite = "2.6.1" # future utils
 derive_more = { version = "2.0.1", features = ["deref", "deref_mut"] }

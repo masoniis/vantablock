@@ -20,6 +20,10 @@ harness = false
 dev = ["bevy/dev", "bevy/bevy_dev_tools"]
 tracy = ["dep:tracy-client", "dep:tracing-tracy"]
 distribution = ["tracing/release_max_level_error"]
+brp = [
+  "dep:bevy_brp_extras",
+  "bevy/png",
+] # exposes brp on localhost:15702 for inspection/automation
 
 [build-dependencies]
 wesl = { workspace = true } # shader compliation from WESL to WGSL
@@ -92,3 +96,9 @@ noise = { workspace = true }       # gen random noise
 crossbeam = { workspace = true }   # thread comms
 glob = { workspace = true }        # reading dirs
 directories = { workspace = true } # platform-specific dirs
+
+# INFO: ---------------------
+#         dev tooling
+# ---------------------------
+
+bevy_brp_extras = { workspace = true, optional = true }

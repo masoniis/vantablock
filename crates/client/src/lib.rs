@@ -92,6 +92,12 @@ impl PluginGroup for DefaultClientPlugins {
             });
         }
 
+        // remote protocol for agent/tool driven inspection and input (see AGENTS.md)
+        #[cfg(feature = "brp")]
+        {
+            builder = builder.add(bevy_brp_extras::BrpExtrasPlugin::default());
+        }
+
         builder
     }
 }

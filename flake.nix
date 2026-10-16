@@ -23,6 +23,23 @@
       let
         pkgs = nixpkgs.legacyPackages.${system};
         pkgs-unstable = nixpkgs-unstable.legacyPackages.${system};
+
+        # MCP server that lets coding agents drive the running game over the bevy remote
+        # protocol. Version must match the bevy release (0.19.x <-> bevy 0.18).
+        bevy-brp-mcp = pkgs-unstable.rustPlatform.buildRustPackage rec {
+          pname = "bevy_brp_mcp";
+          version = "0.19.0";
+          src = pkgs.fetchCrate {
+            inherit pname version;
+            hash = "sha256-Ib8UeClQwZsX6bWc6bVIfUHlKrCZqKleRzr9IwjwzOo=";
+          };
+          cargoHash = "sha256-PWi3zEDkkLK0P4aYcLi6MhRjCKEASRHOAvHTgPm76kc=";
+          nativeBuildInputs = with pkgs; [
+            cmake # aws-lc-sys
+            perl
+          ];
+          doCheck = false;
+        };
       in
       {
         # INFO: ------------------------
@@ -39,6 +56,9 @@
               pkgs-unstable.wgsl-analyzer
               pkgs-unstable.cargo-nextest
               rustup
+
+              # agent tooling
+              bevy-brp-mcp
 
               # utils
               just
@@ -81,6 +101,8 @@
           name = "gh action empty default profile";
           paths = [ ];
         };
+
+        packages.bevy-brp-mcp = bevy-brp-mcp;
 
         packages.formatting = pkgs.buildEnv {
           name = "gh action empty default profile";

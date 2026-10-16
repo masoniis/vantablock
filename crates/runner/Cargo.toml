@@ -45,6 +45,7 @@ server = ["dep:server"]
 dev = ["client?/dev"]
 tracy = ["client?/tracy"]
 distribution = ["client?/distribution"]
+brp = ["client?/brp"]
 
 
 [dependencies]

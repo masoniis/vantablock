@@ -19,6 +19,7 @@ pub struct PlayerOwner(pub PeerId);
 /// Clients MUST NOT spawn entities with this component locally. They are spawned automatically
 /// on the client via network replication when the server informs the client of a player's presence.
 #[derive(Component, Serialize, Deserialize, Clone, Debug, PartialEq, Reflect, Default)]
+#[reflect(Component)]
 pub struct NetworkPlayer;
 
 /// The authoritative position of an entity within the fixed-step simulation.
@@ -27,6 +28,7 @@ pub struct NetworkPlayer;
 /// Bevy's native `Transform` is smoothly interpolated to chase this value
 /// to provide high-framerate visual continuity.
 #[derive(Component, Serialize, Deserialize, Clone, Debug, PartialEq, Reflect, Default)]
+#[reflect(Component)]
 pub struct LogicalPosition(pub Vec3);
 
 impl Ease for LogicalPosition {
@@ -40,6 +42,7 @@ impl Ease for LogicalPosition {
 /// This is replicated from server to clients, while each individual
 /// client updates it thorugh the `PlayerAction` messages.
 #[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Reflect, Default)]
+#[reflect(Component)]
 pub struct PlayerLook {
     /// Horizontal rotation (around the Y axis) in radians.
     pub yaw: f32,
