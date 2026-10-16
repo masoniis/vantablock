@@ -15,11 +15,7 @@ impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            (
-                camera_movement_system,
-                local_camera_look_system,
-            )
-                .run_if(in_state(AppState::Running)),
+            camera_movement_system.run_if(in_state(AppState::Running)),
         );
     }
 }

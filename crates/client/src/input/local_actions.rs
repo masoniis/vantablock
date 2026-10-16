@@ -7,8 +7,6 @@ use leafwing_input_manager::Actionlike;
 #[derive(Actionlike, PartialEq, Eq, Clone, Copy, Hash, Debug, Reflect)]
 pub enum ClientAction {
     // continuous inputs
-    #[actionlike(DualAxis)]
-    Look,
     #[actionlike(Axis)]
     Zoom,
 

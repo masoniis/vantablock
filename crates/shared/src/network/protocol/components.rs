@@ -4,9 +4,7 @@
 
 use crate::player::components::{LogicalPosition, NetworkPlayer, PlayerLook, PlayerOwner};
 use bevy::prelude::*;
-use lightyear::prelude::{
-    AppComponentExt, InterpolationRegistrationExt, PredictionRegistrationExt,
-};
+use lightyear::prelude::*;
 
 pub struct NetComponentsPlugin;
 

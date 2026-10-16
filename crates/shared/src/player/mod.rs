@@ -27,6 +27,9 @@ impl Plugin for SharedPlayerPlugin {
         // is no action states to  handle
         app.init_resource::<ActionState<PlayerAction>>();
 
-        app.add_systems(FixedUpdate, shared_player_movement_system);
+        app.add_systems(
+            FixedUpdate,
+            shared_player_movement_system,
+        );
     }
 }

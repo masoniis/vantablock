@@ -39,7 +39,7 @@ impl Ease for LogicalPosition {
 ///
 /// This is replicated from server to clients, while each individual
 /// client updates it thorugh the `PlayerAction` messages.
-#[derive(Component, Serialize, Deserialize, Clone, Debug, PartialEq, Reflect, Default)]
+#[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Reflect, Default)]
 pub struct PlayerLook {
     /// Horizontal rotation (around the Y axis) in radians.
     pub yaw: f32,

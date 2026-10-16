@@ -1,6 +1,6 @@
 use crate::input::local_actions::ClientAction;
 use bevy::prelude::{KeyCode, MouseButton};
-use leafwing_input_manager::prelude::{InputMap, MouseMove};
+use leafwing_input_manager::prelude::InputMap;
 use leafwing_input_manager::user_input::mouse::MouseScrollAxis;
 use shared::player::PlayerAction;
 
@@ -31,8 +31,7 @@ pub fn get_default_player_action_input_map() -> InputMap<PlayerAction> {
 pub fn get_default_client_action_input_map() -> InputMap<ClientAction> {
     let mut input_map = InputMap::default();
 
-    // orientation
-    input_map.insert_dual_axis(ClientAction::Look, MouseMove::default());
+    // continuous inputs
     input_map.insert_axis(ClientAction::Zoom, MouseScrollAxis::Y);
 
     // misc

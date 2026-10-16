@@ -17,6 +17,7 @@ pub use targeted_block::TargetedBlock;
 use crate::lifecycle::ClientLifecycleState;
 use bevy::prelude::*;
 use leafwing_input_manager::common_conditions::action_just_pressed;
+use lightyear::prelude::client::input::InputSystems;
 use shared::player::PlayerAction;
 use systems::*;
 
@@ -39,9 +40,17 @@ impl Plugin for PlayerPlugin {
         );
 
         app.add_systems(
+            FixedPreUpdate,
+            look::write_look_input_system
+                .in_set(InputSystems::WriteClientInputs)
+                .run_if(in_state(ClientLifecycleState::InGame)),
+        );
+
+        app.add_systems(
             Update,
             (
                 setup_replicated_players::dress_replicated_players_system,
+                look::local_player_look_system,
                 block_actions::break_targeted_block_system
                     .run_if(action_just_pressed(PlayerAction::PrimaryInteract)),
                 block_actions::place_targeted_block_system

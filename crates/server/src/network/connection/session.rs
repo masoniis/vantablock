@@ -1,9 +1,13 @@
 use crate::{network::types::ClientConnection, world::chunk_loading::ClientChunkTracker};
 use bevy::prelude::*;
+use leafwing_input_manager::prelude::ActionState;
 use lightyear::prelude::*;
 use shared::{
     network::ServerMessage,
-    player::components::{LogicalPosition, NetworkPlayer, PlayerLook, PlayerOwner},
+    player::{
+        PlayerAction,
+        components::{LogicalPosition, NetworkPlayer, PlayerLook, PlayerOwner},
+    },
 };
 use std::time::Duration;
 use tracing::{error, info};
@@ -44,9 +48,17 @@ pub fn on_client_connect(
             PlayerOwner(client_id),
             PlayerLook::default(),
             LogicalPosition(spawn_pos),
+            ActionState::<PlayerAction>::default(),
             ClientConnection { client_entity },
             ClientChunkTracker::default(),
+            ControlledBy {
+                owner: client_entity,
+                lifetime: Default::default(),
+            },
             Replicate::to_clients(NetworkTarget::All),
+            // the owning client predicts its own player, everyone else interpolates it
+            PredictionTarget::to_clients(NetworkTarget::Single(client_id)),
+            InterpolationTarget::to_clients(NetworkTarget::AllExceptSingle(client_id)),
         ))
         .id();
 

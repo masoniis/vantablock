@@ -10,9 +10,6 @@ use serde::{Deserialize, Serialize};
 pub enum ClientMessage {
     /// A request for the server to send block data for a specific chunk.
     RequestChunk(ChunkCoord),
-    /// Updates the server on the player's current view orientation/camera state.
-    /// Necessary for authoritative targeting or raycasting calculations.
-    UpdateView { forward: Vec3 },
     /// Intent to break a block at the specified position.
     BreakBlock { position: IVec3 },
     /// Intent to place a block at the specified position.

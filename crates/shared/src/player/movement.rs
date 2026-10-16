@@ -1,6 +1,6 @@
 use crate::player::{
-    components::{LogicalPosition, NetworkPlayer, PlayerLook},
     PlayerAction,
+    components::{LogicalPosition, NetworkPlayer, PlayerLook},
 };
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::ActionState;
@@ -15,7 +15,7 @@ pub fn shared_player_movement_system(
     mut query: Query<
         (
             &ActionState<PlayerAction>,
-            &PlayerLook,
+            &mut PlayerLook,
             &mut LogicalPosition,
         ),
         With<NetworkPlayer>,
@@ -24,13 +24,22 @@ pub fn shared_player_movement_system(
     let delta = time.delta_secs();
     let move_speed = 20.0;
 
-    for (action_state, look, mut position) in query.iter_mut() {
+    for (action_state, mut look, mut position) in query.iter_mut() {
+        let aim_data = action_state.axis_pair(&PlayerAction::Look);
+        let yaw = aim_data.x;
+        let pitch = aim_data.y;
+
+        // Sync the PlayerLook component with the tick-synced ActionState
+        // so it can be replicated to other clients.
+        look.yaw = yaw;
+        look.pitch = pitch;
+
         let mut move_dir = Vec3::ZERO;
 
         // calculate front vector based on yaw and pitch (for vertical movement)
-        let forward = Quat::from_euler(EulerRot::YXZ, look.yaw, look.pitch, 0.0) * -Vec3::Z;
+        let forward = Quat::from_euler(EulerRot::YXZ, yaw, pitch, 0.0) * -Vec3::Z;
         // calculate right vector based on yaw only (for horizontal strafing)
-        let right = Quat::from_rotation_y(look.yaw) * Vec3::X;
+        let right = Quat::from_rotation_y(yaw) * Vec3::X;
 
         if action_state.pressed(&PlayerAction::MoveForward) {
             move_dir += forward;
@@ -51,4 +60,3 @@ pub fn shared_player_movement_system(
         }
     }
 }
-

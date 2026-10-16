@@ -1,41 +1,13 @@
-use crate::{
-    input::local_actions::ClientAction,
-    player::LocalPlayer,
-};
+use crate::{input::local_actions::ClientAction, player::LocalPlayer};
 use bevy::{
     ecs::relationship::Relationship,
     prelude::*,
 };
 use leafwing_input_manager::prelude::ActionState;
-use shared::player::components::PlayerLook;
 use tracing::instrument;
 
 /// The distance the near plane is set to for the camera frustum.
 pub const CAMERA_NEAR_PLANE: f32 = 1.0;
-const MOUSE_SENSITIVITY: f32 = 0.1;
-
-/// A system that handles player rotation in Update for maximum smoothness.
-///
-/// This system updates the authoritative `PlayerLook` component on the local player.
-/// Since `PlayerLook` is registered for prediction, these changes are replicated
-/// to the server.
-pub fn local_camera_look_system(
-    mut player_query: Query<(&ActionState<ClientAction>, &mut PlayerLook), With<LocalPlayer>>,
-) {
-    let Ok((action_state, mut look)) = player_query.single_mut() else {
-        return;
-    };
-
-    let look_delta = action_state.axis_pair(&ClientAction::Look);
-
-    if look_delta.x != 0.0 || look_delta.y != 0.0 {
-        look.yaw -= (look_delta.x * MOUSE_SENSITIVITY).to_radians();
-        look.pitch -= (look_delta.y * MOUSE_SENSITIVITY).to_radians();
-
-        // clamp pitch to avoid flipping
-        look.pitch = look.pitch.clamp(-89.0f32.to_radians(), 89.0f32.to_radians());
-    }
-}
 
 /// A system that handles the 3rd person zoom. Rotation and Position is updated via the
 /// shared movement system and visual smoothing.

@@ -7919,6 +7919,7 @@ dependencies = [
  "bevy",
  "criterion",
  "crossbeam",
+ "leafwing-input-manager",
  "lightyear",
  "noise",
  "tracing",

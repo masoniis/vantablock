@@ -38,6 +38,7 @@ bevy = { workspace = true, features = [
   "bevy_asset", # asset management
   "bevy_state", # state machines
 ] }
+leafwing-input-manager = { workspace = true }
 crossbeam = { workspace = true }
 noise = { workspace = true }
 lightyear = { workspace = true, features = [

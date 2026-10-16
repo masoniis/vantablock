@@ -1,3 +1,4 @@
+use crate::player::LocalPlayerLook;
 use bevy::prelude::*;
 use shared::player::components::{LogicalPosition, PlayerLook};
 
@@ -16,9 +17,15 @@ pub fn update_logical_position_smoothing(
     }
 }
 
-/// Snaps the visual Transform rotation to match the PlayerLook.
-pub fn update_player_look_smoothing(mut query: Query<(&PlayerLook, &mut Transform)>) {
-    for (look, mut transform) in query.iter_mut() {
-        transform.rotation = Quat::from_euler(EulerRot::YXZ, look.yaw, look.pitch, 0.0);
+/// Snaps the visual Transform rotation to match the player's look.
+///
+/// The local player uses its per-frame `LocalPlayerLook` so the camera never waits on the
+/// fixed tick, while remote players use their interpolated `PlayerLook`.
+pub fn update_player_look_smoothing(
+    mut query: Query<(&PlayerLook, Option<&LocalPlayerLook>, &mut Transform)>,
+) {
+    for (look, local_look, mut transform) in query.iter_mut() {
+        let (yaw, pitch) = local_look.map_or((look.yaw, look.pitch), |l| (l.yaw, l.pitch));
+        transform.rotation = Quat::from_euler(EulerRot::YXZ, yaw, pitch, 0.0);
     }
 }

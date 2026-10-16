@@ -6,6 +6,11 @@ use serde::{Deserialize, Serialize};
 /// These actions represent the authoritative state changes requested by the player.
 #[derive(Actionlike, PartialEq, Eq, Clone, Copy, Hash, Debug, Reflect, Serialize, Deserialize)]
 pub enum PlayerAction {
+    /// Absolute look orientation (Yaw/Pitch) injected via code on the client.
+    /// Used for tick-synced authoritative movement calculation.
+    #[actionlike(DualAxis)]
+    Look,
+
     /// Move the player forward.
     MoveForward,
     /// Move the player backward.

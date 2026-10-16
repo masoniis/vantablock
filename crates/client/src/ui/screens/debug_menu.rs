@@ -1,5 +1,6 @@
 use crate::{
     input::local_actions::ClientAction,
+    player::LocalPlayer,
     render::chunk::manager::{ClientChunkManager, ClientChunkState},
 };
 use bevy::{
@@ -97,7 +98,7 @@ fn toggle_debug_menu_system(
 
 fn update_debug_menu_system(
     diagnostics: Res<DiagnosticsStore>,
-    player_query: Query<(&LogicalPosition, &ChunkCoord, &PlayerLook)>,
+    player_query: Query<(&LogicalPosition, &ChunkCoord, &PlayerLook), With<LocalPlayer>>,
     chunk_manager: Res<ClientChunkManager>,
     mut text_query: Query<&mut Text, With<DebugMenuText>>,
 ) {
