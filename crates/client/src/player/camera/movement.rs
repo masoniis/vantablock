@@ -1,8 +1,5 @@
 use crate::{input::local_actions::ClientAction, player::LocalPlayer};
-use bevy::{
-    ecs::relationship::Relationship,
-    prelude::*,
-};
+use bevy::{ecs::relationship::Relationship, prelude::*};
 use leafwing_input_manager::prelude::ActionState;
 use tracing::instrument;
 
