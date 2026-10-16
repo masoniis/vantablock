@@ -7989,7 +7989,7 @@ checksum = "ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29d5dcacd3a65"
 
 [[package]]
 name = "vantablock-client"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "bevy",
  "bevy_brp_extras",
@@ -8022,7 +8022,7 @@ dependencies = [
 
 [[package]]
 name = "vantablock-runner"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "bevy",
  "crossbeam-channel",
@@ -8036,7 +8036,7 @@ dependencies = [
 
 [[package]]
 name = "vantablock-server"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "bevy",
  "criterion",
@@ -8053,7 +8053,7 @@ dependencies = [
 
 [[package]]
 name = "vantablock-shared"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "bevy",
  "bytemuck",
@@ -8073,7 +8073,7 @@ dependencies = [
 
 [[package]]
 name = "vantablock-utils"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "directories",
  "sysinfo",
