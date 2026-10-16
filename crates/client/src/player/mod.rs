@@ -16,7 +16,7 @@ pub use targeted_block::TargetedBlock;
 
 use crate::lifecycle::ClientLifecycleState;
 use bevy::prelude::*;
-use leafwing_input_manager::common_conditions::action_just_pressed;
+use leafwing_input_manager::prelude::ActionState;
 use lightyear::prelude::client::input::InputSystems;
 use shared::player::PlayerAction;
 use systems::*;
@@ -52,14 +52,29 @@ impl Plugin for PlayerPlugin {
                 setup_replicated_players::dress_replicated_players_system,
                 look::local_player_look_system,
                 block_actions::break_targeted_block_system
-                    .run_if(action_just_pressed(PlayerAction::PrimaryInteract)),
+                    .run_if(local_action_just_pressed(PlayerAction::PrimaryInteract)),
                 block_actions::place_targeted_block_system
-                    .run_if(action_just_pressed(PlayerAction::SecondaryInteract)),
+                    .run_if(local_action_just_pressed(PlayerAction::SecondaryInteract)),
                 block_actions::handle_break_block_events_system,
                 block_actions::handle_place_block_events_system,
                 block_actions::handle_incoming_block_updates,
             )
                 .run_if(in_state(ClientLifecycleState::InGame)),
         );
+    }
+}
+
+/// Run condition for a `PlayerAction` just pressed by the local player.
+///
+/// Leafwing's `action_just_pressed` reads the global `ActionState` resource, but player
+/// input lives on the local player entity (it is networked per player), so that resource
+/// never sees these actions.
+fn local_action_just_pressed(
+    action: PlayerAction,
+) -> impl Fn(Query<&ActionState<PlayerAction>, With<LocalPlayer>>) -> bool {
+    move |query: Query<&ActionState<PlayerAction>, With<LocalPlayer>>| {
+        query
+            .single()
+            .is_ok_and(|action_state| action_state.just_pressed(&action))
     }
 }
