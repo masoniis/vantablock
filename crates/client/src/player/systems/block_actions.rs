@@ -1,8 +1,11 @@
-use crate::player::{BreakBlockEvent, LocalPlayer, PlaceBlockEvent, TargetedBlock};
+use crate::{
+    network::InboundBlockUpdateMessage,
+    player::{BreakBlockEvent, PlaceBlockEvent, TargetedBlock},
+};
 use bevy::ecs::prelude::*;
-use lightyear::prelude::{MessageReceiver, MessageSender};
+use lightyear::prelude::{Client, MessageSender};
 use shared::{
-    network::protocol::{BlockUpdates, ClientMessage, ServerMessage},
+    network::protocol::{BlockUpdates, ClientMessage},
     prelude::IVec3,
     world::block::block_registry::AIR_BLOCK_ID,
     world::chunk::{
@@ -17,7 +20,7 @@ use std::collections::HashMap;
 pub fn break_targeted_block_system(
     targeted_block: Res<TargetedBlock>,
     mut break_block_writer: MessageWriter<BreakBlockEvent>,
-    mut sender_query: Query<&mut MessageSender<ClientMessage>, With<LocalPlayer>>,
+    mut sender_query: Query<&mut MessageSender<ClientMessage>, With<Client>>,
 ) {
     if let Some(block_pos) = targeted_block.position {
         // send local event for instant Client-Side Prediction (CSP)
@@ -34,27 +37,23 @@ pub fn break_targeted_block_system(
     }
 }
 
-/// Listens for `ServerMessage::BlockUpdate` from the server (representing other players' actions or server-side changes)
-/// and translates them into local block events.
+/// Listens for demultiplexed `ServerMessage::BlockUpdate`s from the server (representing other
+/// players' actions or server-side changes) and translates them into local block events.
 pub fn handle_incoming_block_updates(
-    mut query: Query<&mut MessageReceiver<ServerMessage>, With<LocalPlayer>>,
+    mut block_updates: MessageReader<InboundBlockUpdateMessage>,
     mut break_block_writer: MessageWriter<BreakBlockEvent>,
     mut place_block_writer: MessageWriter<PlaceBlockEvent>,
 ) {
-    for mut receiver in query.iter_mut() {
-        for message in receiver.receive() {
-            if let ServerMessage::BlockUpdate { position, block_id } = message {
-                if block_id == AIR_BLOCK_ID {
-                    break_block_writer.write(BreakBlockEvent {
-                        world_pos: position,
-                    });
-                } else {
-                    place_block_writer.write(PlaceBlockEvent {
-                        target_pos: position,
-                        block_id,
-                    });
-                }
-            }
+    for update in block_updates.read() {
+        if update.block_id == AIR_BLOCK_ID {
+            break_block_writer.write(BreakBlockEvent {
+                world_pos: update.position,
+            });
+        } else {
+            place_block_writer.write(PlaceBlockEvent {
+                target_pos: update.position,
+                block_id: update.block_id,
+            });
         }
     }
 }
@@ -135,7 +134,7 @@ pub fn handle_break_block_events_system(
 pub fn place_targeted_block_system(
     targeted_block: Res<TargetedBlock>,
     mut place_block_writer: MessageWriter<PlaceBlockEvent>,
-    mut sender_query: Query<&mut MessageSender<ClientMessage>, With<LocalPlayer>>,
+    mut sender_query: Query<&mut MessageSender<ClientMessage>, With<Client>>,
 ) {
     if let (Some(block_pos), Some(normal)) = (targeted_block.position, targeted_block.normal) {
         let target_pos = block_pos + normal;

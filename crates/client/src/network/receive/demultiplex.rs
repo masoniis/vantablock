@@ -1,4 +1,4 @@
-use crate::network::InboundCompressedChunkMessage;
+use crate::network::{InboundBlockUpdateMessage, InboundCompressedChunkMessage};
 use bevy::{ecs::message::MessageWriter, prelude::*};
 use lightyear::prelude::MessageReceiver;
 use shared::network::protocol::ServerMessage;
@@ -14,6 +14,7 @@ pub fn translate_server_network_messages(
     mut query: Query<&mut MessageReceiver<ServerMessage>>,
     // outgoing ECS messages
     mut ev_chunk: MessageWriter<InboundCompressedChunkMessage>,
+    mut ev_block_update: MessageWriter<InboundBlockUpdateMessage>,
 ) {
     for mut receiver in query.iter_mut() {
         for message in receiver.receive() {
@@ -21,11 +22,11 @@ pub fn translate_server_network_messages(
                 ServerMessage::ChunkData { coord, data } => {
                     ev_chunk.write(InboundCompressedChunkMessage { coord, data });
                 }
+                ServerMessage::BlockUpdate { position, block_id } => {
+                    ev_block_update.write(InboundBlockUpdateMessage { position, block_id });
+                }
                 ServerMessage::SyncTime { game_time, tick } => {
                     info!("SyncTime received: game_time={}, tick={}", game_time, tick);
-                }
-                _ => {
-                    warn!("Unhandled message received: {:?}", message);
                 }
             }
         }

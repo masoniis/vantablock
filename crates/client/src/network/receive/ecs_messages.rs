@@ -12,3 +12,9 @@ pub struct InboundCompressedChunkMessage {
     pub coord: ChunkCoord,
     pub data: Vec<u8>,
 }
+
+#[derive(Message)]
+pub struct InboundBlockUpdateMessage {
+    pub position: IVec3,
+    pub block_id: u8,
+}

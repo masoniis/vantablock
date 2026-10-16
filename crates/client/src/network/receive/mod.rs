@@ -14,6 +14,7 @@ pub struct NetworkReceivePlugin;
 impl Plugin for NetworkReceivePlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<InboundCompressedChunkMessage>();
+        app.add_message::<InboundBlockUpdateMessage>();
 
         app.add_systems(Update, demultiplex::translate_server_network_messages);
     }
