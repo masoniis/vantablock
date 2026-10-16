@@ -11,7 +11,7 @@ product-name = "Vantablock"
 identifier = "com.masoniis.vantablock"
 resources = ["../../assets", "../../readme.md"]
 icons = ["../../assets/client/icon.png"]
-binaries = [{ path = "client", main = true }]
+binaries = [{ path = "vantablock", main = true }]
 
 [lib]
 name = "vantablock_runner"
