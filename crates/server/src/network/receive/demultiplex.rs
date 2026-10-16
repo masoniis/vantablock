@@ -19,8 +19,10 @@ pub fn translate_client_network_messages(
     for (player, mut receiver) in query.iter_mut() {
         for message in receiver.receive() {
             match message {
-                ClientMessage::RequestChunk(coord) => {
-                    ev_request_chunk.write(InboundRequestChunkMessage { player, coord });
+                ClientMessage::RequestChunks(coords) => {
+                    for coord in coords {
+                        ev_request_chunk.write(InboundRequestChunkMessage { player, coord });
+                    }
                 }
                 ClientMessage::BreakBlock { position } => {
                     ev_break_block.write(InboundBreakBlockMessage { player, position });

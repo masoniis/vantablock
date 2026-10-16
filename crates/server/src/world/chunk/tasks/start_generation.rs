@@ -42,9 +42,17 @@ pub fn start_pending_generation_tasks_system(
     terrain_painter: Res<ActiveTerrainPainter>,
     climate_generator: Res<ActiveClimateGenerator>,
 ) {
-    const MAX_CHUNKS_PER_FRAME: usize = 4;
+    // uniform (all air/solid) chunks resolve instantly, so only real generation tasks are
+    // budgeted tightly; otherwise empty sky chunks starve terrain generation
+    const MAX_CHUNKS_PER_FRAME: usize = 256;
+    const MAX_GENERATION_TASKS_PER_FRAME: usize = 8;
+    let mut tasks_started = 0;
 
     for (entity, lod_comp, coord) in pending_chunks_query.iter_mut().take(MAX_CHUNKS_PER_FRAME) {
+        if tasks_started >= MAX_GENERATION_TASKS_PER_FRAME {
+            break;
+        }
+
         let lod = *lod_comp;
 
         // check if the chunk is empty according to the terrain generator
@@ -138,6 +146,7 @@ pub fn start_pending_generation_tasks_system(
             "Spawned generation task for chunk {}.",
             coord
         );
+        tasks_started += 1;
 
         commands
             .entity(entity)

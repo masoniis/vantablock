@@ -7,11 +7,16 @@ use bevy::{
     math::IVec3,
     prelude::{Camera, Camera3d},
 };
-use shared::world::chunk::{ChunkCoord, LOAD_DISTANCE, WORLD_MAX_Y_CHUNK, WORLD_MIN_Y_CHUNK};
+use lightyear::prelude::{Client, MessageSender};
+use shared::{
+    network::{ChunkData, ClientMessage},
+    world::chunk::{ChunkCoord, LOAD_DISTANCE, WORLD_MAX_Y_CHUNK, WORLD_MIN_Y_CHUNK},
+};
 use std::collections::HashSet;
 
 /// A system that determines which chunks should be loaded based on camera position.
-/// This system manages chunk lifecycle transitions from Unloaded to AwaitingData.
+/// This system manages chunk lifecycle transitions from Unloaded to AwaitingData, requesting
+/// each newly awaited chunk from the server.
 #[instrument(skip_all)]
 pub fn manage_distance_based_chunk_loading_targets_system(
     // input
@@ -19,8 +24,14 @@ pub fn manage_distance_based_chunk_loading_targets_system(
 
     // output
     mut chunk_manager: ResMut<ClientChunkManager>,
+    mut sender_query: Query<&mut MessageSender<ClientMessage>, With<Client>>,
     mut commands: Commands,
 ) {
+    // without a connection there is nobody to request chunks from
+    let Ok(mut sender) = sender_query.single_mut() else {
+        return;
+    };
+
     let mut active_camera_chunk_pos = None;
     for (camera, chunk_coord) in camera_query.iter() {
         if camera.is_active {
@@ -70,10 +81,17 @@ pub fn manage_distance_based_chunk_loading_targets_system(
     }
 
     // identify new chunks to load
+    let mut requested = Vec::new();
     for coord in desired_load_chunks {
         if !chunk_manager.is_chunk_present_or_loading(coord) {
             chunk_manager.mark_as_awaiting_data(coord);
+            requested.push(ChunkCoord { pos: coord });
         }
+    }
+
+    if !requested.is_empty() {
+        debug!(target:"chunk_loading", "Requesting {} chunks from the server", requested.len());
+        sender.send::<ChunkData>(ClientMessage::RequestChunks(requested));
     }
 }
 

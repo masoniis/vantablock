@@ -82,7 +82,8 @@ pub fn apply_decompressed_chunk_data_system(
                 );
             }
             None => {
-                warn!("Received chunk data for untracked chunk at {:?}", coord);
+                // expected when a chunk was unloaded while its data was in flight
+                debug!("Received chunk data for untracked chunk at {:?}", coord);
             }
         }
     }

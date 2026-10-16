@@ -8,7 +8,10 @@ pub mod terrain;
 
 use crate::lifecycle::state::ServerState;
 use bevy::prelude::*;
-use chunk_loading::{manage_player_chunk_loading_system, sync_chunk_data_to_clients_system};
+use chunk_loading::{
+    manage_player_chunk_loading_system, queue_client_chunk_requests_system,
+    sync_chunk_data_to_clients_system,
+};
 use terrain::TerrainGenerationPlugin;
 
 pub(crate) struct WorldPlugin;
@@ -21,7 +24,11 @@ impl Plugin for WorldPlugin {
             Update,
             (
                 manage_player_chunk_loading_system,
-                sync_chunk_data_to_clients_system,
+                (
+                    queue_client_chunk_requests_system,
+                    sync_chunk_data_to_clients_system,
+                )
+                    .chain(),
             )
                 .run_if(in_state(ServerState::Running)),
         );

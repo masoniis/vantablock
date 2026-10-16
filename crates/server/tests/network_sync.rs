@@ -1,63 +1,157 @@
 use bevy::prelude::*;
 use lightyear::prelude::MessageSender;
+use server::network::receive::ecs_messages::InboundRequestChunkMessage;
 use server::network::types::ClientConnection;
 use server::world::chunk::chunk_map::ChunkMap;
 use server::world::chunk::components::ActiveChunk;
-use server::world::chunk_loading::{ClientChunkTracker, sync_chunk_data_to_clients_system};
+use server::world::chunk_loading::{
+    ClientChunkTracker, queue_client_chunk_requests_system, sync_chunk_data_to_clients_system,
+};
 use shared::network::protocol::ServerMessage;
 use shared::world::chunk::{ChunkBlocksComponent, ChunkCoord, ChunkLod};
 
+/// A server world with one connected player at the origin and one generated chunk.
+struct TestServer {
+    app: App,
+    client_entity: Entity,
+    player_entity: Entity,
+}
+
+impl TestServer {
+    fn new() -> Self {
+        let mut app = App::new();
+        app.insert_resource(ChunkMap::default());
+        app.add_message::<InboundRequestChunkMessage>();
+        app.add_systems(
+            Update,
+            (
+                queue_client_chunk_requests_system,
+                sync_chunk_data_to_clients_system,
+            )
+                .chain(),
+        );
+
+        // spawn server-side client connection and player entities
+        let client_entity = app
+            .world_mut()
+            .spawn(MessageSender::<ServerMessage>::default())
+            .id();
+        let player_entity = app
+            .world_mut()
+            .spawn((
+                ClientConnection { client_entity },
+                ClientChunkTracker::default(),
+                shared::player::components::LogicalPosition(Vec3::ZERO),
+                Transform::from_xyz(0.0, 0.0, 0.0),
+            ))
+            .id();
+
+        Self {
+            app,
+            client_entity,
+            player_entity,
+        }
+    }
+
+    fn spawn_generated_chunk(&mut self, coord: IVec3) {
+        let chunk_blocks = ChunkBlocksComponent::new_uniform_empty(ChunkLod(0));
+        let chunk_entity = self
+            .app
+            .world_mut()
+            .spawn((ChunkCoord { pos: coord }, chunk_blocks, ActiveChunk))
+            .id();
+        self.app
+            .world_mut()
+            .resource_mut::<ChunkMap>()
+            .register_chunk(coord, chunk_entity);
+    }
+
+    fn request(&mut self, coord: IVec3) {
+        self.app
+            .world_mut()
+            .write_message(InboundRequestChunkMessage {
+                player: self.client_entity,
+                coord: ChunkCoord { pos: coord },
+            });
+    }
+
+    fn pending(&self) -> &std::collections::HashSet<IVec3> {
+        &self
+            .app
+            .world()
+            .get::<ClientChunkTracker>(self.player_entity)
+            .unwrap()
+            .pending
+    }
+}
+
 #[test]
-fn test_chunk_data_sync_to_client() {
-    let mut app = App::new();
-
-    // add resources
-    app.insert_resource(ChunkMap::default());
-
-    // spawn server-side player entity
-    let client_entity = app
-        .world_mut()
-        .spawn(MessageSender::<ServerMessage>::default())
-        .id();
-    let player_entity = app
-        .world_mut()
-        .spawn((
-            ClientConnection { client_entity },
-            ClientChunkTracker::default(),
-            shared::player::components::LogicalPosition(Vec3::ZERO),
-            Transform::from_xyz(0.0, 0.0, 0.0),
-        ))
-        .id();
-
-    // spawn a generated chunk
+fn test_requested_chunk_is_sent() {
+    let mut server = TestServer::new();
     let coord = IVec3::new(0, 0, 0);
-    let chunk_blocks = ChunkBlocksComponent::new_uniform_empty(ChunkLod(0));
-    let chunk_entity = app
-        .world_mut()
-        .spawn((ChunkCoord { pos: coord }, chunk_blocks, ActiveChunk))
-        .id();
+    server.spawn_generated_chunk(coord);
 
-    // register it in the manager
-    app.world_mut()
-        .resource_mut::<ChunkMap>()
-        .register_chunk(coord, chunk_entity);
+    server.request(coord);
+    server.app.update();
 
-    // run the sync system
-    // we need to use a manual system call or add it to a schedule
-    let mut schedule = Schedule::default();
-    schedule.add_systems(sync_chunk_data_to_clients_system);
-    schedule.run(app.world_mut());
-
-    // verify that the tracker was updated
-    let tracker = app
-        .world()
-        .get::<ClientChunkTracker>(player_entity)
-        .unwrap();
+    // the chunk was generated, so it was sent and is no longer pending
     assert!(
-        tracker.sent_chunks.contains(&coord),
-        "Chunk should be marked as sent in tracker"
+        server.pending().is_empty(),
+        "requested chunk should be sent"
+    );
+}
+
+#[test]
+fn test_requested_chunk_waits_for_generation() {
+    let mut server = TestServer::new();
+    let coord = IVec3::new(1, 0, 0);
+
+    server.request(coord);
+    server.app.update();
+    assert!(
+        server.pending().contains(&coord),
+        "ungenerated chunk should stay pending"
     );
 
-    // verify that a message was "sent" (MessageSender is just a component we can check if it has messages,
-    // but Lightyear's MessageSender doesn't store them in a way that's easy to check without full setup)
+    server.spawn_generated_chunk(coord);
+    server.app.update();
+    assert!(
+        server.pending().is_empty(),
+        "chunk should be sent once generated"
+    );
+}
+
+/// Regression: the server used to remember every chunk it ever sent, so a chunk the client
+/// unloaded and needed again was never resent, leaving permanent holes in the world.
+#[test]
+fn test_rerequested_chunk_is_sent_again() {
+    let mut server = TestServer::new();
+    let coord = IVec3::new(0, 0, 0);
+    server.spawn_generated_chunk(coord);
+
+    server.request(coord);
+    server.app.update();
+    assert!(server.pending().is_empty());
+
+    // the client unloaded the chunk and walked back, so it asks again
+    server.request(coord);
+    server.app.update();
+    assert!(
+        server.pending().is_empty(),
+        "re-requested chunk should be sent again"
+    );
+}
+
+#[test]
+fn test_out_of_range_requests_are_ignored() {
+    let mut server = TestServer::new();
+    let far = IVec3::new(1000, 0, 0);
+
+    server.request(far);
+    server.app.update();
+
+    assert!(
+        server.pending().is_empty(),
+        "far away request should be ignored"
+    );
 }

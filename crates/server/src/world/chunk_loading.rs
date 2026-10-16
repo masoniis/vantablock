@@ -1,4 +1,4 @@
-use crate::network::types::ClientConnection;
+use crate::network::{receive::ecs_messages::InboundRequestChunkMessage, types::ClientConnection};
 use crate::prelude::*;
 use crate::world::chunk::chunk_map::ChunkMap;
 use crate::world::chunk::components::{ActiveChunk, NeedsGenerating};
@@ -10,15 +10,44 @@ use shared::player::components::LogicalPosition;
 use shared::world::chunk::{
     ChunkBlocksComponent, ChunkCoord, ChunkLod, LOAD_DISTANCE, WORLD_MAX_Y_CHUNK, WORLD_MIN_Y_CHUNK,
 };
-use std::collections::HashSet;
+use std::{
+    collections::{HashMap, HashSet},
+    sync::LazyLock,
+};
 
-/// Tracks which chunks have been sent to a specific client.
-#[derive(Component, Default)]
-pub struct ClientChunkTracker {
-    pub sent_chunks: HashSet<IVec3>,
+/// How far (in chunks, horizontally) from the player a requested chunk may be. Slightly larger
+/// than the load distance since the client's predicted position runs ahead of the server's.
+const REQUEST_DISTANCE: i32 = LOAD_DISTANCE + 2;
+
+/// Chunk column offsets within the load distance, nearest first.
+static LOAD_COLUMN_OFFSETS: LazyLock<Vec<IVec2>> = LazyLock::new(|| {
+    let mut offsets: Vec<IVec2> = (-LOAD_DISTANCE..=LOAD_DISTANCE)
+        .flat_map(|z| (-LOAD_DISTANCE..=LOAD_DISTANCE).map(move |x| IVec2::new(x, z)))
+        .collect();
+    offsets.sort_by_key(|o| (o.x.abs().max(o.y.abs()), o.x.abs() + o.y.abs()));
+    offsets
+});
+
+/// Horizontal (chebyshev) chunk distance, which matches the square load area.
+fn horizontal_distance(a: IVec3, b: IVec3) -> i32 {
+    (a.x - b.x).abs().max((a.z - b.z).abs())
 }
 
-/// Determines which chunks each player needs and starts loading them.
+fn is_within_request_range(player_chunk: IVec3, coord: IVec3) -> bool {
+    (WORLD_MIN_Y_CHUNK..=WORLD_MAX_Y_CHUNK).contains(&coord.y)
+        && horizontal_distance(player_chunk, coord) <= REQUEST_DISTANCE
+}
+
+/// Tracks the chunks a specific client has requested but not yet been sent.
+///
+/// The client re-requests any chunk it unloaded and needs again, so the server never has to
+/// guess what the client still holds.
+#[derive(Component, Default)]
+pub struct ClientChunkTracker {
+    pub pending: HashSet<IVec3>,
+}
+
+/// Determines which chunks each player needs and starts generating them, nearest first.
 pub fn manage_player_chunk_loading_system(
     // input
     player_query: Query<(&LogicalPosition, Entity), With<ClientConnection>>,
@@ -27,112 +56,136 @@ pub fn manage_player_chunk_loading_system(
     mut chunk_manager: ResMut<ChunkMap>,
     mut commands: Commands,
 ) {
+    const MAX_CHUNKS_SPURRED_PER_FRAME: usize = 32;
+
     for (position, player_ent) in player_query.iter() {
         trace!(target:"server_chunk_loading", "Processing player {:?} at {:?}", player_ent, position.0);
-        let player_pos = position.0;
-        let player_chunk_pos = ChunkCoord::world_to_chunk_pos(player_pos);
+        let player_chunk_pos = ChunkCoord::world_to_chunk_pos(position.0);
 
         let mut chunks_spurred_this_frame = 0;
-        const MAX_CHUNKS_SPURRED_PER_FRAME: usize = 32;
 
-        // determine desired chunks
-        for y in WORLD_MIN_Y_CHUNK..=WORLD_MAX_Y_CHUNK {
-            for z in -LOAD_DISTANCE..=LOAD_DISTANCE {
-                for x in -LOAD_DISTANCE..=LOAD_DISTANCE {
-                    if chunks_spurred_this_frame >= MAX_CHUNKS_SPURRED_PER_FRAME {
-                        break;
-                    }
-
-                    let coord = IVec3::new(player_chunk_pos.x + x, y, player_chunk_pos.z + z);
-
-                    if !chunk_manager.is_chunk_present(coord) {
-                        trace!(target:"server_chunk_loading","Server: Marking chunk needs-generation at {:?}", coord);
-                        let ent = commands
-                            .spawn((NeedsGenerating, ChunkLod(0), ChunkCoord { pos: coord }))
-                            .id();
-                        chunk_manager.register_chunk(coord, ent);
-                        chunks_spurred_this_frame += 1;
-                    }
-                }
+        'columns: for offset in LOAD_COLUMN_OFFSETS.iter() {
+            for y in WORLD_MIN_Y_CHUNK..=WORLD_MAX_Y_CHUNK {
                 if chunks_spurred_this_frame >= MAX_CHUNKS_SPURRED_PER_FRAME {
-                    break;
+                    break 'columns;
                 }
-            }
-            if chunks_spurred_this_frame >= MAX_CHUNKS_SPURRED_PER_FRAME {
-                break;
+
+                let coord = IVec3::new(
+                    player_chunk_pos.x + offset.x,
+                    y,
+                    player_chunk_pos.z + offset.y,
+                );
+
+                if !chunk_manager.is_chunk_present(coord) {
+                    trace!(target:"server_chunk_loading","Server: Marking chunk needs-generation at {:?}", coord);
+                    let ent = commands
+                        .spawn((NeedsGenerating, ChunkLod(0), ChunkCoord { pos: coord }))
+                        .id();
+                    chunk_manager.register_chunk(coord, ent);
+                    chunks_spurred_this_frame += 1;
+                }
             }
         }
     }
 }
 
-/// Sends generated chunk data to clients that need it.
+/// Queues the chunks each client requested so they can be sent once generated.
+pub fn queue_client_chunk_requests_system(
+    // input
+    mut requests: MessageReader<InboundRequestChunkMessage>,
+
+    // output
+    mut player_query: Query<(&LogicalPosition, &ClientConnection, &mut ClientChunkTracker)>,
+) {
+    if requests.is_empty() {
+        return;
+    }
+
+    // requests arrive keyed by the client's connection entity, not its player entity
+    let mut requests_by_client: HashMap<Entity, Vec<IVec3>> = HashMap::new();
+    for request in requests.read() {
+        requests_by_client
+            .entry(request.player)
+            .or_default()
+            .push(request.coord.pos);
+    }
+
+    for (position, connection, mut tracker) in player_query.iter_mut() {
+        let Some(coords) = requests_by_client.remove(&connection.client_entity) else {
+            continue;
+        };
+
+        let player_chunk_pos = ChunkCoord::world_to_chunk_pos(position.0);
+        for coord in coords {
+            if is_within_request_range(player_chunk_pos, coord) {
+                tracker.pending.insert(coord);
+            } else {
+                debug!(target:"server_chunk_loading", "Ignoring out of range chunk request {:?} from {:?}", coord, connection.client_entity);
+            }
+        }
+    }
+}
+
+/// Sends requested chunks to clients once they are generated, nearest first.
 pub fn sync_chunk_data_to_clients_system(
     // input
     mut client_query: Query<(&LogicalPosition, &ClientConnection, &mut ClientChunkTracker)>,
-    chunk_query: Query<(&ChunkCoord, &ChunkBlocksComponent), With<ActiveChunk>>,
+    chunk_query: Query<&ChunkBlocksComponent, With<ActiveChunk>>,
     chunk_manager: Res<ChunkMap>,
     mut sender_query: Query<&mut MessageSender<ServerMessage>>,
 ) {
+    const MAX_CHUNKS_SENT_PER_FRAME: usize = 32;
+
     for (position, connection, mut tracker) in client_query.iter_mut() {
         let Ok(mut sender) = sender_query.get_mut(connection.client_entity) else {
             warn!("No MessageSender for client {:?}", connection.client_entity);
             continue;
         };
 
-        let player_pos = position.0;
-        let player_chunk_pos = ChunkCoord::world_to_chunk_pos(player_pos);
+        let player_chunk_pos = ChunkCoord::world_to_chunk_pos(position.0);
 
-        let mut chunks_sent_this_frame = 0;
-        const MAX_CHUNKS_SENT_PER_FRAME: usize = 4;
+        // forget requests the player has since moved away from, the client unloads those too
+        tracker
+            .pending
+            .retain(|coord| is_within_request_range(player_chunk_pos, *coord));
 
-        // find chunks within load distance that haven't been sent yet
-        for y in WORLD_MIN_Y_CHUNK..=WORLD_MAX_Y_CHUNK {
-            for z in -LOAD_DISTANCE..=LOAD_DISTANCE {
-                for x in -LOAD_DISTANCE..=LOAD_DISTANCE {
-                    if chunks_sent_this_frame >= MAX_CHUNKS_SENT_PER_FRAME {
-                        break;
-                    }
+        // pick the nearest requested chunks that are ready to send
+        let mut ready: Vec<(i32, IVec3, Entity)> = tracker
+            .pending
+            .iter()
+            .filter_map(|&coord| {
+                let entity = chunk_manager.get_chunk(coord)?;
+                chunk_query
+                    .contains(entity)
+                    .then(|| (horizontal_distance(player_chunk_pos, coord), coord, entity))
+            })
+            .collect();
+        ready.sort_unstable_by_key(|(distance, coord, _)| (*distance, coord.y));
 
-                    let coord = IVec3::new(player_chunk_pos.x + x, y, player_chunk_pos.z + z);
+        for (_, coord, entity) in ready.into_iter().take(MAX_CHUNKS_SENT_PER_FRAME) {
+            let Ok(blocks) = chunk_query.get(entity) else {
+                continue;
+            };
 
-                    if tracker.sent_chunks.contains(&coord) {
-                        continue;
-                    }
+            let data = extract_block_data(blocks);
+            let original_len = data.len();
 
-                    // Look up the Entity from ChunkMap::get_chunk(coord)
-                    if let Some(chunk_ent) = chunk_manager.get_chunk(coord) {
-                        // Query that Entity in the ECS to see if it has the ActiveChunk component
-                        if let Ok((_coord, blocks)) = chunk_query.get(chunk_ent) {
-                            let data = extract_block_data(blocks);
-                            let original_len = data.len();
-
-                            // compress the data using zstd
-                            let compressed_data = match zstd::encode_all(&data[..], 3) {
-                                Ok(compressed) => compressed,
-                                Err(e) => {
-                                    error!("Failed to compress chunk data for {:?}: {}", coord, e);
-                                    data
-                                }
-                            };
-
-                            trace!(target:"server_chunk_loading", "Sending chunk {:?} to client {:?} (compressed: {} -> {} bytes)", coord, connection.client_entity, original_len, compressed_data.len());
-                            sender.send::<ChunkData>(ServerMessage::ChunkData {
-                                coord: ChunkCoord { pos: coord },
-                                data: compressed_data,
-                            });
-
-                            tracker.sent_chunks.insert(coord);
-                            chunks_sent_this_frame += 1;
-                        }
-                    }
+            // compress the data using zstd
+            let compressed_data = match zstd::encode_all(&data[..], 3) {
+                Ok(compressed) => compressed,
+                Err(e) => {
+                    error!("Failed to compress chunk data for {:?}: {}", coord, e);
+                    data
                 }
-                if chunks_sent_this_frame >= MAX_CHUNKS_SENT_PER_FRAME {
-                    break;
-                }
-            }
-            if chunks_sent_this_frame >= MAX_CHUNKS_SENT_PER_FRAME {
-                break;
-            }
+            };
+
+            trace!(target:"server_chunk_loading", "Sending chunk {:?} to client {:?} (compressed: {} -> {} bytes)", coord, connection.client_entity, original_len, compressed_data.len());
+            sender.send::<ChunkData>(ServerMessage::ChunkData {
+                coord: ChunkCoord { pos: coord },
+                data: compressed_data,
+            });
+
+            tracker.pending.remove(&coord);
         }
     }
 }

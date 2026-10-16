@@ -147,9 +147,15 @@ fn update_debug_menu_system(
         .filter(|s| matches!(s, ClientChunkState::NeedsMeshing { .. }))
         .count();
 
+    let awaiting_data_count = chunk_manager
+        .chunk_states
+        .values()
+        .filter(|s| matches!(s, ClientChunkState::AwaitingData))
+        .count();
+
     text_content.push_str(&format!(
-        "Meshing: {} (Queue: {})\n",
-        meshing_count, needs_meshing_count
+        "Awaiting Data: {}\nMeshing: {} (Queue: {})\n",
+        awaiting_data_count, meshing_count, needs_meshing_count
     ));
 
     for mut text in text_query.iter_mut() {

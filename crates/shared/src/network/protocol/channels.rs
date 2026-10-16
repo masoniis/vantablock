@@ -27,7 +27,7 @@ pub struct BlockUpdates;
 /// - Reliable because missing chunk data leaves a hole in the world.
 /// - Unordered because Chunk A arriving before Chunk B doesn't break simulation and prevents head-of-line blocking.
 ///
-/// **Direction:** `ServerToClient`
+/// **Direction:** `Bidirectional` (Requests C->S, Data S->C)
 pub struct ChunkData;
 
 /// Spawning and despawning of players, dropped items, or mobs.
@@ -74,7 +74,7 @@ impl Plugin for NetChannelsPlugin {
             mode: ChannelMode::UnorderedReliable(ReliableSettings { ..default() }),
             ..default()
         })
-        .add_direction(NetworkDirection::ServerToClient);
+        .add_direction(NetworkDirection::Bidirectional);
 
         app.add_channel::<EntityLifecycle>(ChannelSettings {
             mode: ChannelMode::OrderedReliable(ReliableSettings { ..default() }),

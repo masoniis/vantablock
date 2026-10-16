@@ -8,8 +8,9 @@ use serde::{Deserialize, Serialize};
 /// while the client also has other means of communication like replication.
 #[derive(Message, Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum ClientMessage {
-    /// A request for the server to send block data for a specific chunk.
-    RequestChunk(ChunkCoord),
+    /// A request for the server to send block data for these chunks. The client sends this
+    /// whenever it starts waiting on chunks, including ones it unloaded and needs again.
+    RequestChunks(Vec<ChunkCoord>),
     /// Intent to break a block at the specified position.
     BreakBlock { position: IVec3 },
     /// Intent to place a block at the specified position.
