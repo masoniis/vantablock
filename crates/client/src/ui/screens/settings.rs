@@ -1,6 +1,5 @@
 use crate::lifecycle::state::{ClientLifecycleState, InGameState};
 use bevy::prelude::*;
-use lightyear::prelude::client::{Disconnect, NetcodeClient};
 
 #[derive(Component)]
 pub struct SettingsUiRoot;
@@ -120,8 +119,6 @@ pub fn settings_button_interaction_system(
     >,
     mut next_in_game_state: ResMut<NextState<InGameState>>,
     mut next_client_state: ResMut<NextState<ClientLifecycleState>>,
-    mut commands: Commands,
-    client_query: Query<Entity, With<NetcodeClient>>,
 ) {
     for (interaction, mut color, mut border_color, action) in interaction_query.iter_mut() {
         match *interaction {
@@ -134,11 +131,7 @@ pub fn settings_button_interaction_system(
                         next_in_game_state.set(InGameState::Playing);
                     }
                     SettingsButtonAction::Disconnect => {
-                        // trigger lightyear disconnect
-                        for entity in client_query.iter() {
-                            commands.trigger(Disconnect { entity });
-                        }
-
+                        // leaving the game disconnects and cleans up the session
                         next_client_state.set(ClientLifecycleState::MainMenu);
                     }
                 }

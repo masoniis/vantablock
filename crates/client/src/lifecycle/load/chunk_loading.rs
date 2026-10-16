@@ -76,3 +76,23 @@ pub fn manage_distance_based_chunk_loading_targets_system(
         }
     }
 }
+
+/// Despawns every client chunk and forgets its state when leaving the game, so a later
+/// session doesn't render or skip requesting chunks from the previous world.
+pub fn unload_all_chunks_system(
+    mut chunk_manager: ResMut<ClientChunkManager>,
+    mut commands: Commands,
+) {
+    for state in chunk_manager.chunk_states.values() {
+        match state {
+            ClientChunkState::AwaitingData => {}
+            ClientChunkState::DataReady { entity }
+            | ClientChunkState::NeedsMeshing { entity }
+            | ClientChunkState::Meshing { entity }
+            | ClientChunkState::MeshComplete { entity } => {
+                commands.entity(*entity).despawn();
+            }
+        }
+    }
+    chunk_manager.chunk_states.clear();
+}

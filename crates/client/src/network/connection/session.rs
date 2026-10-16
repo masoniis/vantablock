@@ -3,7 +3,7 @@ use crate::{
     network::connection::NetworkErrorEvent,
 };
 use bevy::prelude::*;
-use lightyear::prelude::{Connected, Connecting, Disconnected};
+use lightyear::prelude::{Client, Connected, Connecting, Disconnect, Disconnected};
 
 pub fn handle_connections(
     trigger: On<Add, Connected>,
@@ -53,5 +53,19 @@ pub fn handle_disconnections(
                 reason: reason_str.to_string(),
             });
         }
+    }
+}
+
+/// Tears down the connection when leaving the game, whether to the main menu or the error
+/// screen, so the next session starts from a single fresh client entity.
+pub fn end_session(
+    clients: Query<(Entity, Has<Disconnected>), With<Client>>,
+    mut commands: Commands,
+) {
+    for (entity, disconnected) in clients.iter() {
+        if !disconnected {
+            commands.trigger(Disconnect { entity });
+        }
+        commands.entity(entity).despawn();
     }
 }

@@ -7,7 +7,7 @@ pub mod phases;
 
 use crate::lifecycle::ClientLifecycleState;
 use bevy::prelude::*;
-use chunk_loading::manage_distance_based_chunk_loading_targets_system;
+use chunk_loading::{manage_distance_based_chunk_loading_targets_system, unload_all_chunks_system};
 pub use phases::*;
 use shared::{
     lifecycle::{
@@ -40,6 +40,10 @@ impl Plugin for ClientLoadPlugin {
         app.add_systems(
             OnExit(ClientLifecycleState::Launching),
             nuke_loading_dag::<ClientLaunchLoadingPhase>,
+        );
+        app.add_systems(
+            OnExit(ClientLifecycleState::InGame),
+            unload_all_chunks_system,
         );
 
         app.add_systems(
