@@ -1,6 +1,6 @@
 use crate::{
     network::receive::ecs_messages::{InboundBreakBlockMessage, InboundPlaceBlockMessage},
-    world::chunk::ChunkMap,
+    world::chunk::{ChunkMap, components::ModifiedChunk},
 };
 use bevy::prelude::*;
 use lightyear::prelude::*;
@@ -23,6 +23,7 @@ pub fn handle_client_block_requests(
     mut sender: ServerMultiMessageSender,
     server: Option<Single<&Server>>,
     player_query: Query<&RemoteId>,
+    mut commands: Commands,
 ) {
     let Some(server) = server else { return };
 
@@ -38,7 +39,10 @@ pub fn handle_client_block_requests(
         {
             let local_pos = world_pos - (chunk_pos * CHUNK_SIDE_LENGTH as i32);
 
-            info!("Updating server block state at chunk {:?} local {:?}", chunk_pos, local_pos);
+            info!(
+                "Updating server block state at chunk {:?} local {:?}",
+                chunk_pos, local_pos
+            );
 
             let mut writer = chunk_blocks.get_writer();
             writer.set_data(
@@ -47,6 +51,9 @@ pub fn handle_client_block_requests(
                 local_pos.z as usize,
                 block_id,
             );
+
+            // keep edited chunks loaded so the edit isn't lost when the player walks away
+            commands.entity(entity).insert(ModifiedChunk);
 
             // broadcast state change to all other clients.
             let update_message = ServerMessage::BlockUpdate {
@@ -60,17 +67,26 @@ pub fn handle_client_block_requests(
                 &NetworkTarget::AllExcept(vec![**remote_id]),
             );
         } else {
-            warn!("Could not find chunk or blocks for position {:?}", world_pos);
+            warn!(
+                "Could not find chunk or blocks for position {:?}",
+                world_pos
+            );
         }
     };
 
     for ev in ev_break.read() {
-        info!("Server received BreakBlock at {:?} from player {:?}", ev.position, ev.player);
+        info!(
+            "Server received BreakBlock at {:?} from player {:?}",
+            ev.position, ev.player
+        );
         process_request(ev.player, ev.position, AIR_BLOCK_ID);
     }
 
     for ev in ev_place.read() {
-        info!("Server received PlaceBlock at {:?} (id: {}) from player {:?}", ev.position, ev.block_id, ev.player);
+        info!(
+            "Server received PlaceBlock at {:?} (id: {}) from player {:?}",
+            ev.position, ev.block_id, ev.player
+        );
         process_request(ev.player, ev.position, ev.block_id);
     }
 }

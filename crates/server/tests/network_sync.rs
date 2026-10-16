@@ -3,9 +3,10 @@ use lightyear::prelude::MessageSender;
 use server::network::receive::ecs_messages::InboundRequestChunkMessage;
 use server::network::types::ClientConnection;
 use server::world::chunk::chunk_map::ChunkMap;
-use server::world::chunk::components::ActiveChunk;
+use server::world::chunk::components::{ActiveChunk, ModifiedChunk};
 use server::world::chunk_loading::{
     ClientChunkTracker, queue_client_chunk_requests_system, sync_chunk_data_to_clients_system,
+    unload_distant_chunks_system,
 };
 use shared::network::protocol::ServerMessage;
 use shared::world::chunk::{ChunkBlocksComponent, ChunkCoord, ChunkLod};
@@ -25,6 +26,7 @@ impl TestServer {
         app.add_systems(
             Update,
             (
+                unload_distant_chunks_system,
                 queue_client_chunk_requests_system,
                 sync_chunk_data_to_clients_system,
             )
@@ -53,7 +55,7 @@ impl TestServer {
         }
     }
 
-    fn spawn_generated_chunk(&mut self, coord: IVec3) {
+    fn spawn_generated_chunk(&mut self, coord: IVec3) -> Entity {
         let chunk_blocks = ChunkBlocksComponent::new_uniform_empty(ChunkLod(0));
         let chunk_entity = self
             .app
@@ -64,6 +66,14 @@ impl TestServer {
             .world_mut()
             .resource_mut::<ChunkMap>()
             .register_chunk(coord, chunk_entity);
+        chunk_entity
+    }
+
+    fn is_loaded(&self, coord: IVec3) -> bool {
+        self.app
+            .world()
+            .resource::<ChunkMap>()
+            .is_chunk_present(coord)
     }
 
     fn request(&mut self, coord: IVec3) {
@@ -153,5 +163,49 @@ fn test_out_of_range_requests_are_ignored() {
     assert!(
         server.pending().is_empty(),
         "far away request should be ignored"
+    );
+}
+
+/// Regression: the server never unloaded chunks, so memory grew without bound while exploring.
+#[test]
+fn test_distant_chunks_are_unloaded() {
+    let mut server = TestServer::new();
+    let near = IVec3::new(0, 0, 0);
+    let far = IVec3::new(100, 0, 0);
+    server.spawn_generated_chunk(near);
+    let far_entity = server.spawn_generated_chunk(far);
+
+    server.app.update();
+
+    assert!(
+        server.is_loaded(near),
+        "chunk near the player should stay loaded"
+    );
+    assert!(
+        !server.is_loaded(far),
+        "chunk far from every player should unload"
+    );
+    assert!(
+        server.app.world().get_entity(far_entity).is_err(),
+        "unloaded chunk entity should be despawned"
+    );
+}
+
+#[test]
+fn test_modified_distant_chunks_stay_loaded() {
+    let mut server = TestServer::new();
+    let far = IVec3::new(100, 0, 0);
+    let far_entity = server.spawn_generated_chunk(far);
+    server
+        .app
+        .world_mut()
+        .entity_mut(far_entity)
+        .insert(ModifiedChunk);
+
+    server.app.update();
+
+    assert!(
+        server.is_loaded(far),
+        "edited chunks must stay loaded until chunks can be saved"
     );
 }

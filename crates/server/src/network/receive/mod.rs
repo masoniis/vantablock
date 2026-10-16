@@ -24,7 +24,8 @@ impl Plugin for ServerIngressPlugin {
             (
                 demultiplex::translate_client_network_messages,
                 block_actions::handle_client_block_requests,
-            ).chain(),
+            )
+                .chain(),
         );
     }
 }

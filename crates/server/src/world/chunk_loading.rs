@@ -1,7 +1,7 @@
 use crate::network::{receive::ecs_messages::InboundRequestChunkMessage, types::ClientConnection};
 use crate::prelude::*;
 use crate::world::chunk::chunk_map::ChunkMap;
-use crate::world::chunk::components::{ActiveChunk, NeedsGenerating};
+use crate::world::chunk::components::{ActiveChunk, ModifiedChunk, NeedsGenerating};
 use bevy::prelude::*;
 use lightyear::prelude::MessageSender;
 use shared::network::ChunkData;
@@ -18,6 +18,11 @@ use std::{
 /// How far (in chunks, horizontally) from the player a requested chunk may be. Slightly larger
 /// than the load distance since the client's predicted position runs ahead of the server's.
 const REQUEST_DISTANCE: i32 = LOAD_DISTANCE + 2;
+
+/// How far (in chunks, horizontally) a chunk may be from every player before it is unloaded.
+/// Beyond the request distance so pending requests stay satisfiable, and with an extra ring of
+/// slack so walking along the boundary doesn't thrash chunks in and out.
+const UNLOAD_DISTANCE: i32 = REQUEST_DISTANCE + 1;
 
 /// Chunk column offsets within the load distance, nearest first.
 static LOAD_COLUMN_OFFSETS: LazyLock<Vec<IVec2>> = LazyLock::new(|| {
@@ -87,6 +92,38 @@ pub fn manage_player_chunk_loading_system(
             }
         }
     }
+}
+
+/// Unloads chunks that are out of range of every player, so server memory stays bounded as
+/// players explore. Chunks players have edited stay loaded until chunk persistence exists.
+pub fn unload_distant_chunks_system(
+    // input
+    player_query: Query<&LogicalPosition, With<ClientConnection>>,
+    modified_query: Query<(), With<ModifiedChunk>>,
+
+    // output
+    mut chunk_manager: ResMut<ChunkMap>,
+    mut commands: Commands,
+) {
+    let player_chunks: Vec<IVec3> = player_query
+        .iter()
+        .map(|position| ChunkCoord::world_to_chunk_pos(position.0))
+        .collect();
+
+    chunk_manager.chunks.retain(|coord, entity| {
+        let near_a_player = player_chunks
+            .iter()
+            .any(|player_chunk| horizontal_distance(*player_chunk, *coord) <= UNLOAD_DISTANCE);
+
+        if near_a_player || modified_query.contains(*entity) {
+            return true;
+        }
+
+        trace!(target:"server_chunk_loading", "Unloading chunk {:?}", coord);
+        // despawning also drops any in-flight generation task's receiver
+        commands.entity(*entity).despawn();
+        false
+    });
 }
 
 /// Queues the chunks each client requested so they can be sent once generated.

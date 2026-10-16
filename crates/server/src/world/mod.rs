@@ -10,7 +10,7 @@ use crate::lifecycle::state::ServerState;
 use bevy::prelude::*;
 use chunk_loading::{
     manage_player_chunk_loading_system, queue_client_chunk_requests_system,
-    sync_chunk_data_to_clients_system,
+    sync_chunk_data_to_clients_system, unload_distant_chunks_system,
 };
 use terrain::TerrainGenerationPlugin;
 
@@ -23,7 +23,11 @@ impl Plugin for WorldPlugin {
         app.add_systems(
             Update,
             (
-                manage_player_chunk_loading_system,
+                (
+                    unload_distant_chunks_system,
+                    manage_player_chunk_loading_system,
+                )
+                    .chain(),
                 (
                     queue_client_chunk_requests_system,
                     sync_chunk_data_to_clients_system,

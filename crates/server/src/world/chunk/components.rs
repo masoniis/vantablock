@@ -18,6 +18,13 @@ pub struct ActiveChunk;
 #[derive(Component, Default, Debug)]
 pub struct EmptyChunk;
 
+/// Marker component for chunks a player has edited.
+///
+/// These are never unloaded: there is no chunk persistence yet, so unloading one would
+/// silently revert the player's edits.
+#[derive(Component, Default, Debug)]
+pub struct ModifiedChunk;
+
 pub struct GeneratedChunkComponentBundle {
     pub chunk_blocks: Option<ChunkBlocksComponent>,
     pub chunk_metadata: Option<ChunkMetadata>,

@@ -4,8 +4,8 @@
 //! `MessageReceiver<ClientMessage>` directly.
 
 use bevy::ecs::message::Message;
-use shared::world::chunk::ChunkCoord;
 use bevy::prelude::*;
+use shared::world::chunk::ChunkCoord;
 
 #[derive(Message, Clone)]
 pub struct InboundRequestChunkMessage {
