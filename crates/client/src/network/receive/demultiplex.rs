@@ -26,7 +26,7 @@ pub fn translate_server_network_messages(
                     ev_block_update.write(InboundBlockUpdateMessage { position, block_id });
                 }
                 ServerMessage::SyncTime { game_time, tick } => {
-                    info!("SyncTime received: game_time={}, tick={}", game_time, tick);
+                    debug!("SyncTime received: game_time={}, tick={}", game_time, tick);
                 }
             }
         }

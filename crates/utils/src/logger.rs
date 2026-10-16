@@ -26,7 +26,9 @@ pub fn set_runtime_context_server() {
 pub fn attach_logger() {
     let timer = LocalTime::new(format_description!("[hour repr:24]:[minute]:[second]"));
 
-    let default_level = if cfg!(debug_assertions) {
+    // release clients stay quiet, but a dedicated server operator needs to see it come up
+    let is_server = RUNTIME_CONTEXT.load(Ordering::Relaxed) == 2;
+    let default_level = if cfg!(debug_assertions) || is_server {
         "info"
     } else {
         "error"

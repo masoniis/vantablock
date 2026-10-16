@@ -2,7 +2,7 @@ use crate::network::types::MessageTimer;
 use bevy::prelude::*;
 use lightyear::{prelude::server::*, prelude::*};
 use shared::network::{ChatAndSystem, ServerMessage};
-use tracing::{error, info};
+use tracing::{debug, error};
 
 /// Sends the periodic sync timer to all clients
 pub fn send_sync_time(
@@ -19,7 +19,7 @@ pub fn send_sync_time(
             game_time: time.elapsed_secs(),
             tick: 0, // placeholder
         };
-        info!("Sending periodic SyncTime message: {:?}", message);
+        debug!("Sending periodic SyncTime message: {:?}", message);
         if let Err(e) =
             sender.send::<_, ChatAndSystem>(&message, server.into_inner(), &NetworkTarget::All)
         {
