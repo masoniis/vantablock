@@ -114,7 +114,15 @@
       let
         # iterate each system and evaluate
         eachSystem = f: nixpkgs.lib.genAttrs (import systems) (system: f nixpkgs.legacyPackages.${system});
-        treefmtEval = eachSystem (pkgs: treefmt-nix.lib.evalModule pkgs ./treefmt.nix);
+        treefmtEval = eachSystem (
+          pkgs:
+          treefmt-nix.lib.evalModule pkgs {
+            imports = [ ./treefmt.nix ];
+            _module.args = {
+              pkgs-unstable = nixpkgs-unstable.legacyPackages.${pkgs.stdenv.hostPlatform.system};
+            };
+          }
+        );
       in
       {
         # for `nix fmt`
