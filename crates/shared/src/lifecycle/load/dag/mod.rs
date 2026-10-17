@@ -19,11 +19,10 @@
 //!   with that node type.
 //! - **Task Lifecycle:** Nodes move from `Pending` -> `Started` -> `Completed`.
 //!
-//! ## Manual Polling
+//! ## Task Polling
 //!
-//! **Important:** The system does not automatically poll tasks. You must manually add the
-//! `poll_tasks::<P>` system to the appropriate schedule (e.g., `Update`) during your loading
-//! states to ensure that `LoadingTaskComponent` results are processed and nodes are marked as finished.
+//! Asynchronous tasks spawned with `LoadingTaskComponent` are automatically polled by
+//! `poll_all_loading_tasks`, which is registered in the shared lifecycle state plugin.
 //!
 //! ## Example
 //!
@@ -41,7 +40,7 @@
 //! #[derive(Component)] pub struct LoadAssets;
 //! #[derive(Component)] pub struct LoadRegistry;
 //!
-//! fn setup(mut app: &mut App) {
+//! fn setup(app: &mut App) {
 //!     app.configure_loading_phase::<MyPhase>()
 //!         .add_node(LoadAssets, handle_assets)
 //!         .add_node(LoadRegistry, handle_registry)
@@ -50,9 +49,6 @@
 //!
 //!     // Kickoff the loading phase
 //!     app.add_systems(OnEnter(MyState::Loading), kickoff_loading_phase::<MyPhase>);
-//!
-//!     // IMPORTANT: You must manually register the polling system if your loading tasks are asynchronous
-//!     app.add_systems(Update, poll_tasks::<MyPhase>.run_if(in_state(MyState::Loading)));
 //! }
 //! ```
 

@@ -3,7 +3,6 @@ use bevy::{ecs::relationship::Relationship, prelude::*};
 use leafwing_input_manager::prelude::ActionState;
 use tracing::instrument;
 
-
 /// A system that handles the 3rd person zoom. Rotation and Position is updated via the
 /// shared movement system and visual smoothing.
 #[instrument(skip_all)]
