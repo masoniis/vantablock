@@ -1,4 +1,4 @@
-name: format codebase
+name: format check
 
 on:
   workflow_dispatch:
@@ -10,22 +10,18 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true # cancel previous format if new commit is made
+  cancel-in-progress: true
 
 jobs:
-  do-the-formatting:
+  check-formatting:
     # if it's a PR, only run if not a draft
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-slim
     permissions:
-      contents: write # enable updating the repo code
+      contents: read
       actions: write # required for deleting github cache entries in nix setup
     steps:
       - uses: actions/checkout@v5
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          persist-credentials: true
-          fetch-depth: 0
 
       # installs deps and makes nix available to runner path
       - name: Add nix flake profile
@@ -33,14 +29,5 @@ jobs:
         with:
           flake-profile: formatting
 
-      - name: Run formatter
-        run: nix fmt
-
-      # commit changes only if changes were made by the format step
-      - name: Auto commit changes
-        uses: stefanzweifel/git-auto-commit-action@v7
-        with:
-          commit_message: "style: auto-format code [skip ci]"
-          commit_user_name: GitHub Action
-          commit_user_email: action@github.com
-          skip_dirty_check: false # only commit if dirty, as opposed to always
+      - name: Check code formatting
+        run: nix fmt -- --ci
