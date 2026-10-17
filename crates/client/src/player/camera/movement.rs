@@ -3,8 +3,6 @@ use bevy::{ecs::relationship::Relationship, prelude::*};
 use leafwing_input_manager::prelude::ActionState;
 use tracing::instrument;
 
-/// The distance the near plane is set to for the camera frustum.
-pub const CAMERA_NEAR_PLANE: f32 = 1.0;
 
 /// A system that handles the 3rd person zoom. Rotation and Position is updated via the
 /// shared movement system and visual smoothing.

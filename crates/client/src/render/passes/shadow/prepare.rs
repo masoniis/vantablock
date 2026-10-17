@@ -1,4 +1,3 @@
-use crate::player::CAMERA_NEAR_PLANE;
 use crate::prelude::*;
 use crate::render::data::ExtractedSun;
 use crate::render::passes::opaque::queue::Opaque3dRenderPhase;
@@ -58,9 +57,11 @@ pub fn update_shadow_view_buffer_system(
     // NOTE: goal is to create a bounding box for the shadow texture that fits
     // the camera frustum in order to be efficient with the texture map
 
-    // far plane is close to 0, but not 0 since 0 is "infinite" away
-    // using the infinite reverse z projection
-    let z_ndc_far = CAMERA_NEAR_PLANE / SHADOW_DISTANCE;
+    // far plane is close to 0, but not 0 since 0 is "infinite" away using the infinite
+    // reverse z projection. Project the shadow distance through the camera's real projection
+    // rather than assuming a near plane, a mismatch there shrinks the shadow range
+    let far_clip = projection_matrix * vec4(0.0, 0.0, -SHADOW_DISTANCE, 1.0);
+    let z_ndc_far = far_clip.z / far_clip.w;
     let frustum_corners_ndc: [Vec4; 8] = [
         // near plane (z=1.0)
         vec4(-1.0, -1.0, 1.0, 1.0),
