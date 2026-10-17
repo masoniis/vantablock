@@ -1,0 +1,33 @@
+name: format check
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-formatting:
+    # if it's a PR, only run if not a draft
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ubuntu-slim
+    permissions:
+      contents: read
+      actions: write # required for deleting github cache entries in nix setup
+    steps:
+      - uses: actions/checkout@v5
+
+      # installs deps and makes nix available to runner path
+      - name: Add nix flake profile
+        uses: masoniis/b/.github/actions/add-nix-flake-profile@main
+        with:
+          flake-profile: formatting
+
+      - name: Check code formatting
+        run: nix fmt -- --ci

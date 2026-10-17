@@ -1,34 +1,37 @@
-use crate::state::ClientAppState;
-use bevy::prelude::*;
-use shared::state::SimulationState;
+//! # Vantablock UI Library
+//!
+//! This module is for reusable ui stuff and general screens. Other UI may exist within modules
+//! that are more relevant to them (like inventory and crosshair).
 
+mod screens;
 pub mod systems;
+mod widgets;
 
 // INFO: -------------------
 //         ui plugin
 // -------------------------
 
+use crate::lifecycle::state::ClientLifecycleState;
+use bevy::prelude::*;
+
 pub struct VantablockUiPlugin;
 
 impl Plugin for VantablockUiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
-            OnEnter(ClientAppState::Running),
-            systems::spawning::spawn_ui_system,
-        )
-        .add_systems(
-            OnExit(ClientAppState::Running),
-            systems::spawning::despawn_ui_system,
-        );
+        // screen plugins
+        app.add_plugins((
+            screens::LaunchingClientScreenPlugin,
+            screens::main_menu::MainMenuUiPlugin,
+            screens::connecting::ConnectingUiPlugin,
+            screens::settings::SettingsUiPlugin,
+            screens::disconnected::DisconnectedUiPlugin,
+            screens::debug_menu::DebugMenuPlugin,
+        ));
 
-        // starting up ui
+        // game ui
         app.add_systems(
-            OnEnter(SimulationState::Loading),
-            systems::starting_up_ui::spawn_starting_up_ui,
-        )
-        .add_systems(
-            OnExit(SimulationState::Loading),
-            systems::starting_up_ui::despawn_starting_up_ui,
+            OnEnter(ClientLifecycleState::InGame),
+            systems::despawn_menu_camera_system,
         );
     }
 }

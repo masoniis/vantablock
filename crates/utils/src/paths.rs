@@ -1,4 +1,3 @@
-use bevy::prelude::Resource;
 use directories::ProjectDirs;
 use std::{fs, path::PathBuf};
 
@@ -8,7 +7,7 @@ use std::{fs, path::PathBuf};
 /// - macOS: `~/Library/Application Support/com.masoniis.vantablock/`
 /// - Windows: `%AppData%\Roaming\masoniis\vantablock\` (Config) and `%AppData%\Local\masoniis\vantablock\` (Data)
 /// - Linux: `~/.config/vantablock/` and `~/.local/share/vantablock/`
-#[derive(Resource, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct PersistentPaths {
     /// Standard location for game assets (textures, models, configs).
     pub assets_dir: PathBuf,
@@ -28,55 +27,71 @@ impl PersistentPaths {
     ///
     /// This function will attempt to create all necessary subdirectories on disk.
     /// It panics if the OS fails to provide a standard directory structure.
-    pub fn resolve() -> Self {
-        // check for override from environment variable
-        if let Ok(path) = std::env::var("VANTABLOCK_ASSETS") {
-            let assets_dir = PathBuf::from(path);
-            if assets_dir.exists() {
-                let (config_dir, saves_dir, cache_dir, logs_dir) = Self::get_os_dirs();
-                let paths = Self {
-                    assets_dir,
-                    config_dir,
-                    saves_dir,
-                    cache_dir,
-                    logs_dir,
-                };
-                paths.ensure_exists();
-                return paths;
-            }
-        }
-
-        // if we are in a cargo workspace, resolve paths for dev env
-        let is_dev_env = std::env::var("CARGO").is_ok() || cfg!(debug_assertions);
-        if is_dev_env {
-            let crate_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-            // crate root is two dirs up from utils crate
-            if let Some(workspace_root) = crate_root.parent().and_then(|p| p.parent()) {
-                return Self::resolve_dev_at(workspace_root.to_path_buf());
-            }
+    pub fn resolve_client() -> Self {
+        // if we are in a cargo workspace, resolve paths for dev env using "client" target
+        if let Some(dev_paths) = Self::try_resolve_dev("client") {
+            return dev_paths;
         }
 
         // otherwise assume a production environment
-        Self::resolve_production()
+        Self::resolve_client_paths()
     }
 
-    /// Resolves folders for a dev environment by placing them in a `.dev_data` directory under `root`.
-    fn resolve_dev_at(root: PathBuf) -> Self {
-        let dev_data = root.join(".dev_data");
+    /// Resolves folders for a dedicated server environment.
+    /// Places all data inside the current working directory (portable mode).
+    pub fn resolve_server() -> Self {
+        // if we are in a cargo workspace, resolve paths for dev env using "server" target
+        if let Some(dev_paths) = Self::try_resolve_dev("server") {
+            return dev_paths;
+        }
+
+        // use the dir that the executable is run from
+        let root = std::env::current_dir().expect("Failed to get current working directory");
 
         let paths = Self {
             assets_dir: root.join("assets"),
-            config_dir: dev_data.join("config"),
-            saves_dir: dev_data.join("saves"),
-            cache_dir: dev_data.join("cache"),
-            logs_dir: dev_data.join("logs"),
+            config_dir: root.join("config"),
+            saves_dir: root.join("saves"),
+            cache_dir: root.join("cache"),
+            logs_dir: root.join("logs"),
         };
+
         paths.ensure_exists();
         paths
     }
 
+    // INFO: ---------------------------
+    //         private utilities
+    // ---------------------------------
+
+    /// Checks if we are running via Cargo or in debug mode, and returns the constructed dev paths if so.
+    fn try_resolve_dev(target: &str) -> Option<Self> {
+        let is_dev_env = std::env::var("CARGO").is_ok() || cfg!(debug_assertions);
+
+        if is_dev_env {
+            let crate_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+            // crate root is two dirs up from utils crate
+            if let Some(workspace_root) = crate_root.parent().and_then(|p| p.parent()) {
+                // isolate dev data into ./vantadev/client or ./vantadev/server
+                let dev_data = workspace_root.join("vantadev").join(target);
+
+                let paths = Self {
+                    assets_dir: workspace_root.join("assets"), // assets dir is same for both client/server
+                    config_dir: dev_data.join("config"),
+                    saves_dir: dev_data.join("saves"),
+                    cache_dir: dev_data.join("cache"),
+                    logs_dir: dev_data.join("logs"),
+                };
+
+                paths.ensure_exists();
+                return Some(paths);
+            }
+        }
+        None
+    }
+
     /// Resolves folder for a prod environment based on the host OS conventions
-    fn resolve_production() -> Self {
+    fn resolve_client_paths() -> Self {
         let exe_path = std::env::current_exe().expect("Failed to get executable path");
         let exe_dir = exe_path
             .parent()

@@ -1,0 +1,231 @@
+# INFO: -----------------------
+#         configuration
+# -----------------------------
+
+set shell := ["bash", "-c"]
+set windows-shell := ["powershell.exe", "-NoProfile", "-Command"]
+
+os_family := os()
+open_cmd := if os_family == "macos" { \
+    "open" \
+} else if os_family == "windows" { \
+    "explorer.exe" \
+} else { \
+    "xdg-open" \
+}
+
+# crate names
+project := "vantablock"
+client  := "vantablock-client"
+server  := "vantablock-server"
+runner  := "vantablock-runner"
+
+# lists all available recipes, in file order so niche groups stay at the bottom
+[private]
+default:
+    @just --list --unsorted
+
+# INFO: ------------------------
+#         core execution
+# ------------------------------
+
+# runs the client via debug profile
+[group("core")]
+client *args:
+    cargo run -p {{runner}} --bin vantablock {{args}}
+
+# runs the server via debug profile
+[group("core")]
+server *args:
+    cargo run -p {{runner}} --bin vantablock-server --no-default-features --features server {{args}}
+
+# runs the client via max-optimization release profile
+[group("core")]
+release *args:
+    cargo run -p {{runner}} --bin vantablock --profile distribution --features distribution {{args}}
+
+# runs the client with the bevy remote protocol (BRP) enabled for agent/tool control
+[group("core")]
+brp *args:
+    cargo run -p {{runner}} --bin vantablock --features brp {{args}}
+
+# builds the BRP-enabled client so the bevy_brp_mcp server can launch it
+[group("core")]
+brp-build *args:
+    cargo build -p {{runner}} --bin vantablock --features brp {{args}}
+
+alias run := client
+alias run-fast := release
+
+# INFO: -------------------------------
+#         development & linting
+# -------------------------------------
+
+# runs cargo check across the workspace
+[group("development")]
+check *args:
+    cargo check --all-targets {{args}}
+
+# runs clippy across the workspace
+[group("development")]
+clippy *args:
+    cargo clippy {{args}}
+
+# fix compiler-fixable issues
+[group("development")]
+fix *args:
+    cargo fix --all-targets --allow-dirty {{args}}
+
+# runs nix fmt (rust, nix, wgsl/wesl, and prettier formatters)
+[group("development")]
+fmt:
+    nix fmt
+
+# cleans build artifacts and local dev data
+[group("development")]
+clean:
+    rm -rf target/
+    rm -rf vantadev/
+
+alias lint := check
+alias clip := clippy
+
+# INFO: ------------------------------
+#         testing & validation
+# ------------------------------------
+
+# runs all workspace tests
+[group("testing")]
+test *args:
+    cargo nextest run {{args}}
+
+# compiles benchmarks as tests to check for runtime errors
+[group("testing")]
+test-bench:
+    cargo check --benches
+    cargo test --benches
+
+# runs client benchmarks and opens html report once finished
+[group("testing")]
+bench-client *args:
+    cargo bench -p {{client}} {{args}}
+    @echo "Opening Criterion report..."
+    -{{ open_cmd }} target/criterion/report/index.html
+
+# runs server benchmarks and opens html report once finished
+[group("testing")]
+bench-server *args:
+    cargo bench -p {{server}} {{args}}
+    @echo "Opening Criterion report..."
+    -{{ open_cmd }} target/criterion/report/index.html
+
+# full pre-push verification suite
+[group("testing")]
+ready *args:
+    cargo check --benches
+    cargo clippy -- -D warnings
+    cargo test {{args}}
+
+# INFO: ------------------------
+#         build & assets
+# ------------------------------
+
+# packages the client for distribution
+[group("build")]
+package profile="distribution":
+    cargo build -p {{runner}} --bin vantablock --profile {{profile}} --features distribution
+    cargo packager -p {{runner}} --bin vantablock --profile {{ if profile == "dev" { "debug" } else { profile } }}
+
+# packages the server for distribution
+[group("build")]
+server-package profile="distribution":
+    cargo build -p {{runner}} --bin vantablock-server --no-default-features --features server --profile {{profile}}
+
+# runs the texture processor utility
+[group("build")]
+texture:
+    cargo run -p {{client}} --bin texture_processor
+
+# strips macOS quarantine attributes from the app bundle
+[group("build")]
+sign:
+    xattr -cr /Applications/Vantablock.app
+
+# INFO: -----------------------------
+#         profiling & tracing
+# -----------------------------------
+
+# shows the ASM associated with a rust file (requires cargo-show-asm)
+[group("profiling")]
+asm path:
+    cargo asm -p {{runner}} --bin vantablock --color {{path}}
+
+# launches tracy if it isn't already running, then runs the client with tracing
+[group("profiling")]
+trace *args:
+    #!/usr/bin/env bash
+    if pgrep -x "tracy" > /dev/null; then
+        echo -e "\033[1;32mTracy profiler is already running.\033[0m"
+    else
+        echo -e "\033[1;36mStarting Tracy profiler...\033[0m"
+        TRACY_ENABLE_MEMORY=1
+        tracy &
+    fi
+    cargo run -p {{runner}} --bin vantablock --features tracy {{args}}
+
+# runs the client with Bevy-specific debug features
+[group("profiling")]
+debug_bevy *args:
+    cargo run -p {{runner}} --bin vantablock --features bevy/trace,bevy/track_location,bevy/debug {{args}}
+
+# runs the client with verbose wgpu logging
+[group("profiling")]
+debug_wgpu *args:
+    RUST_LOG=wgpu=trace cargo run -p {{runner}} --bin vantablock {{args}}
+
+# targeted tracing, call without args to list targets found in source
+[group("profiling")]
+debug *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    set -- {{args}}
+    if [ "$#" -eq 0 ]; then
+        echo -e "\033[1;33mNo debug targets specified. Available targets are:\033[0m"
+        rg --no-heading -o --replace '$f:$1' 'target\s*:\s*"([^"]+)"' crates/ \
+            | awk -F: '{print $NF}' | sort | uniq -c | sort -rn \
+            | while read -r count target; do
+                printf '  - \033[1;35m%s\033[0m (%sx)\n' "$target" "$count"
+            done
+        exit 0
+    fi
+
+    log_targets=""
+    for target in "$@"; do
+        log_targets="$log_targets$target=trace,"
+    done
+    export RUST_LOG="${log_targets%,},{{project}}=info"
+    echo -e "\033[1;32mRunning with RUST_LOG=\033[0m$RUST_LOG"
+    cargo run -p {{runner}} --bin vantablock
+
+# INFO: ---------------------------------
+#         advanced/niche commands
+# ---------------------------------------
+
+# target wsl -> windows builds to happen in the windows temp dir
+windows_temp := if os_family == "windows" { "" \
+} else { \
+    `if [ -d /mnt/c ]; then cd /mnt/c && cmd.exe /c "echo %TEMP%" 2>/dev/null | tr -d '\r\n'; fi` \
+}
+windows_wsl_target_dir := windows_temp + "\\vantablock-target"
+
+# requires cargo, just, and VS build tools on Windows host:
+# - winget install just
+# - winget install rustup
+# - winget install --id Microsoft.VisualStudio.2022.BuildTools --override "--passive --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+
+# compiles and runs the client natively on Windows from within WSL
+[group("advanced")]
+wsl *args:
+    @echo "Compiling Windows target ({{windows_wsl_target_dir}})"
+    @WSL_PATH=$(wslpath -w .)
+    @powershell.exe -Command "if (!(Test-Path '{{windows_wsl_target_dir}}')) { New-Item -ItemType Directory -Force -Path '{{windows_wsl_target_dir}}' }; cd '$WSL_PATH'; \$env:CARGO_TARGET_DIR='{{windows_wsl_target_dir}}'; just {{args}}"

@@ -29,7 +29,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       - name: Run release-plz
         id: release-plz-step
-        uses: release-plz/action@354a50e4d5b33f60f1180798105961513080d1f4 # 4/9/2026
+        uses: release-plz/action@8921286633dfa0c4020f7f30bd1c14fe19cbb10e # v0.5.142 (release-plz 0.3.172)
         with:
           command: release
         env:
@@ -49,7 +49,7 @@ jobs:
       - *checkout
       - *install-rust
       - name: Run release-plz
-        uses: release-plz/action@354a50e4d5b33f60f1180798105961513080d1f4 # 4/9/2026
+        uses: release-plz/action@8921286633dfa0c4020f7f30bd1c14fe19cbb10e # v0.5.142 (release-plz 0.3.172)
         with:
           command: release-pr
         env:
@@ -60,7 +60,7 @@ jobs:
     needs: [release-plz-release]
     permissions:
       contents: write
-    if: ${{ contains(needs.release-plz-release.outputs.releases, '"package_name":"vantablock-client"') }}
+    if: ${{ contains(needs.release-plz-release.outputs.releases, '"package_name":"vantablock-runner"') }}
     strategy:
       fail-fast: false
       matrix:
@@ -87,46 +87,62 @@ jobs:
         with:
           tool: cargo-packager
 
-      - name: Build and Package
+      - name: Build and Package Game
         run: |
-          cargo build -p client --profile distribution --features distribution
-          cargo packager -p client --profile distribution
+          cargo build -p vantablock-runner --bin vantablock --profile distribution --features distribution
+          cargo packager -p vantablock-runner --profile distribution
 
-      - name: Extract Client Release Tag
-        id: client_tag
+      - name: Build and Package Server
         shell: bash
         run: |
-          # extract tag from package_name='client' to append release assets to
-          TAG=$(echo '${{ needs.release-plz-release.outputs.releases }}' | jq -r '.[] | select(.package_name == "vantablock-client") | .tag')
+          cargo build -p vantablock-runner --bin vantablock-server --no-default-features --features server --profile distribution
+
+          # the dedicated server loads its assets from an assets folder next to the executable
+          ARCH=$(uname -m)
+          mkdir -p target/distribution/server/assets
+          cp -r assets/shared assets/server target/distribution/server/assets/
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            cp target/distribution/vantablock-server.exe target/distribution/server/VantablockServer.exe
+            cd target/distribution/server
+            7z a "../VantablockServer-windows-${ARCH}.zip" VantablockServer.exe assets
+          else
+            cp target/distribution/vantablock-server target/distribution/server/VantablockServer
+            cd target/distribution/server
+            tar -czf "../VantablockServer-${{ matrix.os == 'macos-latest' && 'macos' || 'linux' }}-${ARCH}.tar.gz" VantablockServer assets
+          fi
+
+      - name: Extract Release Tag
+        id: release_tag
+        shell: bash
+        run: |
+          TAG=$(echo '${{ needs.release-plz-release.outputs.releases }}' | jq -r '.[] | select(.package_name == "vantablock-runner") | .tag')
           if [ -z "$TAG" ] || [ "$TAG" == "null" ]; then
-            echo "Error: Could not find tag for client package."
+            echo "Error: Could not find tag for runner package."
             exit 1
           fi
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-      - name: Rename client assets to Vantablock
+      - name: Remove standalone binaries
         shell: bash
         run: |
-          cd target/distribution/ || exit 0
-
-          # loop through all files starting with "client" and change to "Vantablock"
-          for file in client*; do
-            if [[ -f "$file" ]]; then
-              mv "$file" "${file/client/Vantablock}"
-            fi
-          done
+          # only installers and server archives are released; the raw executables can't run
+          # without their assets. Windows globs are case-insensitive, so these would otherwise
+          # match the Vantablock*.exe installer pattern
+          cd target/distribution/
+          rm -f vantablock vantablock.exe vantablock-server vantablock-server.exe
 
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.client_tag.outputs.tag }}
+          tag_name: ${{ steps.release_tag.outputs.tag }}
           files: |
-            target/distribution/Vantablock*.dmg
-            target/distribution/Vantablock*.exe
-            target/distribution/Vantablock*.AppImage
-            target/distribution/Vantablock*.tar.gz
-            target/distribution/Vantablock*.pkg
-            target/distribution/Vantablock*.deb
+            target/distribution/Vantablock_*.dmg
+            target/distribution/Vantablock_*.msi
+            target/distribution/Vantablock_*-setup.exe
+            target/distribution/Vantablock_*.deb
+            target/distribution/Vantablock_*.AppImage
+            target/distribution/VantablockServer*.tar.gz
+            target/distribution/VantablockServer*.zip
           fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

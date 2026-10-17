@@ -16,13 +16,13 @@ fn calculate_sky_color(
 		/// environment parameters
     env: EnvironmentUniform
 ) -> vec3<f32> {
-		// convert to [0.0, 1.0] range
+    // convert to [0.0, 1.0] range
     let vertical_gradient = (dir.y + 1.0) * 0.5;
 
-		// apply gradient curve
+    // apply gradient curve
     let eased_gradient = pow(vertical_gradient, 0.90);
 
-		// interpolate
+    // interpolate
     let sky_color = mix(env.horizon_color, env.zenith_color, eased_gradient);
     return sky_color;
 }

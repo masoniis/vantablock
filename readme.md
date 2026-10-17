@@ -22,9 +22,9 @@
 
 Activate the [project's flake](./flake.nix) to set up the environment and all dependencies. For `direnv` users, the `.envrc` is set up to use the flake by default.
 
-Then simply use any scripts from the `justfile`:
+Then simply use any scripts from the `.justfile` (run `just` to list them all):
 
-1. `just` to compile and run the debug binary (slow)
+1. `just run` to compile and run the debug binary (slow)
 2. `just run-fast` to compile and run the release binary (fast)
 
 </details>
@@ -49,7 +49,7 @@ Assuming rust is properly setup, `cargo` can be used like any standard Rust proj
 ### Common problems
 
 1. Mouse can be unlocked with `Escape`
-2. Shadows have very low render distance of 32 voxels and also have other noticable issues.
+2. Shadows have very low render distance of 32 blocks and also have other noticable issues.
 
 ### Keybinds
 
@@ -61,8 +61,8 @@ Assuming rust is properly setup, `cargo` can be used like any standard Rust proj
 | `A`           | Move left                                                                            |
 | `D`           | Move right                                                                           |
 | `Left Shift`  | Move faster                                                                          |
-| `Mouse Left`  | Break voxel                                                                          |
-| `Mouse right` | Place voxel                                                                          |
+| `Mouse Left`  | Break block                                                                          |
+| `Mouse right` | Place block                                                                          |
 | `T`           | Switch terrain generator (only applies to new chunks that generate e.g. from moving) |
 | `F1` or `1`   | Toggle diagnostics UI (FPS, vert count, coordinates)                                 |
 | `F2` or `2`   | Toggle opaque wireframe mode                                                         |
@@ -75,11 +75,11 @@ Assuming rust is properly setup, `cargo` can be used like any standard Rust proj
 
 1. "Vertex pulling." Each group of 6 vertices that make up a face share a single 32 bit float in a GPU buffer.
 2. Global illumination via the "Sun" with directional lighting, and a shadow pass that adds (somewhat scuffed) shadows
-3. Approximate ambient occlusion based on nearby voxels to a vertex.
+3. Approximate ambient occlusion based on nearby blocks to a vertex.
 4. Full transparency support via a separate render pass.
 5. Custom UI implementation (with `taffy` for computing flexbox layouts and `glyphon` for text heavylifting)
 6. Custom fog and sky shaders that define the sky and horizon blending with sun/moon.
-7. Convenient texture and voxel definition loading enabling swapping voxel textures easily in the `assets/shared/block` folder.
+7. Convenient texture and block definition loading enabling swapping block textures easily in the `assets/shared/block` folder.
 8. Water vertices "wave" up and down if you look at them closer
 
 </details>

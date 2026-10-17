@@ -1,11 +1,26 @@
-use super::{OpaqueMeshData, TransparentMeshData};
-use crate::prelude::*;
-use crate::render::chunk::meshing::packed_face::PackedFace;
-use shared::simulation::{
-    block::{BlockId, BlockRegistry, texture_registry::TextureId},
-    chunk::{NeighborLODs, PaddedChunk, types::ChunkLod},
+use super::{OpaqueMeshData, PackedFace, TransparentMeshData};
+use crate::{prelude::*, render::texture::TextureId};
+use shared::world::{
+    block::{BlockId, BlockRegistry},
+    chunk::{CHUNK_SIDE_LENGTH, NeighborLODs, PaddedChunk, types::ChunkLod},
 };
+use std::cell::RefCell;
 use std::sync::Arc;
+
+// INFO: -----------------------------
+//         thread buffer pooll
+// -----------------------------------
+
+/// The maximum number of faces a solid chunk hull can have.
+const INITIAL_FACE_CAPACITY: usize = CHUNK_SIDE_LENGTH * CHUNK_SIDE_LENGTH * 6;
+
+thread_local! {
+    /// Thread-local buffer for opaque faces to avoid allocations in the meshing loop.
+    pub static OPAQUE_FACE_BUFFER: RefCell<Vec<PackedFace>> = RefCell::new(Vec::with_capacity(INITIAL_FACE_CAPACITY));
+
+    /// Thread-local buffer for transparent faces to avoid allocations in the meshing loop.
+    pub static TRANSPARENT_FACE_BUFFER: RefCell<Vec<PackedFace>> = RefCell::new(Vec::with_capacity(INITIAL_FACE_CAPACITY / 4));
+}
 
 // INFO: -----------------------
 //         lookup tables
@@ -103,7 +118,7 @@ impl From<u8> for AoLevel {
     }
 }
 
-/// Represents the 6 cardinal directions (normals) for a voxel face.
+/// Represents the 6 cardinal directions (normals) for a block face.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FaceSide {
@@ -236,13 +251,13 @@ pub fn calculate_ao_levels_for_face(
 #[instrument(skip_all)]
 pub fn build_mesh_assets(
     name: &str,
-    opaque_faces: Vec<PackedFace>,
-    transparent_faces: Vec<PackedFace>,
+    opaque_faces: &[PackedFace],
+    transparent_faces: &[PackedFace],
 ) -> (Option<OpaqueMeshData>, Option<TransparentMeshData>) {
     let opaque = if !opaque_faces.is_empty() {
         Some(OpaqueMeshData {
             name: name.to_string(),
-            faces: Arc::new(opaque_faces),
+            faces: Arc::from(opaque_faces),
         })
     } else {
         None
@@ -250,7 +265,7 @@ pub fn build_mesh_assets(
     let trans = if !transparent_faces.is_empty() {
         Some(TransparentMeshData {
             name: format!("{}_trans", name),
-            faces: Arc::new(transparent_faces),
+            faces: Arc::from(transparent_faces),
         })
     } else {
         None
@@ -258,6 +273,10 @@ pub fn build_mesh_assets(
     (opaque, trans)
 }
 
+/// Shared context for chunk meshing algorithms.
+///
+/// Contains references to registries and chunk data needed to calculate
+/// face geometry, ambient occlusion, and texture mapping.
 pub struct MesherContext<'a, R> {
     pub padded_chunk: &'a PaddedChunk,
     pub block_registry: &'a BlockRegistry,
