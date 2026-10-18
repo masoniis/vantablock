@@ -32,6 +32,7 @@ const CONFORMANCE: &str = include_wesl!("voxel_conformance");
 const PRIMARY_VISIBILITY_MULTI_SLAB: &str = include_wesl!("primary_visibility_multi_slab");
 const DIRECT_LIGHTING_MULTI_SLAB: &str = include_wesl!("direct_lighting_multi_slab");
 const CONFORMANCE_MULTI_SLAB: &str = include_wesl!("voxel_conformance_multi_slab");
+const CONFORMANCE_STACKLESS: &str = include_wesl!("voxel_conformance_stackless");
 
 // INFO: -----------------------------
 //         shader validation
@@ -49,6 +50,7 @@ fn shaders_validate() {
         ),
         ("direct_lighting_multi_slab", DIRECT_LIGHTING_MULTI_SLAB),
         ("voxel_conformance_multi_slab", CONFORMANCE_MULTI_SLAB),
+        ("voxel_conformance_stackless", CONFORMANCE_STACKLESS),
     ] {
         let module = naga::front::wgsl::parse_str(source)
             .unwrap_or_else(|e| panic!("{name} failed to parse:\n{}", e.emit_to_string(source)));
@@ -65,12 +67,33 @@ fn shaders_validate() {
 //         gpu harness
 // ---------------------------
 
+/// Which build of the conformance kernels to run.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Variant {
+    /// The production single-slab kernels.
+    Default,
+    /// For geometry spread over several slabs.
+    MultiSlab,
+    /// The stackless 64-tree traversal-state experiment (single slab).
+    Stackless,
+}
+
+impl Variant {
+    /// The production variant for geometry in `slabs` topology slabs.
+    fn for_slabs(slabs: usize) -> Self {
+        if slabs > 1 {
+            Self::MultiSlab
+        } else {
+            Self::Default
+        }
+    }
+}
+
 struct Gpu {
     device: wgpu::Device,
     queue: wgpu::Queue,
-    module: wgpu::ShaderModule,
-    /// The conformance kernels compiled for geometry spread over several slabs.
-    multi_slab_module: wgpu::ShaderModule,
+    /// Conformance kernels, indexed by [`Variant`].
+    modules: [wgpu::ShaderModule; 3],
 }
 
 /// Bindings for one bind group: `(group, [(binding, resource)])`.
@@ -94,19 +117,21 @@ fn gpu() -> Option<Gpu> {
         ..Default::default()
     }))
     .expect("device");
-    let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some("voxel_conformance"),
-        source: wgpu::ShaderSource::Wgsl(CONFORMANCE.into()),
-    });
-    let multi_slab_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some("voxel_conformance_multi_slab"),
-        source: wgpu::ShaderSource::Wgsl(CONFORMANCE_MULTI_SLAB.into()),
+    let modules = [
+        ("voxel_conformance", CONFORMANCE),
+        ("voxel_conformance_multi_slab", CONFORMANCE_MULTI_SLAB),
+        ("voxel_conformance_stackless", CONFORMANCE_STACKLESS),
+    ]
+    .map(|(label, source)| {
+        device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some(label),
+            source: wgpu::ShaderSource::Wgsl(source.into()),
+        })
     });
     Some(Gpu {
         device,
         queue,
-        module,
-        multi_slab_module,
+        modules,
     })
 }
 
@@ -147,14 +172,14 @@ impl Gpu {
         groups: &[Group<'_>],
         output: &wgpu::Buffer,
     ) -> Vec<R> {
-        self.run_variant(entry, false, count, groups, output)
+        self.run_variant(entry, Variant::Default, count, groups, output)
     }
 
-    /// [`run`](Self::run) with the single- or multi-slab shader variant.
+    /// [`run`](Self::run) with a chosen build of the kernels.
     fn run_variant<R: Pod>(
         &self,
         entry: &str,
-        multi_slab: bool,
+        variant: Variant,
         count: u32,
         groups: &[Group<'_>],
         output: &wgpu::Buffer,
@@ -164,11 +189,7 @@ impl Gpu {
             .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
                 label: Some(entry),
                 layout: None,
-                module: if multi_slab {
-                    &self.multi_slab_module
-                } else {
-                    &self.module
-                },
+                module: &self.modules[variant as usize],
                 entry_point: Some(entry),
                 compilation_options: Default::default(),
                 cache: None,
@@ -442,7 +463,8 @@ fn check_gpu_traversal(
     root: &VoxelRoot,
     rays: &[Ray],
     limits: &ResidencyLimits,
-) {
+    stackless: bool,
+) -> Vec<RayResult> {
     // pack exactly as the client does
     let plan = plan_slabs(
         "topology",
@@ -475,9 +497,14 @@ fn check_gpu_traversal(
     let ray_buffer = gpu.storage(&cases);
     let params_buffer = gpu.uniform(&params);
     let output = gpu.output(cases.len() as u64 * 16);
+    let variant = if stackless {
+        Variant::Stackless
+    } else {
+        Variant::for_slabs(slabs.len())
+    };
     let results: Vec<RayResult> = gpu.run_variant(
         "rays",
-        slabs.len() > 1,
+        variant,
         cases.len() as u32,
         &[
             (0, {
@@ -522,7 +549,7 @@ fn check_gpu_traversal(
         identical += (cpu == gpu_hit.map(|h| h.1)) as usize;
     }
     eprintln!(
-        "  {:?}, single page {}, {} slab(s): {} rays pass, {} pick the same cell as the CPU traversal",
+        "  {:?} ({variant:?}), single page {}, {} slab(s): {} rays pass, {} pick the same cell as the CPU traversal",
         root.kind(),
         root.single_page(),
         plan.slab_count(),
@@ -535,6 +562,7 @@ fn check_gpu_traversal(
         failures.len(),
         failures[0]
     );
+    results
 }
 
 #[test]
@@ -554,7 +582,25 @@ fn gpu_hierarchy_traversal_matches_reference() {
             let mut arenas = GeometryArenas::with_page_words(page_words);
             let root = arenas.bake(&module, kind).unwrap();
             assert_eq!(root.single_page(), page_words != 256);
-            check_gpu_traversal(&gpu, &module, &arenas, &root, &rays, &unlimited);
+            let stack =
+                check_gpu_traversal(&gpu, &module, &arenas, &root, &rays, &unlimited, false);
+
+            if kind == HierarchyKind::Tree64 {
+                // the stackless traversal-state experiment must be bit-identical, not merely
+                // acceptable, since it only changes where parent state comes from
+                let stackless =
+                    check_gpu_traversal(&gpu, &module, &arenas, &root, &rays, &unlimited, true);
+                let same = stack
+                    .iter()
+                    .zip(&stackless)
+                    .filter(|(a, b)| bytemuck::bytes_of(*a) == bytemuck::bytes_of(*b))
+                    .count();
+                assert_eq!(
+                    same,
+                    rays.len(),
+                    "stackless results differ from the stack's"
+                );
+            }
 
             if page_words == 256 {
                 // and spread across slabs: every node fetch crosses the slab switch, and child
@@ -564,7 +610,7 @@ fn gpu_hierarchy_traversal_matches_reference() {
                     max_storage_buffer_binding_size: (bytes / 3).max(256 * 4),
                     max_buffer_size: 1 << 30,
                 };
-                check_gpu_traversal(&gpu, &module, &arenas, &root, &rays, &limits);
+                check_gpu_traversal(&gpu, &module, &arenas, &root, &rays, &limits, false);
             }
         }
     }
@@ -739,7 +785,7 @@ fn gpu_scene_traversal_matches_cpu() {
 
             let results: Vec<RayResult> = gpu.run_variant(
                 "scene_rays",
-                topology.len() > 1,
+                Variant::for_slabs(topology.len()),
                 cases.len() as u32,
                 &[
                     (0, {
@@ -968,7 +1014,11 @@ fn gpu_scene_throughput() {
                 per_ray(totals.group_candidates),
             );
 
-            for hierarchy in HierarchyKind::ALL {
+            for (hierarchy, variant) in [
+                (HierarchyKind::Tree64, Variant::Default),
+                (HierarchyKind::Tree64, Variant::Stackless),
+                (HierarchyKind::Octree, Variant::Default),
+            ] {
                 let scene = GpuSceneData::pack(&snapshot, &library, &geometry, hierarchy);
                 let uniform = gpu.uniform(&scene.uniform);
                 let bvh = gpu.storage(&scene.bvh);
@@ -1000,17 +1050,19 @@ fn gpu_scene_throughput() {
                         ],
                     ),
                 ];
+                let run = || -> Vec<RayResult> {
+                    gpu.run_variant("scene_rays", variant, cases.len() as u32, &groups, &output)
+                };
                 // warm up (pipeline creation, caches), then time
-                let _: Vec<RayResult> = gpu.run("scene_rays", cases.len() as u32, &groups, &output);
+                run();
                 let start = std::time::Instant::now();
                 let runs = 5;
                 for _ in 0..runs {
-                    let _: Vec<RayResult> =
-                        gpu.run("scene_rays", cases.len() as u32, &groups, &output);
+                    run();
                 }
                 let ms = start.elapsed().as_secs_f64() * 1000.0 / runs as f64;
                 eprintln!(
-                    "      {hierarchy:?}: {width}x{height} primary rays in {ms:.1} ms ({:.1} Mrays/s, includes readback)",
+                    "      {hierarchy:?} ({variant:?}): {width}x{height} primary rays in {ms:.1} ms ({:.1} Mrays/s, includes readback)",
                     cases.len() as f64 / ms / 1000.0
                 );
             }
@@ -1074,7 +1126,6 @@ fn gpu_multi_slab_cost() {
     let output = gpu.output(cases.len() as u64 * 16);
 
     for (name, geometry) in [("single slab", &single), ("multi slab", &multi)] {
-        let multi_slab = geometry.topology.len() > 1;
         eprintln!(
             "  {name}: {} topology slab(s), {} attribute slab(s)",
             geometry.topology.len(),
@@ -1126,7 +1177,7 @@ fn gpu_multi_slab_cost() {
             let run = || -> Vec<RayResult> {
                 gpu.run_variant(
                     "scene_rays",
-                    multi_slab,
+                    Variant::for_slabs(geometry.topology.len()),
                     cases.len() as u32,
                     &groups,
                     &output,

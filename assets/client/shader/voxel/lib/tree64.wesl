@@ -29,12 +29,54 @@ fn cell_of(k: u32) -> vec3<i32> {
     return vec3<i32>(i32(k & 3u), i32((k >> 2u) & 3u), i32(k >> 4u));
 }
 
+// Parent-level state kept while descending. The default keeps each parent's mask and child block
+// handle in a short private stack. The `stackless` variant keeps nothing and re-walks the packed
+// path from the root on every pop, trading a few (cached) node fetches for registers; both
+// produce bit-identical results. See gpu_scene_throughput for how they compare.
+@ if(!stackless)
+struct ParentStack {
+    mask: array<vec2<u32>, MAX_LEVELS>,
+    child_ref: array<u32, MAX_LEVELS>,
+};
+
+@ if(stackless)
+struct ParentStack {
+    unused: u32,
+};
+
+@ if(!stackless)
+fn push_parent(stack: ptr<function, ParentStack>, depth: u32, mask: vec2<u32>, child_ref: u32) {
+    (*stack).mask[depth] = mask;
+    (*stack).child_ref[depth] = child_ref;
+}
+
+@ if(stackless)
+fn push_parent(stack: ptr<function, ParentStack>, depth: u32, mask: vec2<u32>, child_ref: u32) {}
+
+// The header of the node at `depth` on the current path: (mask.x, mask.y, child_ref).
+@ if(!stackless)
+fn parent_node(stack: ptr<function, ParentStack>, root: VoxelRoot, path: u32, depth: u32) -> vec3<u32> {
+    return vec3<u32>((*stack).mask[depth], (*stack).child_ref[depth]);
+}
+
+@ if(stackless)
+fn parent_node(stack: ptr<function, ParentStack>, root: VoxelRoot, path: u32, depth: u32) -> vec3<u32> {
+    var address = node_address(root, root.node);
+    var node = vec3<u32>(topology_load(address), topology_load(address + 1u), topology_load(address + 2u));
+    for (var level = 0u; level < depth; level++) {
+        let k = (path >> (6u * level)) & 63u;
+        address = node_address(root, node.z + child_word_offset(node.xy, k));
+        node = vec3<u32>(topology_load(address), topology_load(address + 1u), topology_load(address + 2u));
+    }
+    return node;
+}
+
 // Traces a ray in module voxel space. `d` must already be sanitized.
 //
-// The current level lives in registers. Each parent level keeps only its mask and child block
-// handle on the stack; the cell taken at every level is packed six bits per level into `path`,
-// and a parent's origin and boundary distances are recomputed on pop with the same formulas that
-// produced them, so the results are bit-identical to keeping them.
+// The current level lives in registers. The cell taken at every level is packed six bits per
+// level into `path`, a parent's header comes back from `parent_node`, and its origin and boundary
+// distances are recomputed on pop with the same formulas that produced them, so the results are
+// bit-identical to keeping them.
 fn trace_tree64(root: VoxelRoot, o: vec3<f32>, d: vec3<f32>, t_min: f32, t_max: f32) -> VoxelHit {
     var result: VoxelHit;
     result.hit = false;
@@ -61,8 +103,7 @@ fn trace_tree64(root: VoxelRoot, o: vec3<f32>, d: vec3<f32>, t_min: f32, t_max: 
     let far = (step + vec3<i32>(1)) / 2;
     let last_level = root.levels - 1u;
 
-    var stack_mask: array<vec2<u32>, 5>;
-    var stack_ref: array<u32, 5>;
+    var parents: ParentStack;
     var path = 0u;
     var depth = 0u;
     var size = extent / 4;
@@ -86,8 +127,9 @@ fn trace_tree64(root: VoxelRoot, o: vec3<f32>, d: vec3<f32>, t_min: f32, t_max: 
             size *= 4;
             cell = cell_of((path >> (6u * depth)) & 63u);
             origin -= cell * size;
-            mask = stack_mask[depth];
-            child_ref = stack_ref[depth];
+            let parent = parent_node(&parents, root, path, depth);
+            mask = parent.xy;
+            child_ref = parent.z;
             t_next = next_boundary(origin, cell, size, far, o, inv);
             cell += step * nearest_axis(t_next);
             t_next = next_boundary(origin, cell, size, far, o, inv);
@@ -114,8 +156,7 @@ fn trace_tree64(root: VoxelRoot, o: vec3<f32>, d: vec3<f32>, t_min: f32, t_max: 
                 }
             } else {
                 let address = node_address(root, child_ref + child_word_offset(mask, k));
-                stack_mask[depth] = mask;
-                stack_ref[depth] = child_ref;
+                push_parent(&parents, depth, mask, child_ref);
                 path = (path & ~(63u << (6u * depth))) | (k << (6u * depth));
                 depth += 1u;
                 size /= 4;
