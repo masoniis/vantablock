@@ -83,8 +83,7 @@ cells, traversal steps, group candidates, scene nodes, depth), and CPU and GPU b
 
 Not yet built (each a planned comparison, not a decision):
 
-- The comparison hierarchies (8-way octree with bricks, sparse brick grid) and the packed-face
-  rasterizer baseline. The old rasterizer was removed with the chunk engine and is in git history.
+- The comparison hierarchies (8-way octree with bricks, sparse brick grid).
 - Multi-slab residency: an arena larger than one binding reports `ExceedsSingleBinding`.
 - LOD/footprint filtering (summaries are baked but unused), SGGX candidates, homogeneous media,
   transparent and refractive materials, temporal filtering, motion vectors, and GI.

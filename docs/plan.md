@@ -99,7 +99,7 @@ Unchanged world ray
 
 **Primary candidate:** A 64-way sparse hierarchy: each node addresses a `4 x 4 x 4` grid of cells. Five subdivisions cover a `1024 x 1024 x 1024` logical grid. This is a candidate, not an irreversible commitment.
 
-**Mandatory comparison baselines:** An 8-way sparse voxel octree with appropriate bricks and a brick-based sparse grid, both tested on thin branching foliage and dense crystalline geometry. Retain the previous packed-face rasterizer as a visual/performance baseline.
+**Mandatory comparison baselines:** An 8-way sparse voxel octree with appropriate bricks and a brick-based sparse grid, both tested on thin branching foliage and dense crystalline geometry.
 
 **16-byte topology node (WGSL storage layout; proposed legal bit ownership):**
 
@@ -319,7 +319,7 @@ Provisional preference: **template-shared conservative outer/group mini-BVH + se
 
 ### Phase 1: Renderer Feasibility & Memory Contracts (Weeks 1-4)
 
-**Deliverable:** Build `vanta_baker` for a demanding `512^3` detailed branching/crystal asset and implement these paths on the same scene: (1) existing packed-face rasterizer; (2) software BVH4 + 64-tree; (3) software BVH4 + one alternative hierarchy (8-way octree with bricks or sparse brick grid); (4) optional Vulkan hardware-assisted scene broad phase if supported.
+**Deliverable:** Build `vanta_baker` for a demanding `512^3` detailed branching/crystal asset and implement these paths on the same scene: (1) software BVH4 + 64-tree; (2) software BVH4 + one alternative hierarchy (8-way octree with bricks or sparse brick grid); (3) optional Vulkan hardware-assisted scene broad phase if supported.
 
 **Tests:** Close inspection and hundreds of overlapping, rotated instances; sparse branches and dense crystals; still and moving camera. Measure GPU frame passes, rays/sec, false-positive bounds, active VRAM, coherence, subpixel stability, and cross-backend behavior. Validate the actual 16-byte node packing, leaf tag/handle capacity, child-block page boundaries, and both single-slab and cross-slab binding schemes on Vulkan and Metal. Include a minimal **two-group articulated asset** with one shared voxel module under two differently rotating transforms; verify identical hits from flattened versus internal mini-BVH traversal. Add a **boundary torture test** that compares exact integer terminal cell/LOD region to a CPU/reference intersection, especially at brick edges and shared DAG occurrences. Prototype **one template-shared mini-BVH across hundreds of varied pose instances** and compare memory, candidate visits, and total GPU time to per-instance refitting and flattening.
 
