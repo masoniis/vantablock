@@ -7,7 +7,7 @@ use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use glam::{Affine3A, Quat, Vec3};
 use std::hint::black_box;
 use voxel::{
-    GeometryArenas, PoseDriver, Ray, Tree64Root,
+    GeometryArenas, HierarchyKind, PoseDriver, Ray, Tree64Root,
     hierarchy::tree64::trace,
     scene::{AssetTemplate, InstanceDesc, SceneAcceleration, SceneSnapshot},
 };
@@ -35,30 +35,28 @@ fn camera_rays(eye: Vec3, target: Vec3, size: u32) -> Vec<Ray> {
 }
 
 fn single_root(c: &mut Criterion) {
-    let mut group = c.benchmark_group("tree64");
-    for name in ["oak", "crystal_cluster"] {
+    let mut group = c.benchmark_group("local_hierarchy");
+    for name in ["oak", "crystal_cluster", "meadow_tile"] {
         let assembly = recipe(name);
-        let mut arenas = GeometryArenas::default();
-        let roots: Vec<Tree64Root> = assembly
-            .modules
-            .iter()
-            .map(|m| arenas.bake_tree64(m).unwrap().0)
-            .collect();
-        let root = roots[0];
-        let center = root.bounds.center();
-        let rays = camera_rays(
-            center + Vec3::new(0.0, 40.0, -root.bounds.extent().max_element()),
-            center,
-            128,
-        );
-        group.throughput(Throughput::Elements(rays.len() as u64));
-        group.bench_function(format!("{name}_primary_128x128"), |b| {
-            b.iter(|| {
-                rays.iter()
-                    .filter(|r| trace(&arenas, &root, r, 0.0, f32::MAX).is_some())
-                    .count()
-            })
-        });
+        for kind in HierarchyKind::ALL {
+            let mut arenas = GeometryArenas::default();
+            let root = arenas.bake(&assembly.modules[0], kind).unwrap();
+            let bounds = root.bounds();
+            let center = bounds.center();
+            let rays = camera_rays(
+                center + Vec3::new(0.0, 40.0, -bounds.extent().max_element()),
+                center,
+                128,
+            );
+            group.throughput(Throughput::Elements(rays.len() as u64));
+            group.bench_function(format!("{name}_{kind:?}_primary_128x128"), |b| {
+                b.iter(|| {
+                    rays.iter()
+                        .filter(|r| root.trace(&arenas, r, 0.0, f32::MAX).is_some())
+                        .count()
+                })
+            });
+        }
     }
     group.finish();
 }

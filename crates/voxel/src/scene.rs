@@ -16,7 +16,7 @@
 use crate::{
     assembly::{CanonicalAssembly, PoseGroupTemplate, group_to_root},
     bvh::Bvh4,
-    hierarchy::tree64::VoxelHit,
+    hierarchy::VoxelHit,
     math::{Aabb, Ray},
     pose::PoseState,
 };

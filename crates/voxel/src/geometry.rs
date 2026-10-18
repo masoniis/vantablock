@@ -3,7 +3,11 @@
 use crate::{
     arena::{ArenaError, Attributes, Handle, Topology, WordArena},
     handle::{ArenaHandle, MAX_PAGE_WORDS},
-    hierarchy::tree64::{self, BakeStats, Tree64Root},
+    hierarchy::{
+        self, BakeStats, HierarchyKind, VoxelRoot,
+        octree::{self, OctreeRoot},
+        tree64::{self, Tree64Root},
+    },
     lod::LodTable,
     module::VoxelModule,
 };
@@ -44,6 +48,23 @@ impl GeometryArenas {
         module: &VoxelModule,
     ) -> Result<(Tree64Root, BakeStats), ArenaError> {
         tree64::bake(self, module)
+    }
+
+    /// Bakes a module into an octree root inside these arenas.
+    pub fn bake_octree(
+        &mut self,
+        module: &VoxelModule,
+    ) -> Result<(OctreeRoot, BakeStats), ArenaError> {
+        octree::bake(self, module)
+    }
+
+    /// Bakes a module as either hierarchy.
+    pub fn bake(
+        &mut self,
+        module: &VoxelModule,
+        kind: HierarchyKind,
+    ) -> Result<VoxelRoot, ArenaError> {
+        hierarchy::bake(self, module, kind)
     }
 
     /// Frees the deduplication indices once no more bakes will happen.

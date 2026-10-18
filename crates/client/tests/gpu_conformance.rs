@@ -16,7 +16,7 @@ use bytemuck::{Pod, Zeroable};
 use client::render::gpu::layout::GpuGeometryMeta;
 use voxel::{
     ArenaHandle, GeometryArenas, GeometrySource, Mask64, Ray, Tree64Root, VoxelModule,
-    hierarchy::tree64::{ATTRIBUTE_MATERIAL_MASK, trace},
+    hierarchy::{ATTRIBUTE_MATERIAL_MASK, tree64::trace},
     reference::check_hit,
 };
 use wesl::include_wesl;

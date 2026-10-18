@@ -40,7 +40,9 @@ pub use assembly::{CanonicalAssembly, Material, Motion, PoseGroupTemplate};
 pub use bvh::{BVH_EMPTY, BVH_LEAF_BIT, Bvh4, Bvh4Node};
 pub use geometry::{GeometryArenas, GeometrySource};
 pub use handle::ArenaHandle;
-pub use hierarchy::tree64::{Tree64Root, VoxelHit};
+pub use hierarchy::{
+    HierarchyKind, HitFace, VoxelHit, VoxelRoot, octree::OctreeRoot, tree64::Tree64Root,
+};
 pub use mask::Mask64;
 pub use math::{Aabb, Ray};
 pub use module::{MaterialId, VoxelModule};

@@ -8,9 +8,13 @@
 //! boundary distances recomputed from integer cell coordinates (never accumulated), and it keeps
 //! one frame per level on a bounded stack. Entering a node picks the starting cell from those same
 //! plane distances rather than from a reconstructed position, so the DDA and the slab test can
-//! never disagree about which cells the ray passes through. The traversal mirrors
+//! never disagree about which cells the ray passes through (see [`super`]). The traversal mirrors
 //! `assets/client/shader/voxel/lib/tree64.wesl` line for line; keep them in sync.
 
+use super::{
+    ATTRIBUTE_MATERIAL_MASK, BakeStats, MAX_TRAVERSAL_STEPS, PageSpan, VoxelHit, entry_cell,
+    entry_face, nearest_axis, step_of,
+};
 use crate::{
     arena::ArenaError,
     geometry::{GeometryArenas, GeometrySource},
@@ -22,13 +26,6 @@ use crate::{
     node::{NODE_WORDS, Node64},
 };
 use glam::{IVec3, UVec3, Vec3};
-
-/// Traversal gives up (reporting a miss) after this many DDA steps, so a bad ray can never hang
-/// the GPU. Diagnostics count rays that hit the cap.
-pub const MAX_TRAVERSAL_STEPS: u32 = 4096;
-
-/// Attribute word layout: material in the low 16 bits, the rest reserved for per-voxel data.
-pub const ATTRIBUTE_MATERIAL_MASK: u32 = 0xFFFF;
 
 /// A baked, immutable 64-tree root.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -49,73 +46,9 @@ impl Tree64Root {
     }
 }
 
-/// The face a ray entered a voxel through, or `Inside` when it started inside the voxel.
-#[repr(u8)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum HitFace {
-    NegX = 0,
-    PosX = 1,
-    NegY = 2,
-    PosY = 3,
-    NegZ = 4,
-    PosZ = 5,
-    Inside = 6,
-}
-
-impl HitFace {
-    pub fn from_code(code: u32) -> Self {
-        match code {
-            0 => Self::NegX,
-            1 => Self::PosX,
-            2 => Self::NegY,
-            3 => Self::PosY,
-            4 => Self::NegZ,
-            5 => Self::PosZ,
-            _ => Self::Inside,
-        }
-    }
-
-    /// The outward normal of the face in voxel space.
-    pub fn normal(self) -> Vec3 {
-        match self {
-            Self::NegX => Vec3::NEG_X,
-            Self::PosX => Vec3::X,
-            Self::NegY => Vec3::NEG_Y,
-            Self::PosY => Vec3::Y,
-            Self::NegZ => Vec3::NEG_Z,
-            Self::PosZ => Vec3::Z,
-            Self::Inside => Vec3::ZERO,
-        }
-    }
-}
-
-/// An opaque voxel hit with exact integer identity.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct VoxelHit {
-    /// Distance along the traced ray (equal to world distance, see [`crate::math`]).
-    pub t: f32,
-    /// The hit voxel in module space, taken from traversal state rather than the hit position.
-    pub cell: UVec3,
-    /// The voxel's 6-bit index within its terminal node.
-    pub terminal_index: u32,
-    pub face: HitFace,
-    /// Logical handle of the hit voxel's attribute word.
-    pub attribute: ArenaHandle,
-    pub material: MaterialId,
-    /// DDA steps taken, for diagnostics.
-    pub steps: u32,
-}
-
 // INFO: --------------
 //         bake
 // --------------------
-
-#[derive(Clone, Copy, Debug, Default)]
-pub struct BakeStats {
-    pub nodes: u64,
-    pub terminal_nodes: u64,
-    pub voxels: u64,
-}
 
 /// Bakes `module` into `arenas`. See the [module docs](self).
 pub fn bake(
@@ -190,24 +123,6 @@ fn brick_key(coord: UVec3, levels: u32) -> u32 {
 
 fn key_digit(key: u32, depth: u32, levels: u32) -> u32 {
     (key >> (6 * (levels - 2 - depth))) & 63
-}
-
-#[derive(Default)]
-struct PageSpan {
-    min: Option<u32>,
-    max: u32,
-}
-
-impl PageSpan {
-    fn include(&mut self, handle: ArenaHandle) {
-        let page = handle.page();
-        self.min = Some(self.min.map_or(page, |m| m.min(page)));
-        self.max = self.max.max(page);
-    }
-
-    fn is_single(&self, page: u32) -> bool {
-        self.min == Some(page) && self.max == page
-    }
 }
 
 struct Builder<'a> {
@@ -470,11 +385,7 @@ pub fn trace_counted(
         return (None, 0);
     }
 
-    let step = IVec3::new(
-        if ray.dir.x < 0.0 { -1 } else { 1 },
-        if ray.dir.y < 0.0 { -1 } else { 1 },
-        if ray.dir.z < 0.0 { -1 } else { 1 },
-    );
+    let step = step_of(ray);
     // a cell's far boundary along each axis is at `cell + 1` when stepping up, `cell` when down
     let far = (step + IVec3::ONE) / 2;
 
@@ -482,7 +393,7 @@ pub fn trace_counted(
         ((origin + (cell + far) * size).as_vec3() - ray.origin) * ray.inv_dir
     };
     let enter = |node: Node64, origin: IVec3, size: i32, t: f32| -> Frame {
-        let cell = entry_cell(origin, size, ray, step, t);
+        let cell = entry_cell(origin, size, 4, ray, step, t);
         Frame {
             node,
             origin,
@@ -560,31 +471,6 @@ pub fn trace_counted(
     (None, steps)
 }
 
-/// The child cell of a node that the ray occupies at `t`.
-///
-/// Cells are chosen by counting the node's internal planes the ray has crossed by `t`, using the
-/// same `(plane - origin) * inv_dir` distances as the slab test. Reconstructing the entry point
-/// and flooring it instead breaks for rays within an ulp of a plane: the rounded position lands
-/// in the neighboring cell, and a ray running along that plane then misses everything beside it.
-fn entry_cell(origin: IVec3, size: i32, ray: &Ray, step: IVec3, t: f32) -> IVec3 {
-    let mut cell = IVec3::ZERO;
-    for axis in 0..3 {
-        let mut crossed = 0;
-        for j in 1..4 {
-            // planes in the order the ray meets them
-            let plane = if step[axis] > 0 { j } else { 4 - j };
-            let t_plane =
-                ((origin[axis] + plane * size) as f32 - ray.origin[axis]) * ray.inv_dir[axis];
-            if t_plane > t {
-                break;
-            }
-            crossed += 1;
-        }
-        cell[axis] = if step[axis] > 0 { crossed } else { 3 - crossed };
-    }
-    cell
-}
-
 /// Steps a frame into the next cell along the axis whose boundary is nearest (ties pick the
 /// lowest axis, matching the shader).
 fn advance(
@@ -593,39 +479,15 @@ fn advance(
     next_boundary: &impl Fn(IVec3, IVec3, i32) -> Vec3,
     size: i32,
 ) {
-    let t = frame.t_next;
-    let axis = if t.x <= t.y && t.x <= t.z {
-        0
-    } else if t.y <= t.z {
-        1
-    } else {
-        2
-    };
+    let axis = nearest_axis(frame.t_next);
     frame.cell[axis] += step[axis];
     frame.t_next = next_boundary(frame.origin, frame.cell, size);
-}
-
-fn entry_face(lo: IVec3, size: i32, ray: &Ray, step: IVec3, te: f32, t_start: f32) -> HitFace {
-    if te < t_start {
-        return HitFace::Inside;
-    }
-    let t0 = (lo.as_vec3() - ray.origin) * ray.inv_dir;
-    let t1 = ((lo + IVec3::splat(size)).as_vec3() - ray.origin) * ray.inv_dir;
-    let near = t0.min(t1);
-    let axis = if near.x >= near.y && near.x >= near.z {
-        0
-    } else if near.y >= near.z {
-        1
-    } else {
-        2
-    };
-    // stepping up enters through the min face, whose outward normal points down the axis
-    HitFace::from_code(2 * axis + (step[axis as usize] < 0) as u32)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::hierarchy::HitFace;
 
     fn module_with(levels: u8, voxels: &[(u32, u32, u32)]) -> VoxelModule {
         let mut m = VoxelModule::new(levels);

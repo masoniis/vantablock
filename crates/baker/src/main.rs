@@ -11,7 +11,7 @@ use std::{
     process::ExitCode,
     time::Instant,
 };
-use voxel::{GeometryArenas, format};
+use voxel::{CanonicalAssembly, GeometryArenas, HierarchyKind, format};
 
 fn main() -> ExitCode {
     let mut out_dir = PathBuf::from("target/vanta");
@@ -82,32 +82,57 @@ fn bake_one(path: &Path, out_dir: &Path, stats: bool) -> Result<(), Box<dyn std:
     );
 
     if stats {
-        let start = Instant::now();
-        let mut arenas = GeometryArenas::default();
-        for (i, module) in assembly.modules.iter().enumerate() {
-            let (root, s) = arenas.bake_tree64(module)?;
+        for kind in HierarchyKind::ALL {
+            print_hierarchy_stats(&assembly, kind)?;
+        }
+    }
+    Ok(())
+}
+
+fn print_hierarchy_stats(
+    assembly: &CanonicalAssembly,
+    kind: HierarchyKind,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let start = Instant::now();
+    let mut arenas = GeometryArenas::default();
+    let mut nodes = 0;
+    let mut terminal = 0;
+    for (i, module) in assembly.modules.iter().enumerate() {
+        let (extent, single_page, s) = match kind {
+            HierarchyKind::Tree64 => {
+                let (root, s) = arenas.bake_tree64(module)?;
+                (root.extent(), root.single_page, s)
+            }
+            HierarchyKind::Octree => {
+                let (root, s) = arenas.bake_octree(module)?;
+                (root.extent(), root.single_page, s)
+            }
+        };
+        nodes += s.nodes;
+        terminal += s.terminal_nodes;
+        if kind == HierarchyKind::Tree64 {
             println!(
-                "  module {i}: {}^3 grid, {} voxels, {} nodes ({} terminal), single page: {}",
-                root.extent(),
-                s.voxels,
-                s.nodes,
-                s.terminal_nodes,
-                root.single_page
+                "  module {i}: {}^3 grid, {} voxels, single page: {}",
+                extent, s.voxels, single_page
             );
         }
-        let (t, a) = (arenas.topology.stats(), arenas.attributes.stats());
-        println!(
-            "  64-tree: topology {:.1} KiB ({} blocks, {} shared), attributes {:.1} KiB ({} blocks, {} shared), {} LOD records, baked in {:.2?}",
-            t.words as f64 * 4.0 / 1024.0,
-            t.blocks,
-            t.dedup_hits,
-            a.words as f64 * 4.0 / 1024.0,
-            a.blocks,
-            a.dedup_hits,
-            arenas.lod.records().len(),
-            start.elapsed()
-        );
     }
+    let (t, a) = (arenas.topology.stats(), arenas.attributes.stats());
+    println!(
+        "  {kind:?}: {nodes} nodes ({terminal} {}), topology {:.1} KiB ({} blocks, {} shared), attributes {:.1} KiB ({} blocks, {} shared), {} LOD records, baked in {:.2?}",
+        match kind {
+            HierarchyKind::Tree64 => "terminal nodes",
+            HierarchyKind::Octree => "bricks",
+        },
+        t.words as f64 * 4.0 / 1024.0,
+        t.blocks,
+        t.dedup_hits,
+        a.words as f64 * 4.0 / 1024.0,
+        a.blocks,
+        a.dedup_hits,
+        arenas.lod.records().len(),
+        start.elapsed()
+    );
     Ok(())
 }
 
