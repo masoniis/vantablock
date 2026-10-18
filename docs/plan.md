@@ -327,6 +327,8 @@ Provisional preference: **template-shared conservative outer/group mini-BVH + se
 
 **Gate:** At least one hierarchical path produces convincing detail with acceptable performance and no missed geometry; a rotated pose group stays hittable, and visibility reconstructs **exact terminal-cell identity**, its world position, and motion correctly at boundaries and across deduplicated geometry. Template-shared mini-BVH traversal must be correct for all legal pose states; it is not required to win every benchmark. **Do not lock the 64-tree, internal BVH, visibility packing, paging layout, or TLAS simply because the proposal favors them.**
 
+**Outcome (October 2026):** The gate passed on Metal. The 64-tree, short private traversal stack, slab-address residency, and visibility packing were kept on measured evidence; flattened pose groups replaced the template mini-BVH as the runtime default. Results and decisions are recorded in `docs/architecture.md`; Vulkan validation and the hardware broad phase remain open for lack of a Vulkan adapter.
+
 ### Phase 2: Static Visual Masterpiece (Weeks 5-10)
 
 **Deliverable:** A visually complete, dense jungle-to-crystal-cavern scene with authored/procedural microstructure, material palettes, real close-up scale, baseline direct sun/sky lighting, atmosphere, anti-aliasing, and robust foliage filtering.

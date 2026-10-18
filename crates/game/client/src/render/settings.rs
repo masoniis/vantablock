@@ -50,10 +50,14 @@ impl DebugView {
 }
 
 /// How pose groups are organized for spatial search; all must render identically.
+///
+/// Flattened groups are the default because they measured fastest (or within a few percent) on
+/// both benchmark scenes; template mini-BVHs pay for loose sphere-swept motion envelopes. See the
+/// Phase 1 results in `docs/architecture.md`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
 pub enum AccelerationMode {
-    #[default]
     TemplateMiniBvh,
+    #[default]
     FlattenedGroups,
     InstanceRefit,
 }

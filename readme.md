@@ -58,8 +58,8 @@ Assets are baked from the procedural recipes in `assets/shared/vanta` on first l
 | `Left Shift`     | Move faster                                                  |
 | `Scroll`         | Zoom                                                         |
 | `F3`             | Debug menu (frame time, scene and geometry stats, GPU info)  |
-| `F2` or `V`      | Cycle debug views (normals, pose frames, voxel cells, costs) |
-| `F4` or `B`      | Toggle scene acceleration (template mini-BVH / flattened)    |
+| `F2` or `V`      | Cycle debug views (normals, identity, costs, depth, motion)  |
+| `F4` or `B`      | Cycle pose-group organization (flattened / refit / template) |
 | `F5`             | Cycle render scale                                           |
 | `F6` or `H`      | Toggle the local hierarchy (64-tree / octree)                |
 | `←` / `→`        | Rewind / advance the time of day                             |
