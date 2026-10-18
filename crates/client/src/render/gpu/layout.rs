@@ -4,10 +4,12 @@
 
 use bevy::math::Affine3A;
 use bytemuck::{Pod, Zeroable};
-use voxel::{handle::MAX_PAGES, scene::ResolvedPoseFrame};
+use voxel::{HierarchyKind, VoxelRoot, handle::MAX_PAGES, scene::ResolvedPoseFrame};
 
 /// `PoseFrame::flags`: every topology block of the frame's root lives in one page.
 pub const FRAME_SINGLE_PAGE: u32 = 1;
+/// `PoseFrame::flags`: the frame's root is an octree rather than a 64-tree.
+pub const FRAME_OCTREE: u32 = 2;
 /// `InstanceRecord::flags`: search this instance with its template mini-BVH.
 pub const INSTANCE_USES_TEMPLATE: u32 = 1;
 /// `InstanceRecord::mini_bvh_root` for single-root assets.
@@ -62,7 +64,7 @@ const _: () = assert!(std::mem::size_of::<GpuPoseFrame>() == 192);
 impl GpuPoseFrame {
     pub fn new(
         frame: &ResolvedPoseFrame,
-        root: &voxel::Tree64Root,
+        root: &VoxelRoot,
         root_page_base: u32,
         palette_base: u32,
     ) -> Self {
@@ -71,19 +73,29 @@ impl GpuPoseFrame {
             local_to_world: affine_rows(&frame.group_to_world),
             prev_local_to_world: affine_rows(&frame.prev_group_to_world),
             bounds_min: frame.world_bounds.min.to_array(),
-            root_node: root.node.raw(),
+            root_node: root.node().raw(),
             bounds_max: frame.world_bounds.max.to_array(),
             root_page_base,
-            levels: root.levels as u32,
-            flags: if root.single_page {
-                FRAME_SINGLE_PAGE
-            } else {
-                0
-            },
+            levels: root.levels() as u32,
+            flags: root_flags(root),
             palette_base,
             instance: frame.instance,
         }
     }
+}
+
+/// The `PoseFrame::flags` describing how to trace `root`.
+pub fn root_flags(root: &VoxelRoot) -> u32 {
+    let page = if root.single_page() {
+        FRAME_SINGLE_PAGE
+    } else {
+        0
+    };
+    let kind = match root.kind() {
+        HierarchyKind::Tree64 => 0,
+        HierarchyKind::Octree => FRAME_OCTREE,
+    };
+    page | kind
 }
 
 /// A world instance, the scene BVH leaf in template mini-BVH mode.

@@ -21,7 +21,7 @@ use shared::{
 };
 use std::{sync::Arc, time::Instant};
 use voxel::{
-    Bvh4Node, PoseDriver,
+    Bvh4Node, HierarchyKind, PoseDriver,
     scene::{AssetTemplate, InstanceDesc, SceneAcceleration, SceneSnapshot},
 };
 
@@ -36,11 +36,12 @@ pub struct GpuSceneData {
 }
 
 impl GpuSceneData {
-    /// Packs a snapshot for the GPU, addressing each frame's baked root in `geometry`.
+    /// Packs a snapshot for the GPU, addressing each frame's baked `hierarchy` root in `geometry`.
     pub fn pack(
         snapshot: &SceneSnapshot,
         library: &VantaAssetLibrary,
         geometry: &GpuGeometryLibrary,
+        hierarchy: HierarchyKind,
     ) -> Self {
         let frames = snapshot
             .frames
@@ -49,7 +50,7 @@ impl GpuSceneData {
                 let asset = &geometry.assets[frame.asset as usize];
                 let assembly = &library.assets()[frame.asset as usize].assembly;
                 let module = assembly.groups[frame.group as usize].module;
-                let root = &asset.module_roots[module as usize];
+                let root = asset.root(module, hierarchy);
                 GpuPoseFrame::new(
                     frame,
                     root,
@@ -179,7 +180,7 @@ fn build_scene_system(
     let snapshot =
         SceneSnapshot::build(&scene.templates, &instances, mode, scene.previous.as_ref());
 
-    let data = GpuSceneData::pack(&snapshot, &library, &geometry.0);
+    let data = GpuSceneData::pack(&snapshot, &library, &geometry.0, settings.hierarchy.into());
 
     scene.stats = SceneStats {
         objects: objects.iter().len(),

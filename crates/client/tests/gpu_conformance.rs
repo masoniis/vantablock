@@ -2,9 +2,11 @@
 //!
 //! - Every voxel shader must parse and validate with naga, no GPU needed.
 //! - On a real adapter, the WGSL mask prefix count must match the CPU bit-for-bit for every child
-//!   index of every test mask, and the WGSL 64-tree traversal must satisfy the same acceptance
-//!   rules as the CPU traversal (`voxel::reference`) on boundary torture rays, for both the
-//!   single-page fast path and the multi-page page-table path.
+//!   index of every test mask, and the WGSL traversal of both local hierarchies (64-tree and
+//!   octree) must satisfy the same acceptance rules as the CPU traversal (`voxel::reference`) on
+//!   boundary torture rays, for both the single-page fast path and the multi-page page-table path.
+//! - Whole-scene GPU traversal must find the CPU's nearest hits for every scene organization and
+//!   hierarchy.
 //!
 //! GPU checks skip (and say so) when no adapter is available, e.g. on headless CI runners.
 
@@ -13,11 +15,10 @@ use bevy::{
     tasks::block_on,
 };
 use bytemuck::{Pod, Zeroable};
-use client::render::gpu::layout::GpuGeometryMeta;
+use client::render::gpu::layout::{GpuGeometryMeta, root_flags};
 use voxel::{
-    ArenaHandle, GeometryArenas, GeometrySource, Mask64, Ray, Tree64Root, VoxelModule,
-    hierarchy::{ATTRIBUTE_MATERIAL_MASK, tree64::trace},
-    reference::check_hit,
+    ArenaHandle, GeometryArenas, GeometrySource, HierarchyKind, Mask64, Ray, VoxelModule,
+    VoxelRoot, hierarchy::ATTRIBUTE_MATERIAL_MASK, reference::check_hit,
 };
 use wesl::include_wesl;
 use wgpu::util::DeviceExt;
@@ -322,7 +323,7 @@ struct RootParams {
     node: u32,
     levels: u32,
     page_base: u32,
-    single_page: u32,
+    flags: u32,
 }
 
 /// Voxels clustered on both sides of every node boundary of a 1024^3 module, plus noise.
@@ -385,7 +386,7 @@ fn check_gpu_traversal(
     gpu: &Gpu,
     module: &VoxelModule,
     arenas: &GeometryArenas,
-    root: &Tree64Root,
+    root: &VoxelRoot,
     rays: &[Ray],
 ) {
     // pack exactly as the client does: every page back to back in one slab
@@ -401,10 +402,10 @@ fn check_gpu_traversal(
         })
         .collect();
     let params = RootParams {
-        node: root.node.raw(),
-        levels: root.levels as u32,
-        page_base: bases[root.node.page() as usize],
-        single_page: root.single_page as u32,
+        node: root.node().raw(),
+        levels: root.levels() as u32,
+        page_base: bases[root.node().page() as usize],
+        flags: root_flags(root),
     };
     let cases: Vec<RayCase> = rays
         .iter()
@@ -465,12 +466,13 @@ fn check_gpu_traversal(
                 ));
             }
         }
-        let cpu = trace(arenas, root, ray, 0.0, f32::MAX).map(|h| h.cell);
+        let cpu = root.trace(arenas, ray, 0.0, f32::MAX).map(|h| h.cell);
         identical += (cpu == gpu_hit.map(|h| h.1)) as usize;
     }
     eprintln!(
-        "  single page {}: {} rays pass, {} pick the same cell as the CPU traversal",
-        root.single_page,
+        "  {:?}, single page {}: {} rays pass, {} pick the same cell as the CPU traversal",
+        root.kind(),
+        root.single_page(),
         rays.len() - failures.len(),
         identical
     );
@@ -483,18 +485,20 @@ fn check_gpu_traversal(
 }
 
 #[test]
-fn gpu_tree64_traversal_matches_reference() {
+fn gpu_hierarchy_traversal_matches_reference() {
     let Some(gpu) = gpu() else { return };
     let mut rng = Rng(42);
     let module = boundary_module(&mut rng);
     let rays = torture_rays(&module, &mut rng, 20_000);
 
-    // the single-page fast path, then the page-table path with tiny pages
-    for page_words in [voxel::handle::MAX_PAGE_WORDS, 256] {
-        let mut arenas = GeometryArenas::with_page_words(page_words);
-        let (root, _) = arenas.bake_tree64(&module).unwrap();
-        assert_eq!(root.single_page, page_words != 256);
-        check_gpu_traversal(&gpu, &module, &arenas, &root, &rays);
+    for kind in HierarchyKind::ALL {
+        // the single-page fast path, then the page-table path with tiny pages
+        for page_words in [voxel::handle::MAX_PAGE_WORDS, 256] {
+            let mut arenas = GeometryArenas::with_page_words(page_words);
+            let root = arenas.bake(&module, kind).unwrap();
+            assert_eq!(root.single_page(), page_words != 256);
+            check_gpu_traversal(&gpu, &module, &arenas, &root, &rays);
+        }
     }
 }
 
@@ -553,10 +557,22 @@ fn showcase_instances(
     instances
 }
 
+/// Every scene organization with every local hierarchy.
+fn scene_variants() -> Vec<(voxel::scene::SceneAcceleration, HierarchyKind)> {
+    use voxel::scene::SceneAcceleration;
+    [
+        SceneAcceleration::TemplateMiniBvh,
+        SceneAcceleration::FlattenedGroups,
+    ]
+    .into_iter()
+    .flat_map(|mode| HierarchyKind::ALL.map(|kind| (mode, kind)))
+    .collect()
+}
+
 #[test]
 fn gpu_scene_traversal_matches_cpu() {
     use client::render::{geometry::GpuGeometryLibrary, scene::GpuSceneData};
-    use voxel::scene::{AssetTemplate, SceneAcceleration, SceneSnapshot};
+    use voxel::scene::{AssetTemplate, SceneSnapshot};
 
     let Some(gpu) = gpu() else { return };
     let workspace = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -615,12 +631,9 @@ fn gpu_scene_traversal_matches_cpu() {
     let template_bvh = gpu.storage(&geometry.template_bvh);
     let meta_buffer = gpu.uniform(&meta);
 
-    for mode in [
-        SceneAcceleration::TemplateMiniBvh,
-        SceneAcceleration::FlattenedGroups,
-    ] {
+    for (mode, hierarchy) in scene_variants() {
         let snapshot = SceneSnapshot::build(&templates, &instances, mode, None);
-        let scene = GpuSceneData::pack(&snapshot, &library, &geometry);
+        let scene = GpuSceneData::pack(&snapshot, &library, &geometry, hierarchy);
         let uniform = gpu.uniform(&scene.uniform);
         let bvh = gpu.storage(&scene.bvh);
         let frames = gpu.storage(&scene.frames);
@@ -671,13 +684,9 @@ fn gpu_scene_traversal_matches_cpu() {
                     let module = library.assets()[frame.asset as usize].assembly.groups
                         [frame.group as usize]
                         .module;
-                    trace(
-                        &geometry,
-                        &geometry.assets[frame.asset as usize].module_roots[module as usize],
-                        local,
-                        t0,
-                        t1,
-                    )
+                    geometry.assets[frame.asset as usize]
+                        .root(module, hierarchy)
+                        .trace(&geometry, local, t0, t1)
                 });
             cpu_hits += cpu.is_some() as usize;
             let agree = match (cpu, gpu_result.hit != 0) {
@@ -694,7 +703,7 @@ fn gpu_scene_traversal_matches_cpu() {
             }
         }
         eprintln!(
-            "  {mode:?}: {} rays, {cpu_hits} CPU hits, {} disagreements",
+            "  {mode:?} {hierarchy:?}: {} rays, {cpu_hits} CPU hits, {} disagreements",
             rays.len(),
             mismatches.len()
         );
@@ -715,7 +724,7 @@ fn gpu_scene_traversal_matches_cpu() {
 #[ignore]
 fn gpu_scene_throughput() {
     use client::render::{geometry::GpuGeometryLibrary, scene::GpuSceneData};
-    use voxel::scene::{AssetTemplate, SceneAcceleration, SceneSnapshot};
+    use voxel::scene::{AssetTemplate, SceneSnapshot};
 
     let Some(gpu) = gpu() else { return };
     let workspace = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -760,12 +769,9 @@ fn gpu_scene_throughput() {
     let ray_buffer = gpu.storage(&cases);
     let output = gpu.output(cases.len() as u64 * 16);
 
-    for mode in [
-        SceneAcceleration::TemplateMiniBvh,
-        SceneAcceleration::FlattenedGroups,
-    ] {
+    for (mode, hierarchy) in scene_variants() {
         let snapshot = SceneSnapshot::build(&templates, &instances, mode, None);
-        let scene = GpuSceneData::pack(&snapshot, &library, &geometry);
+        let scene = GpuSceneData::pack(&snapshot, &library, &geometry, hierarchy);
         let uniform = gpu.uniform(&scene.uniform);
         let bvh = gpu.storage(&scene.bvh);
         let frames = gpu.storage(&scene.frames);
@@ -807,7 +813,7 @@ fn gpu_scene_throughput() {
         }
         let ms = start.elapsed().as_secs_f64() * 1000.0 / runs as f64;
         eprintln!(
-            "  {mode:?}: {width}x{height} primary rays in {ms:.1} ms ({:.1} Mrays/s, includes readback)",
+            "  {mode:?} {hierarchy:?}: {width}x{height} primary rays in {ms:.1} ms ({:.1} Mrays/s, includes readback)",
             cases.len() as f64 / ms / 1000.0
         );
     }

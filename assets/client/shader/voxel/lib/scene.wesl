@@ -1,13 +1,15 @@
 // Bind group 1 and scene-level search. Mirrors `SceneSnapshot::intersect` in
 // crates/voxel/src/scene.rs: scene BVH -> (template mini-BVH | flattened frames) -> pose frame ->
-// group-local 64-tree, keeping the nearest world-distance hit.
+// group-local hierarchy (64-tree or octree), keeping the nearest world-distance hit.
 
 import super::types::{
     Bvh4Node, PoseFrame, InstanceRecord, SceneUniform,
-    FRAME_SINGLE_PAGE, INSTANCE_USES_TEMPLATE, NO_MINI_BVH, MODE_FLATTENED_GROUPS,
+    FRAME_SINGLE_PAGE, FRAME_OCTREE, INSTANCE_USES_TEMPLATE, NO_MINI_BVH, MODE_FLATTENED_GROUPS,
 };
 import super::geometry::template_bvh;
-import super::tree64::{trace_tree64, Tree64Root, VoxelHit};
+import super::dda::{VoxelRoot, VoxelHit};
+import super::tree64::trace_tree64;
+import super::octree::trace_octree;
 import super::ray::{slab, sanitize_direction, transform_point, transform_vector};
 
 @group(1) @binding(0) var<uniform> scene: SceneUniform;
@@ -79,17 +81,20 @@ fn sort_pair(entries: array<vec2<u32>, 4>, a: u32, b: u32) -> array<vec2<u32>, 4
     return e;
 }
 
-// Traces one frame's local hierarchy. The world ray is transformed without renormalizing, so the
-// local t is still a world distance.
+// Traces one frame's local hierarchy, whichever kind its root was baked as. The world ray is
+// transformed without renormalizing, so the local t is still a world distance.
 fn trace_frame(frame_id: u32, o: vec3<f32>, d: vec3<f32>, t_min: f32, t_max: f32) -> VoxelHit {
     let f = frames[frame_id];
-    var root: Tree64Root;
+    var root: VoxelRoot;
     root.node = f.root_node;
     root.levels = f.levels;
     root.page_base = f.root_page_base;
     root.single_page = (f.flags & FRAME_SINGLE_PAGE) != 0u;
     let local_o = transform_point(f.world_to_local, o);
     let local_d = sanitize_direction(transform_vector(f.world_to_local, d));
+    if (f.flags & FRAME_OCTREE) != 0u {
+        return trace_octree(root, local_o, local_d, t_min, t_max);
+    }
     return trace_tree64(root, local_o, local_d, t_min, t_max);
 }
 

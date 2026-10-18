@@ -18,6 +18,7 @@ pub enum ClientAction {
     // renderer inspection
     CycleDebugView,
     ToggleSceneAcceleration,
+    ToggleLocalHierarchy,
     CycleRenderScale,
 
     // world clock requests (sent to the server)

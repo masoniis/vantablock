@@ -1,10 +1,12 @@
-// GPU conformance kernels: run the production mask, 64-tree, and scene code on the real adapter
+// GPU conformance kernels: run the production mask, hierarchy, and scene code on the real adapter
 // so the client's tests can compare it against the CPU reference. Groups 0 and 1 are the
 // production geometry and scene groups; the test's own buffers live in group 2.
 
 import super::super::lib::mask::{prefix_count, child_word_offset};
 import super::super::lib::ray::sanitize_direction;
-import super::super::lib::tree64::{trace_tree64, Tree64Root};
+import super::super::lib::dda::{VoxelRoot, VoxelHit};
+import super::super::lib::tree64::trace_tree64;
+import super::super::lib::octree::trace_octree;
 import super::super::lib::scene::trace_scene;
 
 struct MaskCase {
@@ -31,7 +33,8 @@ struct RootParams {
     node: u32,
     levels: u32,
     page_base: u32,
-    single_page: u32,
+    // bit 0: single page, bit 1: octree
+    flags: u32,
 };
 
 @group(2) @binding(0) var<storage, read> mask_cases: array<MaskCase>;
@@ -55,12 +58,17 @@ fn rays(@builtin(global_invocation_id) id: vec3<u32>) {
         return;
     }
     let c = ray_cases[id.x];
-    var root: Tree64Root;
+    var root: VoxelRoot;
     root.node = root_params.node;
     root.levels = root_params.levels;
     root.page_base = root_params.page_base;
-    root.single_page = root_params.single_page != 0u;
-    let hit = trace_tree64(root, c.origin, sanitize_direction(c.dir), c.t_min, c.t_max);
+    root.single_page = (root_params.flags & 1u) != 0u;
+    var hit: VoxelHit;
+    if (root_params.flags & 2u) != 0u {
+        hit = trace_octree(root, c.origin, sanitize_direction(c.dir), c.t_min, c.t_max);
+    } else {
+        hit = trace_tree64(root, c.origin, sanitize_direction(c.dir), c.t_min, c.t_max);
+    }
     var result: RayResult;
     result.hit = select(0u, 1u, hit.hit);
     result.t = hit.t;

@@ -21,7 +21,7 @@ pub mod scene;
 pub mod settings;
 pub mod shaders;
 
-pub use settings::{AccelerationMode, DebugView, RenderSettings};
+pub use settings::{AccelerationMode, DebugView, LocalHierarchy, RenderSettings};
 
 use crate::render::{
     device::GpuCapabilities,

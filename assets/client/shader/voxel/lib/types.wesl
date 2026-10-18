@@ -76,6 +76,7 @@ struct Environment {
 };
 
 const FRAME_SINGLE_PAGE: u32 = 1u;
+const FRAME_OCTREE: u32 = 2u;
 const INSTANCE_USES_TEMPLATE: u32 = 1u;
 const NO_MINI_BVH: u32 = 0xFFFFFFFFu;
 const VISIBILITY_MISS: u32 = 0xFFFFFFFFu;

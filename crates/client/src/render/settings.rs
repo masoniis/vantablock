@@ -3,7 +3,7 @@
 use crate::input::local_actions::ClientAction;
 use bevy::{prelude::*, render::extract_resource::ExtractResource};
 use leafwing_input_manager::common_conditions::action_just_pressed;
-use voxel::scene::SceneAcceleration;
+use voxel::{HierarchyKind, scene::SceneAcceleration};
 
 /// What the lighting pass shows. Indices must match the `DEBUG_*` constants in
 /// `assets/client/shader/voxel/direct_lighting.wesl`.
@@ -63,6 +63,23 @@ impl From<AccelerationMode> for SceneAcceleration {
     }
 }
 
+/// Which local voxel hierarchy pose frames are traced with; both must render identically.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
+pub enum LocalHierarchy {
+    #[default]
+    Tree64,
+    Octree,
+}
+
+impl From<LocalHierarchy> for HierarchyKind {
+    fn from(hierarchy: LocalHierarchy) -> Self {
+        match hierarchy {
+            LocalHierarchy::Tree64 => HierarchyKind::Tree64,
+            LocalHierarchy::Octree => HierarchyKind::Octree,
+        }
+    }
+}
+
 /// Ray grid resolutions, as fractions of the view target, cycled in game.
 const RENDER_SCALES: [f32; 4] = [0.25, 0.5, 0.75, 1.0];
 
@@ -71,6 +88,7 @@ const RENDER_SCALES: [f32; 4] = [0.25, 0.5, 0.75, 1.0];
 pub struct RenderSettings {
     pub debug_view: DebugView,
     pub acceleration: AccelerationMode,
+    pub hierarchy: LocalHierarchy,
     /// The traced resolution as a fraction of the view target. Primary visibility costs scale
     /// with its square; lighting upsamples to the target. Defaults to half until traversal
     /// optimization lands (see `just test-gpu gpu_scene_throughput --ignored`).
@@ -82,6 +100,7 @@ impl Default for RenderSettings {
         Self {
             debug_view: DebugView::default(),
             acceleration: AccelerationMode::default(),
+            hierarchy: LocalHierarchy::default(),
             render_scale: 0.5,
         }
     }
@@ -102,6 +121,8 @@ impl Plugin for RenderSettingsPlugin {
                         .run_if(action_just_pressed(ClientAction::ToggleSceneAcceleration)),
                     cycle_render_scale_system
                         .run_if(action_just_pressed(ClientAction::CycleRenderScale)),
+                    toggle_hierarchy_system
+                        .run_if(action_just_pressed(ClientAction::ToggleLocalHierarchy)),
                 ),
             );
     }
@@ -127,4 +148,12 @@ fn toggle_acceleration_system(mut settings: ResMut<RenderSettings>) {
         AccelerationMode::FlattenedGroups => AccelerationMode::TemplateMiniBvh,
     };
     info!("Scene acceleration: {:?}", settings.acceleration);
+}
+
+fn toggle_hierarchy_system(mut settings: ResMut<RenderSettings>) {
+    settings.hierarchy = match settings.hierarchy {
+        LocalHierarchy::Tree64 => LocalHierarchy::Octree,
+        LocalHierarchy::Octree => LocalHierarchy::Tree64,
+    };
+    info!("Local hierarchy: {:?}", settings.hierarchy);
 }

@@ -1,7 +1,8 @@
 //! The derived, GPU-ready geometry library.
 //!
-//! During client launch every canonical asset is baked into 64-trees sharing one set of arenas,
-//! and the arenas are packed into single storage slabs sized against the device's real limits.
+//! During client launch every canonical module is baked as both local hierarchies (64-tree and
+//! octree) sharing one set of arenas, so the renderer can switch between them at runtime, and the
+//! arenas are packed into single storage slabs sized against the device's real limits.
 //! Template mini-BVHs are concatenated (with their node references rebased) so every instance of
 //! an asset shares its asset's one template.
 
@@ -19,7 +20,8 @@ use shared::{
 };
 use std::{sync::Arc, time::Instant};
 use voxel::{
-    ArenaHandle, BVH_EMPTY, BVH_LEAF_BIT, Bvh4Node, GeometryArenas, GeometrySource, Tree64Root,
+    ArenaHandle, BVH_EMPTY, BVH_LEAF_BIT, Bvh4Node, GeometryArenas, GeometrySource, HierarchyKind,
+    VoxelRoot,
     residency::{ResidencyLimits, plan_single_slab},
 };
 
@@ -30,14 +32,21 @@ pub struct AssetGeometry {
     pub palette_base: u32,
     /// Template mini-BVH root in the template node buffer, or `NO_MINI_BVH`.
     pub mini_bvh_root: u32,
-    /// Baked roots, indexed by module.
-    pub module_roots: Vec<Tree64Root>,
+    /// Baked roots, indexed by module, then by [`HierarchyKind`].
+    pub module_roots: Vec<[VoxelRoot; 2]>,
+}
+
+impl AssetGeometry {
+    pub fn root(&self, module: u16, kind: HierarchyKind) -> &VoxelRoot {
+        &self.module_roots[module as usize][kind as usize]
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct GeometryStats {
     pub voxels: u64,
-    pub nodes: u64,
+    /// Nodes per hierarchy, indexed by [`HierarchyKind`].
+    pub nodes: [u64; 2],
     pub topology_bytes: u64,
     pub attribute_bytes: u64,
     pub topology_pages: usize,
@@ -71,10 +80,14 @@ impl GpuGeometryLibrary {
         for asset in library.assets() {
             let mut module_roots = Vec::new();
             for module in &asset.assembly.modules {
-                let (root, bake) = arenas.bake_tree64(module).map_err(|e| e.to_string())?;
-                stats.voxels += bake.voxels;
-                stats.nodes += bake.nodes;
-                module_roots.push(root);
+                let (tree64, tree64_stats) =
+                    arenas.bake_tree64(module).map_err(|e| e.to_string())?;
+                let (octree, octree_stats) =
+                    arenas.bake_octree(module).map_err(|e| e.to_string())?;
+                stats.voxels += tree64_stats.voxels;
+                stats.nodes[0] += tree64_stats.nodes;
+                stats.nodes[1] += octree_stats.nodes;
+                module_roots.push([VoxelRoot::Tree64(tree64), VoxelRoot::Octree(octree)]);
             }
 
             let palette_base = materials.len() as u32;
@@ -147,8 +160,8 @@ impl GpuGeometryLibrary {
     }
 
     /// The slab base of the page holding `root`'s node.
-    pub fn root_page_base(&self, root: &Tree64Root) -> u32 {
-        self.topology_page_bases[root.node.page() as usize]
+    pub fn root_page_base(&self, root: &VoxelRoot) -> u32 {
+        self.topology_page_bases[root.node().page() as usize]
     }
 }
 
@@ -206,9 +219,10 @@ fn start_geometry_bake(
                 Ok(geometry) => {
                     let s = geometry.stats;
                     info!(
-                        "Baked geometry: {} voxels, {} nodes, topology {:.1} MiB in {} page(s), attributes {:.1} MiB, {} shared blocks, in {:.0} ms",
+                        "Baked geometry: {} voxels, {} 64-tree / {} octree nodes, topology {:.1} MiB in {} page(s), attributes {:.1} MiB, {} shared blocks, in {:.0} ms",
                         s.voxels,
-                        s.nodes,
+                        s.nodes[0],
+                        s.nodes[1],
                         s.topology_bytes as f64 / (1 << 20) as f64,
                         s.topology_pages,
                         s.attribute_bytes as f64 / (1 << 20) as f64,

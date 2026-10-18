@@ -142,8 +142,8 @@ fn update_debug_menu_system(
     let s = scene.stats;
     let _ = writeln!(
         text,
-        "\nView: {:?}  Acceleration: {:?}  Render scale: {}",
-        settings.debug_view, settings.acceleration, settings.render_scale
+        "\nView: {:?}  Acceleration: {:?}  Hierarchy: {:?}  Render scale: {}",
+        settings.debug_view, settings.acceleration, settings.hierarchy, settings.render_scale
     );
     let _ = writeln!(
         text,
@@ -180,9 +180,10 @@ fn update_debug_menu_system(
         let g = geometry.0.stats;
         let _ = writeln!(
             text,
-            "\nGeometry: {} voxels, {} nodes, {:.1} MiB ({} topology pages, {} shared blocks)",
+            "\nGeometry: {} voxels, {} 64-tree / {} octree nodes, {:.1} MiB ({} topology pages, {} shared blocks)",
             g.voxels,
-            g.nodes,
+            g.nodes[0],
+            g.nodes[1],
             (g.topology_bytes + g.attribute_bytes) as f64 / (1 << 20) as f64,
             g.topology_pages,
             g.shared_blocks
