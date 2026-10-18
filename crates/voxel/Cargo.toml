@@ -1,0 +1,18 @@
+[package]
+name = "vantablock-voxel"
+description = "bevy-free microvoxel geometry core for vantablock: canonical assets, derived hierarchies, and CPU reference traversal"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+name = "voxel"
+path = "src/lib.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+glam = { workspace = true }
+bytemuck = { workspace = true }
+zstd = { workspace = true }

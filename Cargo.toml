@@ -5,6 +5,7 @@ members = [
   "crates/server",
   "crates/shared",
   "crates/utils",
+  "crates/voxel",
 ]
 resolver = "3"
 
@@ -33,6 +34,11 @@ lto = "thin"
 debug = 1
 strip = false
 
+# the voxel core and content baker are hot paths (asset baking, CPU reference traversal), so
+# they are optimized even in dev builds to keep startup bakes and tests fast
+[profile.dev.package.vantablock-voxel]
+opt-level = 3
+
 # distribution: fast, super slow compile, limited logging and debugging
 # used via `cargo build --profile distribution --features distribution`
 [profile.distribution]
@@ -53,6 +59,7 @@ client = { path = "./crates/client", package = "vantablock-client" }
 server = { path = "./crates/server", package = "vantablock-server" }
 shared = { path = "./crates/shared", package = "vantablock-shared" }
 utils = { path = "./crates/utils", package = "vantablock-utils" }
+voxel = { path = "./crates/voxel", package = "vantablock-voxel" }
 
 # development deps
 criterion = { version = "0.5", features = ["html_reports"] }
@@ -73,6 +80,7 @@ wesl = "0.2.0"                                                               # s
 offset-allocator = "0.2.0"                                                   # gpu buffer allocation
 bytemuck = { version = "1.13", features = ["derive"] }                       # gpu friendly data
 image = { version = "0.25.6", default-features = false, features = ["png"] }
+glam = { version = "0.30", features = ["bytemuck"] }                         # math for the bevy-free voxel core, matches bevy's glam
 
 # game dependencies
 bevy = { version = "0.18.1", default-features = false, features = [
