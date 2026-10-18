@@ -3,7 +3,7 @@
 // flooring a reconstructed position), boundary distances are recomputed from integer cells, and
 // ties pick the lowest axis.
 
-import super::geometry::topology;
+import super::geometry::topology_load;
 import super::mask::{prefix_count, child_word_offset, mask_bit};
 import super::ray::slab;
 import super::dda::{VoxelRoot, VoxelHit, MAX_TRAVERSAL_STEPS, node_address, next_boundary, nearest_axis, entry_face};
@@ -50,11 +50,11 @@ fn trace_tree64(root: VoxelRoot, o: vec3<f32>, d: vec3<f32>, t_min: f32, t_max: 
     }
 
     let root_address = node_address(root, root.node);
-    var mask = vec2<u32>(topology[root_address], topology[root_address + 1u]);
+    var mask = vec2<u32>(topology_load(root_address), topology_load(root_address + 1u));
     if mask.x == 0u && mask.y == 0u {
         return result;
     }
-    var child_ref = topology[root_address + 2u];
+    var child_ref = topology_load(root_address + 2u);
 
     let step = select(vec3<i32>(1), vec3<i32>(-1), d < vec3<f32>(0.0));
     // a cell's far boundary is at cell + 1 when stepping up, cell when stepping down
@@ -120,8 +120,8 @@ fn trace_tree64(root: VoxelRoot, o: vec3<f32>, d: vec3<f32>, t_min: f32, t_max: 
                 depth += 1u;
                 size /= 4;
                 origin = lo;
-                mask = vec2<u32>(topology[address], topology[address + 1u]);
-                child_ref = topology[address + 2u];
+                mask = vec2<u32>(topology_load(address), topology_load(address + 1u));
+                child_ref = topology_load(address + 2u);
                 cell = entry_cell(origin, size, o, inv, step, max(tt.x, t_start));
                 t_next = next_boundary(origin, cell, size, far, o, inv);
                 continue;

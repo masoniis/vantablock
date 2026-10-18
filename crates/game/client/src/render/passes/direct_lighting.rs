@@ -4,7 +4,7 @@ use crate::render::{
         buffers::{VoxelGpuResources, geometry_layout, scene_layout},
         view::{VoxelViewBindGroups, lighting_view_layout},
     },
-    shaders::DIRECT_LIGHTING_SHADER,
+    shaders::{DIRECT_LIGHTING_MULTI_SLAB_SHADER, DIRECT_LIGHTING_SHADER},
 };
 use bevy::{
     ecs::query::QueryItem,
@@ -27,6 +27,8 @@ use bevy::{
 pub struct DirectLightingKey {
     pub format: TextureFormat,
     pub samples: u32,
+    /// Whether the geometry spans several storage slabs.
+    pub multi_slab: bool,
 }
 
 #[derive(Resource, Default)]
@@ -36,18 +38,23 @@ impl SpecializedRenderPipeline for DirectLightingPipeline {
     type Key = DirectLightingKey;
 
     fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
+        let shader = if key.multi_slab {
+            DIRECT_LIGHTING_MULTI_SLAB_SHADER
+        } else {
+            DIRECT_LIGHTING_SHADER
+        };
         RenderPipelineDescriptor {
             label: Some("voxel_direct_lighting".into()),
             layout: vec![geometry_layout(), scene_layout(), lighting_view_layout()],
             push_constant_ranges: vec![],
             vertex: VertexState {
-                shader: DIRECT_LIGHTING_SHADER,
+                shader: shader.clone(),
                 shader_defs: vec![],
                 entry_point: Some("vs_main".into()),
                 buffers: vec![],
             },
             fragment: Some(FragmentState {
-                shader: DIRECT_LIGHTING_SHADER,
+                shader,
                 shader_defs: vec![],
                 entry_point: Some("fs_main".into()),
                 targets: vec![Some(ColorTargetState {
@@ -74,6 +81,7 @@ pub fn queue_direct_lighting_pipelines(
     mut commands: Commands,
     pipeline_cache: Res<PipelineCache>,
     pipeline: Res<DirectLightingPipeline>,
+    resources: Res<VoxelGpuResources>,
     mut pipelines: ResMut<SpecializedRenderPipelines<DirectLightingPipeline>>,
     views: Query<(Entity, &ViewTarget, Option<&Msaa>), With<VoxelCamera>>,
 ) {
@@ -81,6 +89,7 @@ pub fn queue_direct_lighting_pipelines(
         let key = DirectLightingKey {
             format: target.main_texture_format(),
             samples: msaa.map_or(1, |m| m.samples()),
+            multi_slab: resources.multi_slab(),
         };
         let id = pipelines.specialize(&pipeline_cache, &pipeline, key);
         commands.entity(entity).insert(DirectLightingPipelineId(id));

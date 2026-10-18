@@ -1,5 +1,6 @@
 //! Render-world GPU buffers for the geometry library and the per-frame scene, plus the bind group
-//! layouts every voxel pass shares (group 0: geometry, group 1: scene).
+//! layouts every voxel pass shares (group 0: geometry, group 1: scene). Geometry arenas bind
+//! [`MAX_SLABS`] slabs each; unused slab bindings repeat slab 0.
 //!
 //! Every buffer is created up front with placeholder contents, so bind groups always exist and
 //! the passes can run (drawing just sky) before any world arrives.
@@ -22,7 +23,7 @@ use bevy::{
 };
 use bytemuck::Pod;
 use std::sync::Arc;
-use voxel::Bvh4Node;
+use voxel::{Bvh4Node, residency::MAX_SLABS};
 
 /// Visibility of the shared groups: traced by the visibility compute pass and by lighting's
 /// shadow rays.
@@ -34,11 +35,17 @@ pub fn geometry_layout() -> BindGroupLayoutDescriptor {
         &BindGroupLayoutEntries::sequential(
             VOXEL_STAGES,
             (
-                storage_buffer_read_only_sized(false, None), // topology
-                storage_buffer_read_only_sized(false, None), // attributes
+                storage_buffer_read_only_sized(false, None), // topology slab 0
+                storage_buffer_read_only_sized(false, None), // attribute slab 0
                 storage_buffer_read_only_sized(false, None), // materials
                 storage_buffer_read_only_sized(false, None), // template mini-BVHs
                 uniform_buffer_sized(false, None),           // page tables
+                storage_buffer_read_only_sized(false, None), // topology slab 1
+                storage_buffer_read_only_sized(false, None), // topology slab 2
+                storage_buffer_read_only_sized(false, None), // topology slab 3
+                storage_buffer_read_only_sized(false, None), // attribute slab 1
+                storage_buffer_read_only_sized(false, None), // attribute slab 2
+                storage_buffer_read_only_sized(false, None), // attribute slab 3
             ),
         ),
     )
@@ -149,6 +156,15 @@ impl VoxelGpuResources {
     pub fn scene_bind_group(&self) -> &BindGroup {
         &self.scene.bind_group
     }
+
+    /// Whether the uploaded geometry spans several slabs, so passes need their multi-slab
+    /// shader variants.
+    pub fn multi_slab(&self) -> bool {
+        self.geometry
+            .library
+            .as_ref()
+            .is_some_and(|l| l.topology.len() > 1 || l.attributes.len() > 1)
+    }
 }
 
 impl FromWorld for VoxelGpuResources {
@@ -215,6 +231,21 @@ fn storage_init<T: Pod>(device: &RenderDevice, label: &'static str, data: &[T]) 
     })
 }
 
+/// One buffer per slab, padded with slab 0 so every slab binding is filled.
+fn slab_buffers(device: &RenderDevice, label: &'static str, slabs: &[Vec<u32>]) -> Vec<Buffer> {
+    let mut buffers: Vec<Buffer> = slabs
+        .iter()
+        .map(|slab| storage_init(device, label, slab))
+        .collect();
+    if buffers.is_empty() {
+        buffers.push(storage_init::<u32>(device, label, &[]));
+    }
+    while buffers.len() < MAX_SLABS {
+        buffers.push(buffers[0].clone());
+    }
+    buffers
+}
+
 fn create_geometry_bind_group(
     device: &RenderDevice,
     pipeline_cache: &PipelineCache,
@@ -224,8 +255,8 @@ fn create_geometry_bind_group(
     let empty_bvh = [Bvh4Node::default()];
     let (topology, attributes, materials, bvh, meta) = match library {
         Some(l) => (
-            storage_init(device, "voxel_topology", &l.topology),
-            storage_init(device, "voxel_attributes", &l.attributes),
+            slab_buffers(device, "voxel_topology", &l.topology),
+            slab_buffers(device, "voxel_attributes", &l.attributes),
             storage_init(device, "voxel_materials", &l.materials),
             storage_init(
                 device,
@@ -236,11 +267,11 @@ fn create_geometry_bind_group(
                     &l.template_bvh
                 },
             ),
-            GpuGeometryMeta::new(&l.topology_page_bases, &l.attribute_page_bases),
+            GpuGeometryMeta::new(&l.topology_page_entries, &l.attribute_page_entries),
         ),
         None => (
-            storage_init::<u32>(device, "voxel_topology", &[]),
-            storage_init::<u32>(device, "voxel_attributes", &[]),
+            slab_buffers(device, "voxel_topology", &[]),
+            slab_buffers(device, "voxel_attributes", &[]),
             storage_init::<[f32; 4]>(device, "voxel_materials", &[]),
             storage_init(device, "voxel_template_bvh", &empty_bvh),
             GpuGeometryMeta::new(&[], &[]),
@@ -255,11 +286,17 @@ fn create_geometry_bind_group(
         "voxel_geometry_bind_group",
         &pipeline_cache.get_bind_group_layout(layout),
         &BindGroupEntries::sequential((
-            topology.as_entire_binding(),
-            attributes.as_entire_binding(),
+            topology[0].as_entire_binding(),
+            attributes[0].as_entire_binding(),
             materials.as_entire_binding(),
             bvh.as_entire_binding(),
             meta.as_entire_binding(),
+            topology[1].as_entire_binding(),
+            topology[2].as_entire_binding(),
+            topology[3].as_entire_binding(),
+            attributes[1].as_entire_binding(),
+            attributes[2].as_entire_binding(),
+            attributes[3].as_entire_binding(),
         )),
     )
 }
@@ -310,9 +347,16 @@ pub fn prepare_geometry_buffers(
         library: Some(library.0.clone()),
         bind_group,
     };
+    let words: usize = library
+        .0
+        .topology
+        .iter()
+        .chain(&library.0.attributes)
+        .map(Vec::len)
+        .sum();
     info!(
         "Uploaded voxel geometry: {:.1} MiB",
-        (library.0.topology.len() + library.0.attributes.len()) as f64 * 4.0 / (1 << 20) as f64
+        words as f64 * 4.0 / (1 << 20) as f64
     );
 }
 

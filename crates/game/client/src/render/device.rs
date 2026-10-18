@@ -14,8 +14,9 @@ use bevy::{
 };
 use voxel::residency::ResidencyLimits;
 
-/// Storage buffers bound by the voxel passes (geometry and scene groups).
-pub const REQUIRED_STORAGE_BUFFERS_PER_STAGE: u32 = 8;
+/// Storage buffers bound by the voxel passes: geometry (four slabs each of topology and
+/// attributes, materials, template mini-BVHs) and scene (BVH, frames, instances, slot table).
+pub const REQUIRED_STORAGE_BUFFERS_PER_STAGE: u32 = 14;
 /// Storage textures written by the primary visibility pass.
 pub const REQUIRED_STORAGE_TEXTURES_PER_STAGE: u32 = 4;
 

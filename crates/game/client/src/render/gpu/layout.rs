@@ -56,7 +56,7 @@ pub struct GpuPoseFrame {
     /// Logical topology handle of the group's root node.
     pub root_node: u32,
     pub bounds_max: [f32; 3],
-    /// Slab word base of the root's page, for the single-page fast path.
+    /// Slab address of the root's page, for the single-page fast path.
     pub root_page_base: u32,
     pub levels: u32,
     pub flags: u32,
@@ -125,8 +125,8 @@ pub struct GpuSceneUniform {
     pub mode: u32,
 }
 
-/// Logical page to slab word base, for topology and attribute handles. Pages are packed four
-/// per `vec4<u32>` because uniform arrays have a 16 byte stride.
+/// Logical page to slab address (slab in the top bits, word below), for topology and attribute
+/// handles. Pages are packed four per `vec4<u32>` because uniform arrays have a 16 byte stride.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
 pub struct GpuGeometryMeta {

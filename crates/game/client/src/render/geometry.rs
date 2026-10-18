@@ -2,7 +2,8 @@
 //!
 //! During client launch every canonical module is baked as both local hierarchies (64-tree and
 //! octree) sharing one set of arenas, so the renderer can switch between them at runtime, and the
-//! arenas are packed into single storage slabs sized against the device's real limits.
+//! arenas' pages are packed into storage slabs sized against the device's real limits (usually
+//! one per arena; see [`voxel::residency`]).
 //! Template mini-BVHs are concatenated (with their node references rebased) so every instance of
 //! an asset shares its asset's one template.
 
@@ -21,7 +22,8 @@ use common::{
 use std::{sync::Arc, time::Instant};
 use voxel::{
     ArenaHandle, Bvh4Node, GeometryArenas, GeometrySource, HierarchyKind, VoxelRoot,
-    residency::{ResidencyLimits, plan_single_slab},
+    handle::MAX_PAGE_WORDS,
+    residency::{ResidencyLimits, plan_slabs, split_slab_address},
 };
 
 /// Per-asset GPU addressing.
@@ -49,6 +51,8 @@ pub struct GeometryStats {
     pub topology_bytes: u64,
     pub attribute_bytes: u64,
     pub topology_pages: usize,
+    pub topology_slabs: usize,
+    pub attribute_slabs: usize,
     pub shared_blocks: u64,
     pub lod_records: usize,
     pub bake_millis: f32,
@@ -56,10 +60,12 @@ pub struct GeometryStats {
 
 /// Everything the geometry bind group needs, ready to upload.
 pub struct GpuGeometryLibrary {
-    pub topology: Vec<u32>,
-    pub attributes: Vec<u32>,
-    pub topology_page_bases: Vec<u32>,
-    pub attribute_page_bases: Vec<u32>,
+    /// One word vector per slab.
+    pub topology: Vec<Vec<u32>>,
+    pub attributes: Vec<Vec<u32>>,
+    /// The slab address of each logical page's first word.
+    pub topology_page_entries: Vec<u32>,
+    pub attribute_page_entries: Vec<u32>,
     pub materials: Vec<[f32; 4]>,
     pub template_bvh: Vec<Bvh4Node>,
     /// Indexed like [`VantaAssetLibrary::assets`].
@@ -69,8 +75,18 @@ pub struct GpuGeometryLibrary {
 
 impl GpuGeometryLibrary {
     pub fn build(library: &VantaAssetLibrary, limits: &ResidencyLimits) -> Result<Self, String> {
+        Self::build_with_page_words(library, limits, MAX_PAGE_WORDS)
+    }
+
+    /// [`build`](Self::build) with a custom arena page size. Small pages and limits force roots
+    /// across pages and slabs, which the conformance tests use to exercise every address path.
+    pub fn build_with_page_words(
+        library: &VantaAssetLibrary,
+        limits: &ResidencyLimits,
+        page_words: u32,
+    ) -> Result<Self, String> {
         let start = Instant::now();
-        let mut arenas = GeometryArenas::default();
+        let mut arenas = GeometryArenas::with_page_words(page_words);
         let mut materials = Vec::new();
         let mut template_bvh = Vec::new();
         let mut assets = Vec::new();
@@ -115,24 +131,26 @@ impl GpuGeometryLibrary {
         }
         arenas.finish();
 
-        let topology_plan = plan_single_slab(
+        let topology_plan = plan_slabs(
             "topology",
             arenas.topology.pages().iter().map(Vec::len),
             limits,
         )
         .map_err(|e| e.to_string())?;
-        let attribute_plan = plan_single_slab(
+        let attribute_plan = plan_slabs(
             "attribute",
             arenas.attributes.pages().iter().map(Vec::len),
             limits,
         )
         .map_err(|e| e.to_string())?;
 
-        let topology: Vec<u32> = arenas.topology.pages().concat();
-        let attributes: Vec<u32> = arenas.attributes.pages().concat();
-        stats.topology_bytes = topology.len() as u64 * 4;
-        stats.attribute_bytes = attributes.len() as u64 * 4;
+        let topology = topology_plan.pack(arenas.topology.pages());
+        let attributes = attribute_plan.pack(arenas.attributes.pages());
+        stats.topology_bytes = topology_plan.total_bytes();
+        stats.attribute_bytes = attribute_plan.total_bytes();
         stats.topology_pages = arenas.topology.pages().len();
+        stats.topology_slabs = topology_plan.slab_count();
+        stats.attribute_slabs = attribute_plan.slab_count();
         stats.shared_blocks =
             arenas.topology.stats().dedup_hits + arenas.attributes.stats().dedup_hits;
         stats.lod_records = arenas.lod.records().len();
@@ -141,8 +159,8 @@ impl GpuGeometryLibrary {
         Ok(Self {
             topology,
             attributes,
-            topology_page_bases: topology_plan.page_bases,
-            attribute_page_bases: attribute_plan.page_bases,
+            topology_page_entries: topology_plan.page_entries,
+            attribute_page_entries: attribute_plan.page_entries,
             materials,
             template_bvh,
             assets,
@@ -150,22 +168,27 @@ impl GpuGeometryLibrary {
         })
     }
 
-    /// The slab base of the page holding `root`'s node.
+    /// The slab address of the page holding `root`'s node.
     pub fn root_page_base(&self, root: &VoxelRoot) -> u32 {
-        self.topology_page_bases[root.node().page() as usize]
+        self.topology_page_entries[root.node().page() as usize]
     }
+}
+
+/// Reads the word at `handle` through a page table, exactly as the GPU resolves it.
+fn resolve(slabs: &[Vec<u32>], page_entries: &[u32], handle: ArenaHandle) -> u32 {
+    let (slab, word) =
+        split_slab_address(page_entries[handle.page() as usize] + handle.word_offset());
+    slabs[slab as usize][word as usize]
 }
 
 /// The CPU reference can trace the packed slabs exactly as the GPU resolves them.
 impl GeometrySource for GpuGeometryLibrary {
     fn topology_word(&self, handle: ArenaHandle) -> u32 {
-        self.topology
-            [(self.topology_page_bases[handle.page() as usize] + handle.word_offset()) as usize]
+        resolve(&self.topology, &self.topology_page_entries, handle)
     }
 
     fn attribute_word(&self, handle: ArenaHandle) -> u32 {
-        self.attributes
-            [(self.attribute_page_bases[handle.page() as usize] + handle.word_offset()) as usize]
+        resolve(&self.attributes, &self.attribute_page_entries, handle)
     }
 }
 
@@ -210,13 +233,15 @@ fn start_geometry_bake(
                 Ok(geometry) => {
                     let s = geometry.stats;
                     info!(
-                        "Baked geometry: {} voxels, {} 64-tree / {} octree nodes, topology {:.1} MiB in {} page(s), attributes {:.1} MiB, {} shared blocks, in {:.0} ms",
+                        "Baked geometry: {} voxels, {} 64-tree / {} octree nodes, topology {:.1} MiB in {} page(s) and {} slab(s), attributes {:.1} MiB in {} slab(s), {} shared blocks, in {:.0} ms",
                         s.voxels,
                         s.nodes[0],
                         s.nodes[1],
                         s.topology_bytes as f64 / (1 << 20) as f64,
                         s.topology_pages,
+                        s.topology_slabs,
                         s.attribute_bytes as f64 / (1 << 20) as f64,
+                        s.attribute_slabs,
                         s.shared_blocks,
                         s.bake_millis
                     );
