@@ -3,17 +3,17 @@
 [![GitHub Repository](https://img.shields.io/badge/GitHub-Repository-blue?style=flat&logo=github)](https://github.com/masoniis/vantablock)
 ![Rust Version](https://img.shields.io/badge/rustc-1.88.0%2B-orange.svg)
 
-![sample-render1](./assets/repo/render.png)
-![sample-render2](./assets/repo/render2.png)
+A microvoxel engine built for dense, close-up worlds: intricate vegetation and geometry, articulated animation, and a client/server architecture. Worlds are made of canonical voxel assets that are ray traced on the GPU through a BVH4 scene hierarchy and per-group 64-trees.
+
+![microvoxel meadow](./assets/repo/microvoxel-meadow.jpg)
 
 ## Table of contents
 
-- [Build and run the project](#how-to-run-the-project)
+- [Build and run the project](#build-and-run-the-project)
 - [Usage guide](#usage-guide)
-  - [Common problems](#common-problems)
   - [Keybinds](#keybinds)
-- [Cool aspects of the project](#cool-aspects-of-the-project)
-- [Acknowledgments](#acknowledgments)
+  - [Performance](#performance)
+- [How it works](#how-it-works)
 
 ## Build and run the project
 
@@ -44,51 +44,37 @@ Assuming rust is properly setup, `cargo` can be used like any standard Rust proj
 
 </details>
 
+Assets are baked from the procedural recipes in `assets/shared/vanta` on first launch and cached afterwards.
+
 ## Usage guide
-
-### Common problems
-
-1. Mouse can be unlocked with `Escape`
-2. Shadows have very low render distance of 32 blocks and also have other noticable issues.
 
 ### Keybinds
 
-| Key(s)        | Action                                                                               |
-| :------------ | :----------------------------------------------------------------------------------- |
-| `Escape`      | Toggle "pause" (locks/unlocks cursor, no _real_ pause currently)                     |
-| `W`           | Move forward                                                                         |
-| `S`           | Move backward                                                                        |
-| `A`           | Move left                                                                            |
-| `D`           | Move right                                                                           |
-| `Left Shift`  | Move faster                                                                          |
-| `Mouse Left`  | Break block                                                                          |
-| `Mouse right` | Place block                                                                          |
-| `T`           | Switch terrain generator (only applies to new chunks that generate e.g. from moving) |
-| `F1` or `1`   | Toggle diagnostics UI (FPS, vert count, coordinates)                                 |
-| `F2` or `2`   | Toggle opaque wireframe mode                                                         |
-| `F3` or `3`   | Toggle chunk borders                                                                 |
+| Key(s)           | Action                                                       |
+| :--------------- | :----------------------------------------------------------- |
+| `Escape`         | Pause menu (unlocks the cursor)                              |
+| `W` `A` `S` `D`  | Move                                                         |
+| `Space` / `Ctrl` | Fly up / down                                                |
+| `Left Shift`     | Move faster                                                  |
+| `Scroll`         | Zoom                                                         |
+| `F3`             | Debug menu (frame time, scene and geometry stats, GPU info)  |
+| `F2` or `V`      | Cycle debug views (normals, pose frames, voxel cells, costs) |
+| `F4` or `B`      | Toggle scene acceleration (template mini-BVH / flattened)    |
+| `F5`             | Cycle render scale                                           |
+| `←` / `→`        | Rewind / advance the time of day                             |
+| `P`              | Pause or resume the day cycle                                |
 
-## Cool aspects of the project
+On macOS, `F3` may be captured by Mission Control; hold `fn` or remap the function keys.
 
-<details>
-  <summary>Computer graphics technical details</summary>
+### Performance
 
-1. "Vertex pulling." Each group of 6 vertices that make up a face share a single 32 bit float in a GPU buffer.
-2. Global illumination via the "Sun" with directional lighting, and a shadow pass that adds (somewhat scuffed) shadows
-3. Approximate ambient occlusion based on nearby blocks to a vertex.
-4. Full transparency support via a separate render pass.
-5. Custom UI implementation (with `taffy` for computing flexbox layouts and `glyphon` for text heavylifting)
-6. Custom fog and sky shaders that define the sky and horizon blending with sun/moon.
-7. Convenient texture and block definition loading enabling swapping block textures easily in the `assets/shared/block` folder.
-8. Water vertices "wave" up and down if you look at them closer
+The renderer is an early, correctness-first baseline: GPU traversal is verified against a CPU reference, and performance optimization is the next phase of work. Expect low frame rates for now; it traces at half resolution by default (`F5` changes it). `just test-gpu gpu_scene_throughput --ignored` benchmarks the traversal kernel on the real assets.
 
-</details>
+## How it works
 
-<details>
-  <summary>General engine technical details</summary>
+- **Canonical assets** (`crates/voxel`, `crates/baker`): procedural recipes bake into sparse voxel modules plus an articulated assembly of pose groups, stored in `.vanta` files.
+- **Derived geometry**: each module bakes into a deduplicated 64-way sparse tree in paged arenas, with LOD summaries; assets get template-shared mini-BVHs over their pose groups' motion envelopes.
+- **Server-authoritative world**: the server places objects and owns the world clock; clients derive every pose deterministically from replicated animation parameters.
+- **GPU ray tracing**: one world ray per pixel through a scene BVH4, template mini-BVHs, and group-local 64-tree DDA, writing a visibility buffer with exact integer voxel identity, then a lighting pass with shadow rays.
 
-1. Chunk loading uses multi-threaded compute pooling
-2. ECS architecture for data-oriented design of the entire system
-3. Rendering and simulation run in parallel using a binary semaphore
-
-</details>
+See [`docs/architecture.md`](./docs/architecture.md) for how the code maps onto the engine design.

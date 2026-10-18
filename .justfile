@@ -19,6 +19,7 @@ project := "vantablock"
 client  := "vantablock-client"
 server  := "vantablock-server"
 runner  := "vantablock-runner"
+baker   := "vantablock-baker"
 
 # lists all available recipes, in file order so niche groups stay at the bottom
 [private]
@@ -105,19 +106,17 @@ test-bench:
     cargo check --benches
     cargo test --benches
 
-# runs client benchmarks and opens html report once finished
+# runs the CPU traversal benchmarks on the real assets and opens the html report
 [group("testing")]
-bench-client *args:
-    cargo bench -p {{client}} {{args}}
+bench *args:
+    cargo bench -p {{baker}} --bench traversal {{args}}
     @echo "Opening Criterion report..."
     -{{ open_cmd }} target/criterion/report/index.html
 
-# runs server benchmarks and opens html report once finished
+# runs the shader validation and GPU conformance tests (GPU checks skip without an adapter)
 [group("testing")]
-bench-server *args:
-    cargo bench -p {{server}} {{args}}
-    @echo "Opening Criterion report..."
-    -{{ open_cmd }} target/criterion/report/index.html
+test-gpu *args:
+    cargo test -p {{client}} --test gpu_conformance {{args}} -- --nocapture
 
 # full pre-push verification suite
 [group("testing")]
@@ -141,10 +140,10 @@ package profile="distribution":
 server-package profile="distribution":
     cargo build -p {{runner}} --bin vantablock-server --no-default-features --features server --profile {{profile}}
 
-# runs the texture processor utility
+# bakes asset recipes to .vanta files with 64-tree stats (all of assets/shared/vanta by default)
 [group("build")]
-texture:
-    cargo run -p {{client}} --bin texture_processor
+bake *args:
+    cargo run --release -p {{baker}} --bin vanta_baker -- --stats {{args}}
 
 # strips macOS quarantine attributes from the app bundle
 [group("build")]

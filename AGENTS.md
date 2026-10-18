@@ -1,21 +1,19 @@
 # VantaBlock Project Context
 
-VantaBlock is a high-performance, block-based game engine built with Rust, leveraging the Bevy game engine, custom WebGPU-based rendering techniques, and a client/server architecture networked with lightyear.
+VantaBlock is a microvoxel engine built with Rust on Bevy, ray tracing dense, close-up worlds of canonical voxel assets with custom WGSL (WESL) compute shaders, and using a client/server architecture networked with lightyear.
 
 ## Project Overview
 
-- **Core Technology:** Rust, Bevy (ECS), WGPU, WESL (WebGPU Shading Language), lightyear (networking), leafwing-input-manager (input).
-- **Architecture:** Multi-crate Cargo workspace:
-  - `crates/client`: Frontend, UI, custom rendering pipeline, input, and client-side prediction of the local player.
-  - `crates/server`: Authoritative simulation, including terrain generation, chunk loading, and block edits.
-  - `crates/shared`: Code both sides need: the network protocol, shared player simulation, chunk data, block/biome registries, and the lifecycle/loading DAG.
+- **Core Technology:** Rust, Bevy (ECS, RenderApp), WGPU, WESL (WebGPU Shading Language), lightyear (networking), leafwing-input-manager (input).
+- **Design:** Follows the engine design spec (v3.1). `docs/architecture.md` maps it onto the code and records what is built. Canonical geometry, assemblies, and animation state are the source of truth; hierarchies, bounds, LODs, and visibility records are derived and replaceable.
+- **Architecture:** Multi-crate Cargo workspace, with dependencies flowing `voxel` ← `baker` ← `shared` ← `server`/`client` ← `runner`:
+  - `crates/voxel`: Bevy-free geometry core: canonical modules and assemblies, `Node64`, masks, arenas, residency, the 64-tree bake, BVH4 scene search, and the CPU reference traversal the shaders are held to.
+  - `crates/baker`: Procedural generators and RON recipes that bake canonical assets, the `vanta_baker` binary, and CPU traversal benchmarks.
+  - `crates/shared`: The network protocol, the canonical asset library, replicated world objects, the world clock, shared player simulation, and the lifecycle/loading DAG.
+  - `crates/server`: Authoritative simulation: scene population, the world clock, and connections.
+  - `crates/client`: Input, UI, client-side prediction of the local player, and the voxel renderer.
   - `crates/runner`: The binaries (`vantablock`, `vantablock-server`), the singleplayer orchestrator, and client/server integration tests.
   - `crates/utils`: Common utilities including logging, tracing, and global path management.
-- **Key Features:**
-  - **Vertex Pulling:** Optimized face rendering where 6 vertices share a single 32-bit float in a GPU buffer.
-  - **Custom Render Graph:** Specialized passes for opaque, transparent, skybox, and shadow rendering.
-  - **Terrain Generation:** Multi-threaded, server-side chunk generation using noise-based biomes.
-  - **Global Illumination:** Sun-based directional lighting with shadow mapping and ambient occlusion.
 
 ## Building and Running
 
@@ -28,13 +26,16 @@ The project uses `just` as a command runner. A Nix flake is provided to ensure a
 - **Run Dedicated Server:** `just server`
 - **Run Client with BRP (agent control):** `just brp` (or `just brp-build` to only build it)
 - **Tests:** `just test` (runs `cargo nextest`)
-- **Benchmarks:** `just bench-client` / `just bench-server` (opens HTML report in browser)
+- **GPU Conformance:** `just test-gpu` (naga validation, plus WGSL vs CPU reference on the real adapter)
+- **Benchmarks:** `just bench` (CPU traversal) and `just test-gpu gpu_scene_throughput --ignored` (GPU traversal)
+- **Bake Assets:** `just bake` (writes `.vanta` files and prints 64-tree stats)
 - **Profiling:** `just trace` (requires Tracy profiler)
 - **Packaging:** `just package` / `just server-package` (uses `cargo-packager` for distribution)
 
 ### Tooling & Environment
 
 - **Worktrees:** Asset and dev-data paths are baked in at compile time from `CARGO_MANIFEST_DIR` (`crates/utils/src/paths.rs`). Never point a git worktree at the main checkout's `target/` (`CARGO_TARGET_DIR`): cargo can reuse the worktree's artifacts, and the main binary then loads assets from the worktree path. If that happens, run `cargo clean -p vantablock-utils`.
+- **Dev Paths:** Dev asset paths are used when running under cargo or in debug builds. To launch a release binary directly (not via `cargo run`), set `CARGO=cargo` or it looks for assets next to the executable.
 - **Searching:** Always exclude the `target/` directory when searching (e.g., `grep --exclude-dir=target`). It contains large build artifacts that can overwhelm search results and consume excessive context.
 - **Environment Setup:** Use `nix develop` or `direnv allow` if using Nix.
 - **Formatting:** `just fmt` (runs `nix fmt` which handles Rust and WGSL/WESL).
@@ -45,46 +46,50 @@ The project uses `just` as a command runner. A Nix flake is provided to ensure a
 
 ### ECS & Simulation
 
-- **Separation of Concerns:** Keep simulation logic in `shared` (when both sides run it) or `server` (when it is authoritative only). Rendering logic must be strictly separated into the client `render` modules and extracted into Bevy's `RenderApp`.
-- **Fixed Timestep:** Simulation runs in `FixedUpdate` at `TICKS_PER_SECOND` (`crates/shared/src/time`). Visuals are smoothed toward simulation state every frame in the client (`crates/client/src/network/graphics`).
-- **Entity Synchronization:** Meshes and world data are synchronized to the render world via `SyncToRenderWorld` and custom extraction systems (see `crates/client/src/render/mod.rs`).
+- **Separation of Concerns:** Keep simulation logic in `shared` (when both sides run it) or `server` (when it is authoritative only). Rendering logic must be strictly separated into the client `render` module and extracted into Bevy's `RenderApp`. Geometry algorithms that don't need Bevy belong in `voxel`.
+- **Fixed Timestep:** Simulation runs in `FixedUpdate` at `TICKS_PER_SECOND` (`crates/shared/src/time`). Visuals are smoothed toward simulation state every frame in the client (`crates/client/src/network/graphics`); smoothing must stay frame-rate independent (exponential decay), since a plain `lerp(dt * rate)` diverges during slow frames.
+- **World Clock:** The server advances `WorldClockResource` in `FixedUpdate` and broadcasts `SyncWorldClock`; clients advance it in `Update` and snap to syncs. Never advance it in client `FixedUpdate`, where prediction rollbacks re-run systems.
 
 ### Networking
 
 - **Server Authoritative:** The server owns all game state. Singleplayer also goes through the network stack: the runner spins up a background server thread and the client connects over local UDP.
 - **Prediction:** The server spawns players with `PredictionTarget` for the owner and `InterpolationTarget` for everyone else. On the client, `Predicted` identifies the local player and `Interpolated` identifies remote players. Never overwrite predicted components (`LogicalPosition`, `PlayerLook`) outside the fixed-step simulation, or the prediction history diverges and causes rollbacks.
-- **Inputs:** Player intents go through leafwing `PlayerAction`s, which lightyear buffers and sends per tick. Write custom input values (such as look angles) in `InputSystems::WriteClientInputs` in `FixedPreUpdate`.
+- **Inputs:** Player intents go through leafwing `PlayerAction`s, which lightyear buffers and sends per tick. Write custom input values (such as look angles) in `InputSystems::WriteClientInputs` in `FixedPreUpdate`. Client-only actions (menus, debug views, clock requests) are `ClientAction`s on a global `ActionState<ClientAction>` resource.
 - **Messages:** `MessageSender`/`MessageReceiver` components live on the connection entity (`Client` on the client, `ClientOf` on the server), not on player entities. Incoming messages are demultiplexed into local ECS messages (see the `network/receive` modules).
 - **Protocol:** Channels, messages, and replicated components are registered in `crates/shared/src/network/protocol`, after the lightyear client/server plugins.
-- **Chunk Streaming:** The client is the source of truth for which chunks it holds. It sends `RequestChunks` whenever it starts awaiting chunks (including ones it unloaded and needs again). The server queues requests per client in `ClientChunkTracker` and sends generated ones nearest-first. Never track "already sent" chunks on the server: the client unloads chunks on its own, and stale server state leaves permanent holes.
-- **Session Lifetime:** Exiting `ClientLifecycleState::InGame` (to the menu or error screen) tears the session down: the client connection entity is despawned, client chunks are cleared, and the singleplayer background server is told to exit. Lightyear's prediction systems assume exactly one `Client` entity, so never leave a stale one behind.
+- **World Objects:** The server spawns `WorldObject` + `ObjectPlacement` + `ObjectAnimation` entities from the scene layout and replicates them. Clients never spawn them, and poses are never streamed: clients evaluate `PoseDriver`s against the world clock. Assets are addressed by `VantaAssetId`, a stable hash of the asset name.
+- **Session Lifetime:** Exiting `ClientLifecycleState::InGame` (to the menu or error screen) tears the session down: the client connection entity is despawned, the client scene is cleared, and the singleplayer background server is told to exit. Lightyear's prediction systems assume exactly one `Client` entity, so never leave a stale one behind.
 
-### Graphics & Shaders
+### Geometry & Rendering
 
-- **Shaders:** Written in WESL (`assets/client/shader/`). The `VantablockShaderPlugin` handles shader registration.
-- **Assets:** Configured via RON files (e.g., `assets/server/config.ron`, `assets/shared/block/*.ron`, `assets/shared/biome/`).
-- **Optimization:** Prioritize data-oriented design (DOD) to keep the "hot path" (rendering and chunk generation) efficient.
+- **Assets:** Recipes in `assets/shared/vanta/*.ron` are baked on demand by both peers (`shared::world::assets`) and cached as `.vanta` files keyed by recipe text and `baker::BAKER_VERSION`. Bump the version when a generator's output changes. Asset root frames are anchored at the base center with +Y up.
+- **Renderer:** `client::render` bakes all modules into one `GpuGeometryLibrary` during client launch, packs a `SceneSnapshot` into `GpuSceneData` every frame, and runs `PrimaryVisibility` (compute) then `DirectLighting` (fullscreen) in Bevy's `Core3d` graph for cameras marked `VoxelCamera`.
+- **CPU/GPU Parity:** The WGSL in `assets/client/shader/voxel/lib` mirrors `crates/voxel` (masks, `tree64`, `scene`, `math`). Change both together, keep `crates/client/src/render/gpu/layout.rs` in sync with `lib/types.wesl`, and run `just test-gpu`: shader changes are not done until the conformance tests pass on a real adapter.
+- **Exact Identity:** Traversal reports integer voxel cells from traversal state. Never recover a cell or entry cell by flooring a reconstructed floating-point position; compare `t` against plane distances instead.
+- **WGSL Pitfalls:** `attribute` and `handle` are reserved words; mixing bitwise and arithmetic or comparison operators needs parentheses; avoid dynamically indexing vector components in hot loops (it forces them out of registers).
+- **Optimization:** Prioritize data-oriented design and measure before replacing working algorithms. Judge GPU changes with `gpu_scene_throughput`, not the in-game FPS of a debug build.
 
 ### Testing
 
 - **Integration Tests:** Client/server tests live in `crates/runner/tests`. When driving apps manually with `app.update()`, call `app.finish()` and `app.cleanup()` first: `App::run` normally does this, and lightyear builds its replication systems in `Plugin::finish`.
-- **Headless Client:** `HeadlessClientPlugins` runs the client without a window or renderer, so render-owned resources like `ClientChunkManager` must be initialized by the test.
+- **Headless Client:** `HeadlessClientPlugins` runs the client without a window or renderer; the render plugin (and its scene/geometry resources) is absent.
+- **Reference Tests:** Traversal changes must keep `crates/voxel/tests` (boundary torture and scene equivalence) passing; `voxel::reference::check_hit` defines what a correct hit is.
 
 ### Interactive Testing (BRP)
 
 Unit and integration tests can't catch everything (UI flows, rendering, session lifecycle). Use the Bevy Remote Protocol to drive the real game and verify changes end to end.
 
 - **Setup:** The client's `brp` cargo feature adds `bevy_brp_extras`, which serves BRP on `localhost:15702`. The `bevy_brp_mcp` server (in the nix devshell, or `cargo install bevy_brp_mcp --version 0.19.0`) is registered in `.mcp.json`. The `bevy_brp_*` versions must match the Bevy release (0.19.x for Bevy 0.18).
-- **Workflow:** Run `just brp-build`, then launch with the `brp_launch` tool (target `vantablock`); it runs the already-built binary, so rebuild after code changes. Drive it with `brp_extras_*` input tools, inspect with `world_query`/`world_get_components`, check `brp_extras_screenshot` images, read logs with `brp_read_log`, and stop it with `brp_shutdown`.
-- **Without MCP:** BRP is plain JSON-RPC over HTTP, e.g. `curl -s -X POST localhost:15702 -d '{"jsonrpc":"2.0","id":1,"method":"world.query","params":{"data":{},"filter":{"with":["client::player::components::LocalPlayer"]}}}'`.
+- **Workflow:** Run `just brp-build`, then launch with the `brp_launch` tool (target `vantablock`); it runs the already-built binary, so rebuild after code changes. Drive it with `brp_extras_*` input tools, inspect with `world_query`/`world_get_components`, check `brp_extras_screenshot` images, read logs with `brp_read_log`, and stop it with `brp_shutdown`. Make sure no earlier instance still holds the BRP port.
 - **Mouse Coordinates:** `move_mouse` positions are logical window pixels. Screenshots are physical pixels, so divide by the window scale factor (2.0 on Retina) to aim clicks.
-- **Inspecting State:** Only components with `#[derive(Reflect)]` and `#[reflect(Component)]` are visible to BRP; add both to anything worth inspecting. App states are not reflected, but the F3 debug menu's `Text` (position, chunk counts, chunks awaiting server data, meshing queue) can be read with a `world_query` on `bevy_ui::widget::text::Text`.
-- **Expectations:** In debug builds, terrain takes several seconds to mesh after joining, so an early screenshot showing only sky is normal. Check the meshing queue before concluding rendering is broken.
+- **Inspecting State:** Only types with `#[derive(Reflect)]` and `#[reflect(Component)]`/`#[reflect(Resource)]` are visible to BRP; add both to anything worth inspecting. `client::render::scene::ClientScene` holds scene stats, `client::render::settings::RenderSettings` switches debug views, acceleration modes, and render scale, and setting `client::ui::screens::debug_menu::DebugMenuState.visible` opens the debug menu (F3 is often captured by macOS), whose `Text` reports FPS and stats.
+- **Debugging Renders:** Debug views separate failures quickly: `SceneNodes` and `GroupCandidates` show whether rays reach the scene BVH and pose frames, `TraversalSteps` shows DDA cost, and `PoseFrames`/`VoxelCells` show identity.
 - **Smoke Test:** After networking or lifecycle changes, check this loop: Singleplayer → hold W (position changes) → move mouse (`PlayerLook` follows) → Escape → Disconnect (lands on the main menu) → Singleplayer again, repeated a few times without a panic or a second `PredictionManager`.
 
 ### Tracing & Debugging
 
 - **Tracy:** Integrated via features. Use `just trace` to profile the application.
+- **Render Timings:** `VANTA_GPU_TIMINGS=1` enables Bevy's per-pass render diagnostics (opt-in: on Metal they lost the device).
 - **Logging:** Use `tracing` macros (`info!`, `warn!`, `error!`). Use `just debug <target>` to enable specific trace-level logging for a module, or set `RUST_LOG` (e.g., `RUST_LOG=info,lightyear_inputs=trace`).
 
 ### Rust Style & Conventions
@@ -93,12 +98,16 @@ Unit and integration tests can't catch everything (UI flows, rendering, session 
 
 ## Workspace Structure
 
-- `assets/`: Split into `client/` (fonts, shaders, textures), `server/` (config), and `shared/` (blocks, biomes).
+- `assets/`: Split into `client/` (fonts, WESL shaders), `server/` (scene layouts), and `shared/` (asset recipes).
+- `docs/`: `architecture.md`, the map from the engine design to the code.
 - `crates/`:
-  - `client/src/render/`: Custom render passes and GPU resource management.
+  - `voxel/src/`: Canonical data model, `hierarchy/tree64.rs`, `bvh.rs`, `scene.rs`, `reference.rs`.
+  - `baker/src/generators/`: Procedural asset generators.
+  - `client/src/render/`: Geometry library, scene packing, GPU resources, and the render graph passes.
   - `client/src/network/`, `server/src/network/`: Connection handling, message demultiplexing, and sending.
-  - `server/src/world/`: Terrain generation and chunk loading.
+  - `server/src/world/`: Scene population and the authoritative clock.
   - `shared/src/network/protocol/`: Channels, messages, and replicated components.
+  - `shared/src/world/`: The asset library and replicated world object components.
   - `shared/src/player/`: Shared player components and movement simulation.
   - `utils/src/logger.rs`: Centralized logging configuration.
 - `target/`: Build artifacts (ignored by git).

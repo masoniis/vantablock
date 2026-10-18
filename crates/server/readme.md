@@ -1,7 +1,3 @@
 # Vantablock Server (`vantablock-server`)
 
-The `vantablock-server` crate acts as the authoritative, headless multiplayer server for the game.
-
-## Testing
-
-This crate includes benchmarking (`generation_benchmarks`) to track and optimize the performance of the multinoise terrain generation.
+The `vantablock-server` crate is the authoritative, headless server. It owns the world clock and populates the world from a scene layout (`assets/server/scenes`), spawning replicated world objects that every client renders.
