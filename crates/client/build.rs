@@ -13,6 +13,8 @@ fn main() {
     for (module, artifact) in [
         ("package::voxel::primary_visibility", "primary_visibility"),
         ("package::voxel::direct_lighting", "direct_lighting"),
+        // run on the real adapter by the GPU conformance tests
+        ("package::voxel::tests::conformance", "voxel_conformance"),
     ] {
         compiler.build_artifact(&module.parse().unwrap(), artifact);
     }

@@ -24,6 +24,11 @@ brp = [
 [build-dependencies]
 wesl = { workspace = true } # shader compliation from WESL to WGSL
 
+[dev-dependencies]
+# the exact versions bevy uses, for headless shader validation and GPU conformance tests
+wgpu = "=27.0.1"
+naga = { version = "=27.0.3", features = ["wgsl-in"] }
+
 [dependencies]
 utils = { workspace = true }
 shared = { workspace = true }
