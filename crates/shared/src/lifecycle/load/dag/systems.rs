@@ -74,11 +74,16 @@ pub fn kickoff_loading_phase<P: LoadingDagPhase>(
 /// Coordinator observer that evaluates dependencies whenever a phase node finishes.
 ///
 /// This system listens for `NodeCompleted` globally and triggers the next ready phase nodes.
+/// Completions from other phases still arrive after this phase's DAG was nuked, so a missing DAG
+/// is ignored.
 pub fn evaluate_dag_dependencies<P: LoadingDagPhase>(
     event: On<NodeCompleted>,
     mut commands: Commands,
-    mut dag: ResMut<LoadingDag<P>>,
+    dag: Option<ResMut<LoadingDag<P>>>,
 ) {
+    let Some(mut dag) = dag else {
+        return;
+    };
     let finished_node = event.event().node_type;
 
     // we only care about nodes that are part of THIS DAG
@@ -200,4 +205,60 @@ pub fn poll_all_loading_tasks(
 /// Returns true if the DAG for the specified phase type is complete.
 pub fn loading_dag_is_complete<P: LoadingDagPhase>(dag: Option<Res<LoadingDag<P>>>) -> bool {
     dag.is_none_or(|d| d.completed_nodes.len() == d.dependencies.len())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lifecycle::load::LoadingAppExt;
+
+    struct FirstPhase;
+    impl LoadingDagPhase for FirstPhase {
+        const PHASE_NAME: &'static str = "First";
+    }
+    struct SecondPhase;
+    impl LoadingDagPhase for SecondPhase {
+        const PHASE_NAME: &'static str = "Second";
+    }
+    #[derive(Component)]
+    struct FirstNode;
+    #[derive(Component)]
+    struct SecondNode;
+
+    /// Regression: completing a node in a later phase panicked because the nuked earlier phase's
+    /// coordinator observer still ran without its DAG resource.
+    #[test]
+    fn completions_after_a_phase_is_nuked_are_ignored() {
+        let mut app = App::new();
+        app.configure_loading_phase::<FirstPhase>()
+            .add_node(FirstNode, |_: On<StartNode>, mut c: Commands| {
+                c.trigger(NodeCompleted::of::<FirstNode>())
+            });
+        app.configure_loading_phase::<SecondPhase>()
+            .add_node(SecondNode, |_: On<StartNode>, mut c: Commands| {
+                c.trigger(NodeCompleted::of::<SecondNode>())
+            });
+
+        let world = app.world_mut();
+        world
+            .run_system_cached(kickoff_loading_phase::<FirstPhase>)
+            .unwrap();
+        world.flush();
+        world
+            .run_system_cached(nuke_loading_dag::<FirstPhase>)
+            .unwrap();
+        world.flush();
+        world
+            .run_system_cached(kickoff_loading_phase::<SecondPhase>)
+            .unwrap();
+        world.flush();
+
+        assert!(
+            world
+                .resource::<LoadingDag<SecondPhase>>()
+                .completed_nodes
+                .len()
+                == 1
+        );
+    }
 }
