@@ -1,6 +1,13 @@
-use crate::{input::local_actions::ClientAction, player::LocalPlayer};
+use crate::{
+    input::local_actions::ClientAction,
+    player::LocalPlayer,
+    render::{
+        RenderSettings, device::GpuCapabilities, geometry::GeometryLibraryHandle,
+        scene::ClientScene,
+    },
+};
 use bevy::{
-    diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
+    diagnostic::{DiagnosticPath, DiagnosticsStore, FrameTimeDiagnosticsPlugin},
     prelude::*,
 };
 use leafwing_input_manager::common_conditions::action_just_pressed;
@@ -9,6 +16,9 @@ use shared::{
     time::WorldClockResource,
 };
 use std::fmt::Write;
+
+/// Render passes whose timings are shown, by diagnostic span name.
+const PASS_SPANS: [&str; 2] = ["voxel/primary_visibility", "voxel/direct_lighting"];
 
 #[derive(Component)]
 pub struct DebugMenuRoot;
@@ -90,10 +100,15 @@ fn sync_debug_menu_system(
         });
 }
 
+#[allow(clippy::too_many_arguments)]
 fn update_debug_menu_system(
     diagnostics: Res<DiagnosticsStore>,
     player_query: Query<(&LogicalPosition, &PlayerLook), With<LocalPlayer>>,
     clock: Res<WorldClockResource>,
+    settings: Res<RenderSettings>,
+    scene: Res<ClientScene>,
+    gpu: Option<Res<GpuCapabilities>>,
+    geometry: Option<Res<GeometryLibraryHandle>>,
     mut text_query: Query<&mut Text, With<DebugMenuText>>,
 ) {
     let fps = diagnostics
@@ -117,8 +132,71 @@ fn update_debug_menu_system(
         text,
         "Time of day: {:.0}%{}",
         clock.day_night_cycle_value() * 100.0,
-        if clock.day_cycle_paused { " (paused)" } else { "" }
+        if clock.day_cycle_paused {
+            " (paused)"
+        } else {
+            ""
+        }
     );
+
+    let s = scene.stats;
+    let _ = writeln!(
+        text,
+        "\nView: {:?}  Acceleration: {:?}  Render scale: {}",
+        settings.debug_view, settings.acceleration, settings.render_scale
+    );
+    let _ = writeln!(
+        text,
+        "Objects: {}  Pose frames: {}  Scene BVH nodes: {}",
+        s.objects, s.frames, s.bvh_nodes
+    );
+    if s.out_of_envelope > 0 || s.overflowed_frames > 0 {
+        let _ = writeln!(
+            text,
+            "Out-of-envelope instances: {}  Dropped frames: {}",
+            s.out_of_envelope, s.overflowed_frames
+        );
+    }
+    let _ = writeln!(text, "Scene build: {:.2} ms", s.build_millis);
+
+    for span in PASS_SPANS {
+        let read = |field: &str| {
+            diagnostics
+                .get(&DiagnosticPath::new(format!("render/{span}/{field}")))
+                .and_then(|d| d.smoothed())
+        };
+        match (read("elapsed_gpu"), read("elapsed_cpu")) {
+            (Some(gpu), _) => {
+                let _ = writeln!(text, "{span}: {gpu:.2} ms GPU");
+            }
+            (None, Some(cpu)) => {
+                let _ = writeln!(text, "{span}: {cpu:.2} ms CPU (no GPU timestamps)");
+            }
+            _ => {}
+        }
+    }
+
+    if let Some(geometry) = geometry {
+        let g = geometry.0.stats;
+        let _ = writeln!(
+            text,
+            "\nGeometry: {} voxels, {} nodes, {:.1} MiB ({} topology pages, {} shared blocks)",
+            g.voxels,
+            g.nodes,
+            (g.topology_bytes + g.attribute_bytes) as f64 / (1 << 20) as f64,
+            g.topology_pages,
+            g.shared_blocks
+        );
+    }
+    if let Some(gpu) = gpu {
+        let _ = writeln!(
+            text,
+            "GPU: {} ({}), max binding {} MiB",
+            gpu.adapter_name,
+            gpu.backend,
+            gpu.residency.max_storage_buffer_binding_size >> 20
+        );
+    }
 
     for mut t in text_query.iter_mut() {
         **t = text.clone();

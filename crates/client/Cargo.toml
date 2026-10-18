@@ -21,6 +21,9 @@ brp = [
   "bevy/png",
 ] # exposes brp on localhost:15702 for inspection/automation
 
+[build-dependencies]
+wesl = { workspace = true } # shader compliation from WESL to WGSL
+
 [dependencies]
 utils = { workspace = true }
 shared = { workspace = true }

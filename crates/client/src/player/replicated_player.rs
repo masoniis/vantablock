@@ -1,8 +1,9 @@
 use crate::{
     input::input_maps::get_default_player_action_input_map,
     player::components::{LocalPlayer, LocalPlayerCamera, LocalPlayerLook},
+    render::VoxelCamera,
 };
-use bevy::prelude::*;
+use bevy::{prelude::*, render::view::Msaa};
 use leafwing_input_manager::prelude::ActionState;
 use shared::player::PlayerAction;
 
@@ -30,6 +31,10 @@ pub fn dress_local_player(entity: Entity, spawn_pos: Vec3, commands: &mut Comman
             parent.spawn((
                 Camera3d::default(),
                 LocalPlayerCamera,
+                // the voxel renderer traces every pixel itself, so the view targets stay
+                // single-sampled
+                VoxelCamera,
+                Msaa::Off,
                 Projection::Perspective(PerspectiveProjection {
                     fov: 60.0f32.to_radians(),
                     near: 0.05,

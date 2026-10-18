@@ -5,6 +5,7 @@ pub mod lifecycle;
 pub mod network;
 pub mod player;
 pub mod prelude;
+pub mod render;
 pub mod settings;
 pub mod ui;
 pub mod world;
@@ -22,6 +23,7 @@ use bevy::{
     input::InputPlugin,
     log::LogPlugin,
     prelude::{AssetPlugin, DefaultPlugins, Window, WindowPlugin, default},
+    render::{RenderPlugin, diagnostic::RenderDiagnosticsPlugin, settings::RenderCreation},
     state::app::StatesPlugin,
     window::WindowResolution,
 };
@@ -53,7 +55,6 @@ impl PluginGroup for DefaultClientPlugins {
         let persistent_paths = utils::PersistentPaths::resolve_client();
         let asset_path = persistent_paths.assets_dir.to_string_lossy().to_string();
 
-        #[allow(unused_mut)]
         let mut builder = PluginGroupBuilder::start::<Self>()
             // bevy default setup
             .add_group(
@@ -71,15 +72,27 @@ impl PluginGroup for DefaultClientPlugins {
                         file_path: asset_path,
                         ..default()
                     })
+                    // request the adapter's real limits and features, see `render::device`
+                    .set(RenderPlugin {
+                        render_creation: RenderCreation::Automatic(render::device::wgpu_settings()),
+                        ..default()
+                    })
                     .disable::<LogPlugin>(),
             )
             // external crate plugins
             .add_group(shared::SharedPlugins)
             // rendering plugins, these depend on bevy render app existing
             // so they can't be a part of the core plugin set
+            .add(render::VantablockRenderPlugin)
             .add(ui::VantablockUiPlugin)
             // core client
             .add_group(CoreClientLogicPlugins);
+
+        // per-pass render timings, opt-in: on Metal, bevy's timestamp queries failed to allocate
+        // counter sample buffers and lost the device
+        if std::env::var_os("VANTA_GPU_TIMINGS").is_some() {
+            builder = builder.add(RenderDiagnosticsPlugin);
+        }
 
         #[cfg(feature = "dev")]
         {
