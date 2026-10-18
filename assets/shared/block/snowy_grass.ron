@@ -1,8 +1,0 @@
-(
-	display_name: "Snowy Grass",
-	textures: (
-		fallback: "grass_snow",
-		top: Some("snow"),
-	),
-	is_transparent: false,
-)

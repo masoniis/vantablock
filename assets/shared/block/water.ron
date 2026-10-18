@@ -1,7 +1,0 @@
-(
-	display_name: "water",
-	textures: (
-		fallback: "water",
-	),
-	is_transparent: true,
-)

@@ -1,8 +1,0 @@
-(
-    name: "Ice Spikes",
-    tint_colors: None,
-    terrain: (
-        surface_material: "snow",
-        subsurface_material: "snow",
-    ),
-)

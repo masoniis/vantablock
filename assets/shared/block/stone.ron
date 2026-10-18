@@ -1,7 +1,0 @@
-(
-	display_name: "Stone",
-	textures: (
-		fallback: "stone",
-	),
-	is_transparent: false,
-)

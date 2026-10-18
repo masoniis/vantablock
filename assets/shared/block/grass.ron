@@ -1,9 +1,0 @@
-(
-	display_name: "Grass",
-	textures: (
-		fallback: "grass_side",
-		top: Some("grass_top"),
-		bottom: Some("dirt"),
-	),
-	is_transparent: false,
-)

@@ -1,8 +1,0 @@
-(
-    name: "Badlands",
-    tint_colors: None,
-    terrain: (
-        surface_material: "red_sand",
-        subsurface_material: "stone",
-    ),
-)

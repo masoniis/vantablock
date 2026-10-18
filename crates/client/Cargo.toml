@@ -12,9 +12,6 @@ path = "src/lib.rs"
 [lints]
 workspace = true
 
-[[bench]]
-name = "meshing_benchmarks"
-harness = false
 
 [features]
 dev = ["bevy/dev", "bevy/bevy_dev_tools"]
@@ -27,17 +24,6 @@ brp = [
 
 [build-dependencies]
 wesl = { workspace = true } # shader compliation from WESL to WGSL
-
-[dev-dependencies]
-criterion = { workspace = true }
-
-# INFO: --------------------------
-#         util bin scripts
-# --------------------------------
-
-[[bin]]
-name = "texture_processor"
-path = "tools/texture_processor.rs"
 
 [dependencies]
 utils = { workspace = true }

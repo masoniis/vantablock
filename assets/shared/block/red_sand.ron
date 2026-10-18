@@ -1,7 +1,0 @@
-(
-	display_name: "Red Sand",
-	textures: (
-		fallback: "red_sand",
-	),
-	is_transparent: false,
-)

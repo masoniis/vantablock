@@ -8,15 +8,8 @@ publish.workspace = true
 name = "server"
 path = "src/lib.rs"
 
-[[bench]]
-name = "generation_benchmarks"
-harness = false
-
 [lints]
 workspace = true
-
-[dev-dependencies]
-criterion = { workspace = true }
 
 [dependencies]
 utils = { workspace = true }
