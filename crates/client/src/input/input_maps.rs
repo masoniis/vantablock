@@ -1,5 +1,5 @@
 use crate::input::local_actions::ClientAction;
-use bevy::prelude::{KeyCode, MouseButton};
+use bevy::prelude::KeyCode;
 use leafwing_input_manager::prelude::InputMap;
 use leafwing_input_manager::user_input::mouse::MouseScrollAxis;
 use shared::player::PlayerAction;
@@ -13,16 +13,9 @@ pub fn get_default_player_action_input_map() -> InputMap<PlayerAction> {
     input_map.insert(PlayerAction::MoveBackward, KeyCode::KeyS);
     input_map.insert(PlayerAction::MoveLeft, KeyCode::KeyA);
     input_map.insert(PlayerAction::MoveRight, KeyCode::KeyD);
+    input_map.insert(PlayerAction::MoveUp, KeyCode::Space);
+    input_map.insert(PlayerAction::MoveDown, KeyCode::ControlLeft);
     input_map.insert(PlayerAction::MoveFaster, KeyCode::ShiftLeft);
-
-    // core player actions
-    input_map.insert(PlayerAction::PrimaryInteract, MouseButton::Left);
-    input_map.insert(PlayerAction::SecondaryInteract, MouseButton::Right);
-
-    // game time control
-    input_map.insert(PlayerAction::JumpGameTimeForward, KeyCode::ArrowRight);
-    input_map.insert(PlayerAction::JumpGameTimeBackward, KeyCode::ArrowLeft);
-    input_map.insert(PlayerAction::PauseGameTime, KeyCode::Space);
 
     input_map
 }
@@ -34,28 +27,21 @@ pub fn get_default_client_action_input_map() -> InputMap<ClientAction> {
     // continuous inputs
     input_map.insert_axis(ClientAction::Zoom, MouseScrollAxis::Y);
 
-    // misc
+    // menus
     input_map.insert(ClientAction::TogglePause, KeyCode::Escape);
-
-    // debug/analysis tools
-    input_map.insert(ClientAction::ToggleDiagnostics, KeyCode::F1);
-    input_map.insert(ClientAction::ToggleDiagnostics, KeyCode::KeyU);
     input_map.insert(ClientAction::ToggleDebugMenu, KeyCode::F3);
-    input_map.insert(ClientAction::ToggleOpaqueWireframeMode, KeyCode::F2);
-    input_map.insert(ClientAction::ToggleOpaqueWireframeMode, KeyCode::KeyO);
-    input_map.insert(ClientAction::ToggleChunkBorders, KeyCode::KeyB);
 
-    // showcase actions
-    input_map.insert(ClientAction::Showcase0, KeyCode::Digit0);
-    input_map.insert(ClientAction::Showcase1, KeyCode::Digit1);
-    input_map.insert(ClientAction::Showcase2, KeyCode::Digit2);
-    input_map.insert(ClientAction::Showcase3, KeyCode::Digit3);
-    input_map.insert(ClientAction::Showcase4, KeyCode::Digit4);
-    input_map.insert(ClientAction::Showcase5, KeyCode::Digit5);
-    input_map.insert(ClientAction::Showcase6, KeyCode::Digit6);
-    input_map.insert(ClientAction::Showcase7, KeyCode::Digit7);
-    input_map.insert(ClientAction::Showcase8, KeyCode::Digit8);
-    input_map.insert(ClientAction::Showcase9, KeyCode::Digit9);
+    // renderer inspection
+    input_map.insert(ClientAction::CycleDebugView, KeyCode::F2);
+    input_map.insert(ClientAction::CycleDebugView, KeyCode::KeyV);
+    input_map.insert(ClientAction::ToggleSceneAcceleration, KeyCode::F4);
+    input_map.insert(ClientAction::ToggleSceneAcceleration, KeyCode::KeyB);
+    input_map.insert(ClientAction::CycleRenderScale, KeyCode::F5);
+
+    // world clock
+    input_map.insert(ClientAction::TimeForward, KeyCode::ArrowRight);
+    input_map.insert(ClientAction::TimeBackward, KeyCode::ArrowLeft);
+    input_map.insert(ClientAction::ToggleDayCycle, KeyCode::KeyP);
 
     input_map
 }

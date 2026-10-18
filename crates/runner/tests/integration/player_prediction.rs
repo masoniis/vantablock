@@ -3,7 +3,6 @@ use client::{
     HeadlessClientPlugins,
     network::connection::{ConnectType, InitiateConnection},
     player::{LocalPlayer, LocalPlayerLook},
-    render::chunk::manager::ClientChunkManager,
 };
 use lightyear::prelude::Predicted;
 use server::{DefaultServerPlugins, lifecycle::state::ServerState};
@@ -11,6 +10,7 @@ use shared::{
     lifecycle::state::AppState,
     network::DEFAULT_LOCAL_SERVER_ADDR,
     player::components::{LogicalPosition, NetworkPlayer, PlayerLook},
+    world::{ObjectPlacement, WorldObject},
 };
 use std::time::{Duration, Instant};
 
@@ -54,19 +54,24 @@ fn client_local_player(client: &mut App) -> Option<(Entity, Vec3, PlayerLook)> {
         .map(|(entity, pos, look)| (entity, pos.0, *look))
 }
 
+fn world_objects(app: &mut App) -> usize {
+    let mut query = app
+        .world_mut()
+        .query_filtered::<(), (With<WorldObject>, With<ObjectPlacement>)>();
+    query.iter(app.world()).count()
+}
+
 /// Connects a headless client to a real server over local UDP, then verifies that the
-/// client's movement and look inputs reach the server and that the client's predicted
-/// state agrees with the server's authoritative state.
+/// server's world objects replicate, that the client's movement and look inputs reach the
+/// server, and that the client's predicted state agrees with the server's authoritative state.
 #[test]
-fn local_player_inputs_are_predicted_and_authoritative() {
+fn world_replicates_and_player_inputs_are_predicted() {
     utils::attach_logger();
 
     let mut server = App::new();
     server.add_plugins(DefaultServerPlugins);
     let mut client = App::new();
     client.add_plugins(HeadlessClientPlugins);
-    // owned by the render plugin, which headless clients don't have
-    client.init_resource::<ClientChunkManager>();
 
     // `App::run` normally does this, but we drive the apps by hand. Lightyear builds its
     // replication systems in `Plugin::finish`, so skipping this silently disables replication.
@@ -106,6 +111,20 @@ fn local_player_inputs_are_predicted_and_authoritative() {
         Duration::from_secs(20),
         "predicted local player on client",
         |_, client| client_local_player(client).is_some(),
+    );
+
+    // every server-owned world object replicates to the client with its placement
+    let server_objects = world_objects(&mut server);
+    assert!(
+        server_objects > 0,
+        "the server should populate its showcase scene"
+    );
+    step_until(
+        &mut server,
+        &mut client,
+        Duration::from_secs(20),
+        "world objects replicated to the client",
+        |server, client| world_objects(client) == world_objects(server),
     );
 
     let (local_entity, _, _) = client_local_player(&mut client).unwrap();

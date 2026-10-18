@@ -3,29 +3,25 @@ use leafwing_input_manager::Actionlike;
 
 /// Actions that are local to the client and do not affect the server's state or the player/character.
 ///
-/// These are typically used for UI toggles, debug views, etc.
+/// These are typically used for UI toggles, debug views, etc. They live on a global
+/// `ActionState<ClientAction>` resource.
 #[derive(Actionlike, PartialEq, Eq, Clone, Copy, Hash, Debug, Reflect)]
 pub enum ClientAction {
     // continuous inputs
     #[actionlike(Axis)]
     Zoom,
 
-    // random stuff
-    ToggleDiagnostics,
-    ToggleDebugMenu,
-    ToggleOpaqueWireframeMode,
-    ToggleChunkBorders,
+    // menus
     TogglePause,
+    ToggleDebugMenu,
 
-    // showcase actions
-    Showcase0,
-    Showcase1,
-    Showcase2,
-    Showcase3,
-    Showcase4,
-    Showcase5,
-    Showcase6,
-    Showcase7,
-    Showcase8,
-    Showcase9,
+    // renderer inspection
+    CycleDebugView,
+    ToggleSceneAcceleration,
+    CycleRenderScale,
+
+    // world clock requests (sent to the server)
+    TimeForward,
+    TimeBackward,
+    ToggleDayCycle,
 }

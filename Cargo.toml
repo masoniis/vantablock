@@ -81,11 +81,9 @@ tracy-client = "=0.18.0"
 tracing-tracy = "=0.11.4"
 
 # graphics deps
-wesl = "0.2.0"                                                               # shader compliation from WESL to WGSL
-offset-allocator = "0.2.0"                                                   # gpu buffer allocation
-bytemuck = { version = "1.13", features = ["derive"] }                       # gpu friendly data
-image = { version = "0.25.6", default-features = false, features = ["png"] }
-glam = { version = "0.30", features = ["bytemuck"] }                         # math for the bevy-free voxel core, matches bevy's glam
+wesl = "0.2.0"                                         # shader compliation from WESL to WGSL
+bytemuck = { version = "1.13", features = ["derive"] } # gpu friendly data
+glam = { version = "0.30", features = ["bytemuck"] }   # math for the bevy-free voxel core, matches bevy's glam
 
 # game dependencies
 bevy = { version = "0.18.1", default-features = false, features = [
@@ -109,10 +107,7 @@ derive_more = { version = "2.0.1", features = ["deref", "deref_mut"] }
 serde = { version = "1.0.228", features = ["derive"] } # serializing
 rand = "0.9.2" # rng
 ron = "0.11.0" # parsing RON files
-zstd = "0.13"
-noise = { version = "0.9.0", default-features = false } # gen random noise
-crossbeam = "0.8.4" # thread comms
-glob = "0.3.3" # reading dirs
+zstd = "0.13" # compression for .vanta assets
 directories = "6.0" # platform-specific dirs
 sysinfo = { version = "0.37.2", default-features = false, features = [
   "system",

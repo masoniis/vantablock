@@ -19,18 +19,10 @@ pub enum PlayerAction {
     MoveLeft,
     /// Move the player to the right.
     MoveRight,
+    /// Fly straight up.
+    MoveUp,
+    /// Fly straight down.
+    MoveDown,
     /// Sprint or move at a faster pace.
     MoveFaster,
-
-    /// Primary interaction intent (e.g., breaking a block).
-    PrimaryInteract,
-    /// Secondary interaction intent (e.g., placing a block).
-    SecondaryInteract,
-
-    /// Request to jump the game time forward.
-    JumpGameTimeForward,
-    /// Request to jump the game time backward.
-    JumpGameTimeBackward,
-    /// Request to toggle game time pausing.
-    PauseGameTime,
 }

@@ -4,17 +4,10 @@
 //! of the original network messages our client receives.
 
 use bevy::ecs::message::Message;
-use bevy::prelude::*;
-use shared::world::chunk::ChunkCoord;
 
-#[derive(Message)]
-pub struct InboundCompressedChunkMessage {
-    pub coord: ChunkCoord,
-    pub data: Vec<u8>,
-}
-
-#[derive(Message)]
-pub struct InboundBlockUpdateMessage {
-    pub position: IVec3,
-    pub block_id: u8,
+#[derive(Message, Clone, Copy, Debug)]
+pub struct InboundClockSyncMessage {
+    pub elapsed_seconds: f64,
+    pub time_of_day_seconds: f32,
+    pub day_cycle_paused: bool,
 }

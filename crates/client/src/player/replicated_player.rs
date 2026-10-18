@@ -1,13 +1,10 @@
 use crate::{
-    input::{
-        input_maps::{get_default_client_action_input_map, get_default_player_action_input_map},
-        local_actions::ClientAction,
-    },
+    input::input_maps::get_default_player_action_input_map,
     player::components::{LocalPlayer, LocalPlayerCamera, LocalPlayerLook},
 };
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::ActionState;
-use shared::{player::PlayerAction, world::chunk::ChunkCoord};
+use shared::player::PlayerAction;
 
 /// Attaches all local-only components and children to the local player entity.
 ///
@@ -22,12 +19,9 @@ pub fn dress_local_player(entity: Entity, spawn_pos: Vec3, commands: &mut Comman
             LocalPlayerLook::default(),
             ActionState::<PlayerAction>::default(),
             get_default_player_action_input_map(),
-            ActionState::<ClientAction>::default(),
-            get_default_client_action_input_map(),
             Transform::from_translation(spawn_pos),
-            ChunkCoord {
-                pos: ChunkCoord::world_to_chunk_pos(spawn_pos),
-            },
+            // the camera child inherits visibility from here
+            Visibility::default(),
         ))
         .with_children(|parent| {
             // TODO: need a proper transition from dressing the local player to actually rendering the world,
@@ -37,15 +31,11 @@ pub fn dress_local_player(entity: Entity, spawn_pos: Vec3, commands: &mut Comman
                 Camera3d::default(),
                 LocalPlayerCamera,
                 Projection::Perspective(PerspectiveProjection {
-                    fov: 45.0f32.to_radians(),
-                    near: 0.1,
+                    fov: 60.0f32.to_radians(),
+                    near: 0.05,
                     far: f32::INFINITY,
                     ..Default::default()
                 }),
-                Transform::from_xyz(0.0, 1.6, 0.0),
-                ChunkCoord {
-                    pos: ChunkCoord::world_to_chunk_pos(spawn_pos + Vec3::new(0.0, 1.6, 0.0)),
-                },
             ));
         });
 }

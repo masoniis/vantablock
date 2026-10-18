@@ -2,7 +2,7 @@ use crate::common::UdpClientServerTestEnvironment;
 use bevy::ecs::system::RunSystemOnce;
 use bevy::prelude::*;
 use lightyear::prelude::*;
-use shared::network::{ChatAndSystem, ServerMessage};
+use shared::network::{ClockSync, ServerMessage};
 use std::time::Duration;
 
 #[test]
@@ -43,9 +43,10 @@ fn sending_a_message() {
                     info!("Server MessageSender entity: {:?}", entity);
                 }
 
-                let test_msg = ServerMessage::SyncTime {
-                    game_time: 42.0,
-                    tick: 0,
+                let test_msg = ServerMessage::SyncWorldClock {
+                    elapsed_seconds: 42.0,
+                    time_of_day_seconds: 7.0,
+                    day_cycle_paused: false,
                 };
 
                 let (entity, mut sender) = sender_query
@@ -56,7 +57,7 @@ fn sending_a_message() {
                     "Sending test message from server via entity {:?}...",
                     entity
                 );
-                sender.send::<ChatAndSystem>(test_msg.clone());
+                sender.send::<ClockSync>(test_msg.clone());
                 info!("Message sent (queued)");
             },
         )
@@ -78,11 +79,14 @@ fn sending_a_message() {
                 info_once!("Checking client receiver for messages...");
                 for message in receiver.receive() {
                     info_once!("Message received: {:?}", message);
-                    if let ServerMessage::SyncTime { game_time, tick } = message {
-                        assert_eq!(game_time, 42.0);
-                        assert_eq!(tick, 0);
-                        found = true;
-                    }
+                    let ServerMessage::SyncWorldClock {
+                        elapsed_seconds,
+                        time_of_day_seconds,
+                        ..
+                    } = message;
+                    assert_eq!(elapsed_seconds, 42.0);
+                    assert_eq!(time_of_day_seconds, 7.0);
+                    found = true;
                 }
             }
 

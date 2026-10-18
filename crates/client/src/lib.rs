@@ -5,10 +5,9 @@ pub mod lifecycle;
 pub mod network;
 pub mod player;
 pub mod prelude;
-pub mod render;
 pub mod settings;
-pub mod showcase;
 pub mod ui;
+pub mod world;
 
 pub use prelude::*;
 
@@ -20,8 +19,6 @@ pub use prelude::*;
 use bevy::dev_tools::fps_overlay::{FpsOverlayConfig, FpsOverlayPlugin};
 use bevy::{
     MinimalPlugins,
-    asset::AssetApp,
-    image::Image,
     input::InputPlugin,
     log::LogPlugin,
     prelude::{AssetPlugin, DefaultPlugins, Window, WindowPlugin, default},
@@ -43,8 +40,8 @@ impl PluginGroup for CoreClientLogicPlugins {
             .add(input::ClientInputPlugin)
             .add_group(lifecycle::LifecyclePlugins)
             .add_group(network::ClientNetworkPlugins)
+            .add(world::ClientWorldPlugin)
             .add(player::PlayerPlugin)
-            .add(showcase::ShowcasePlugin)
     }
 }
 
@@ -80,7 +77,6 @@ impl PluginGroup for DefaultClientPlugins {
             .add_group(shared::SharedPlugins)
             // rendering plugins, these depend on bevy render app existing
             // so they can't be a part of the core plugin set
-            .add(render::VantablockRenderPlugin)
             .add(ui::VantablockUiPlugin)
             // core client
             .add_group(CoreClientLogicPlugins);
@@ -120,19 +116,9 @@ impl PluginGroup for HeadlessClientPlugins {
             })
             .add(StatesPlugin)
             .add(InputPlugin)
-            // ensure basic assets are registered
-            .add(AssetRegistrationPlugin)
             // external crate plugins
             .add_group(shared::SharedPlugins)
             // core client
             .add_group(CoreClientLogicPlugins)
-    }
-}
-
-struct AssetRegistrationPlugin;
-
-impl Plugin for AssetRegistrationPlugin {
-    fn build(&self, app: &mut App) {
-        app.init_asset::<Image>();
     }
 }

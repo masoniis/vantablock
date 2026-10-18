@@ -1,17 +1,14 @@
-use crate::{
-    input::local_actions::ClientAction,
-    player::LocalPlayer,
-    render::chunk::manager::{ClientChunkManager, ClientChunkState},
-};
+use crate::{input::local_actions::ClientAction, player::LocalPlayer};
 use bevy::{
     diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
     prelude::*,
 };
-use leafwing_input_manager::prelude::ActionState;
+use leafwing_input_manager::common_conditions::action_just_pressed;
 use shared::{
     player::components::{LogicalPosition, PlayerLook},
-    world::chunk::components::ChunkCoord,
+    time::WorldClockResource,
 };
+use std::fmt::Write;
 
 #[derive(Component)]
 pub struct DebugMenuRoot;
@@ -19,7 +16,8 @@ pub struct DebugMenuRoot;
 #[derive(Component)]
 pub struct DebugMenuText;
 
-#[derive(Resource, Default)]
+#[derive(Resource, Default, Reflect)]
+#[reflect(Resource)]
 pub struct DebugMenuState {
     pub visible: bool,
 }
@@ -32,74 +30,70 @@ impl Plugin for DebugMenuPlugin {
             app.add_plugins(FrameTimeDiagnosticsPlugin::default());
         }
 
-        app.init_resource::<DebugMenuState>().add_systems(
-            Update,
-            (
-                toggle_debug_menu_system,
-                update_debug_menu_system.run_if(|state: Res<DebugMenuState>| state.visible),
-            ),
-        );
+        app.init_resource::<DebugMenuState>()
+            .register_type::<DebugMenuState>()
+            .add_systems(
+                Update,
+                (
+                    toggle_debug_menu_system
+                        .run_if(action_just_pressed(ClientAction::ToggleDebugMenu)),
+                    sync_debug_menu_system.run_if(resource_changed::<DebugMenuState>),
+                    update_debug_menu_system.run_if(|state: Res<DebugMenuState>| state.visible),
+                )
+                    .chain(),
+            );
     }
 }
 
-fn toggle_debug_menu_system(
-    mut debug_state: ResMut<DebugMenuState>,
-    action_query: Query<&ActionState<ClientAction>>,
+fn toggle_debug_menu_system(mut debug_state: ResMut<DebugMenuState>) {
+    debug_state.visible = !debug_state.visible;
+}
+
+/// Spawns or despawns the menu to match [`DebugMenuState`], however it was changed.
+fn sync_debug_menu_system(
+    debug_state: Res<DebugMenuState>,
     mut commands: Commands,
     root_query: Query<Entity, With<DebugMenuRoot>>,
     asset_server: Res<AssetServer>,
 ) {
-    let mut just_pressed = false;
-    for action_state in action_query.iter() {
-        if action_state.just_pressed(&ClientAction::ToggleDebugMenu) {
-            just_pressed = true;
-            break;
-        }
+    for entity in root_query.iter() {
+        commands.entity(entity).despawn();
+    }
+    if !debug_state.visible {
+        return;
     }
 
-    if just_pressed {
-        debug_state.visible = !debug_state.visible;
-
-        if debug_state.visible {
-            // Spawn UI
-            commands
-                .spawn((
-                    Node {
-                        position_type: PositionType::Absolute,
-                        top: Val::Px(10.0),
-                        left: Val::Px(10.0),
-                        flex_direction: FlexDirection::Column,
-                        padding: UiRect::all(Val::Px(5.0)),
-                        ..default()
-                    },
-                    BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.5)),
-                    DebugMenuRoot,
-                ))
-                .with_children(|parent| {
-                    parent.spawn((
-                        Text::new(""),
-                        TextFont {
-                            font: asset_server.load("client/font/Recursive_variable.ttf"),
-                            font_size: 16.0,
-                            ..default()
-                        },
-                        TextColor(Color::WHITE),
-                        DebugMenuText,
-                    ));
-                });
-        } else {
-            // Despawn UI
-            for entity in root_query.iter() {
-                commands.entity(entity).despawn();
-            }
-        }
-    }
+    commands
+        .spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                top: Val::Px(10.0),
+                left: Val::Px(10.0),
+                flex_direction: FlexDirection::Column,
+                padding: UiRect::all(Val::Px(5.0)),
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.5)),
+            DebugMenuRoot,
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Text::new(""),
+                TextFont {
+                    font: asset_server.load("client/font/Recursive_variable.ttf"),
+                    font_size: 16.0,
+                    ..default()
+                },
+                TextColor(Color::WHITE),
+                DebugMenuText,
+            ));
+        });
 }
 
 fn update_debug_menu_system(
     diagnostics: Res<DiagnosticsStore>,
-    player_query: Query<(&LogicalPosition, &ChunkCoord, &PlayerLook), With<LocalPlayer>>,
-    chunk_manager: Res<ClientChunkManager>,
+    player_query: Query<(&LogicalPosition, &PlayerLook), With<LocalPlayer>>,
+    clock: Res<WorldClockResource>,
     mut text_query: Query<&mut Text, With<DebugMenuText>>,
 ) {
     let fps = diagnostics
@@ -107,58 +101,26 @@ fn update_debug_menu_system(
         .and_then(|diag| diag.smoothed())
         .unwrap_or(0.0);
 
-    let (pos, coord, look) = if let Ok((pos, coord, look)) = player_query.single() {
-        (pos.0, coord.pos, Some(look))
-    } else {
-        (Vec3::ZERO, IVec3::ZERO, None)
-    };
-
-    let mut text_content = format!(
-        "FPS: {:.1}\n\
-        Pos: {:.2}, {:.2}, {:.2}\n\
-        Chunk: {} {} {}\n",
-        fps, pos.x, pos.y, pos.z, coord.x, coord.y, coord.z,
-    );
-
-    if let Some(look) = look {
-        text_content.push_str(&format!(
-            "Facing: Yaw {:.1}, Pitch {:.1}\n",
+    // writing to a String cannot fail
+    let mut text = String::new();
+    let _ = writeln!(text, "FPS: {fps:.1}");
+    if let Ok((pos, look)) = player_query.single() {
+        let _ = writeln!(text, "Pos: {:.2}, {:.2}, {:.2}", pos.0.x, pos.0.y, pos.0.z);
+        let _ = writeln!(
+            text,
+            "Facing: Yaw {:.1}, Pitch {:.1}",
             look.yaw.to_degrees(),
             look.pitch.to_degrees()
-        ));
+        );
     }
+    let _ = writeln!(
+        text,
+        "Time of day: {:.0}%{}",
+        clock.day_night_cycle_value() * 100.0,
+        if clock.day_cycle_paused { " (paused)" } else { "" }
+    );
 
-    text_content.push_str(&format!(
-        "Chunks Loaded: {}\n\
-        Render Distance: {}\n",
-        chunk_manager.chunk_states.len(),
-        shared::world::chunk::RENDER_DISTANCE,
-    ));
-
-    // count meshing chunks
-    let meshing_count = chunk_manager
-        .chunk_states
-        .values()
-        .filter(|s| matches!(s, ClientChunkState::Meshing { .. }))
-        .count();
-    let needs_meshing_count = chunk_manager
-        .chunk_states
-        .values()
-        .filter(|s| matches!(s, ClientChunkState::NeedsMeshing { .. }))
-        .count();
-
-    let awaiting_data_count = chunk_manager
-        .chunk_states
-        .values()
-        .filter(|s| matches!(s, ClientChunkState::AwaitingData))
-        .count();
-
-    text_content.push_str(&format!(
-        "Awaiting Data: {}\nMeshing: {} (Queue: {})\n",
-        awaiting_data_count, meshing_count, needs_meshing_count
-    ));
-
-    for mut text in text_query.iter_mut() {
-        **text = text_content.clone();
+    for mut t in text_query.iter_mut() {
+        **t = text.clone();
     }
 }

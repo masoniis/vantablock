@@ -5,6 +5,11 @@ use crate::player::{
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::ActionState;
 
+/// Free-flight speed in meters per second, slow enough to inspect microvoxel detail up close.
+pub const MOVE_SPEED: f32 = 4.0;
+/// Speed while holding `MoveFaster`.
+pub const FAST_MOVE_SPEED: f32 = 16.0;
+
 /// A movement system shared by the client and server that updates the `LogicalPosition`
 /// of a player based on their `PlayerAction` and `PlayerLook` states.
 ///
@@ -22,7 +27,6 @@ pub fn shared_player_movement_system(
     >,
 ) {
     let delta = time.delta_secs();
-    let move_speed = 20.0;
 
     for (action_state, mut look, mut position) in query.iter_mut() {
         let aim_data = action_state.axis_pair(&PlayerAction::Look);
@@ -53,10 +57,21 @@ pub fn shared_player_movement_system(
         if action_state.pressed(&PlayerAction::MoveRight) {
             move_dir += right;
         }
+        if action_state.pressed(&PlayerAction::MoveUp) {
+            move_dir += Vec3::Y;
+        }
+        if action_state.pressed(&PlayerAction::MoveDown) {
+            move_dir -= Vec3::Y;
+        }
 
         if move_dir != Vec3::ZERO {
+            let speed = if action_state.pressed(&PlayerAction::MoveFaster) {
+                FAST_MOVE_SPEED
+            } else {
+                MOVE_SPEED
+            };
             move_dir = move_dir.normalize();
-            position.0 += move_dir * move_speed * delta;
+            position.0 += move_dir * speed * delta;
         }
     }
 }
