@@ -621,10 +621,12 @@ fn gpu_hierarchy_traversal_matches_reference() {
 // -----------------------------
 
 /// The real assets in a showcase-like layout: meadow ground, a grove, a crystal grotto whose
-/// crystals are rotated, finer-grained pose groups, crystal outcrops, and rotors.
+/// crystals are rotated, finer-grained pose groups, crystal outcrops, and rotors, posed at
+/// animation `time`.
 fn showcase_instances(
     library: &common::world::VantaAssetLibrary,
     rng: &mut Rng,
+    time: f32,
 ) -> Vec<voxel::scene::InstanceDesc> {
     use bevy::math::{Affine3A, Quat};
     let mut instances = Vec::new();
@@ -634,7 +636,7 @@ fn showcase_instances(
             .unwrap();
         let assembly = &library.assets()[index].assembly;
         let phase = instances.len() as f32 * 1.7;
-        let pose = voxel::PoseDriver { phase, gust: 1.0 }.evaluate(assembly, 1.3);
+        let pose = voxel::PoseDriver { phase, gust: 1.0 }.evaluate(assembly, time);
         instances.push(voxel::scene::InstanceDesc {
             key: instances.len() as u64,
             asset: index as u32,
@@ -705,7 +707,7 @@ fn gpu_scene_traversal_matches_cpu() {
         .collect();
 
     let mut rng = Rng(9);
-    let instances = showcase_instances(&library, &mut rng);
+    let instances = showcase_instances(&library, &mut rng, 1.3);
 
     // a camera like the game's spawn view, plus rays aimed into the clutter
     let eye = Vec3::new(0.0, 1.7, 14.0);
@@ -861,6 +863,147 @@ fn gpu_scene_traversal_matches_cpu() {
     }
 }
 
+/// Motion reconstruction on the real adapter: from each hit's distance and resolved frame, the
+/// GPU must recover the point's previous world position exactly as the CPU does, across a pose
+/// change between two snapshots.
+#[test]
+fn gpu_motion_reconstruction_matches_cpu() {
+    use client::render::{geometry::GpuGeometryLibrary, scene::GpuSceneData};
+    use voxel::scene::{AssetTemplate, SceneAcceleration, SceneSnapshot};
+
+    let Some(gpu) = gpu() else { return };
+    let workspace = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+    let library = common::world::assets::load_library(
+        &workspace.join("assets/shared/vanta"),
+        &std::env::temp_dir().join("vanta-conformance-cache"),
+    );
+    let limits = ResidencyLimits {
+        max_storage_buffer_binding_size: 1 << 30,
+        max_buffer_size: 1 << 30,
+    };
+    let geometry = GpuGeometryLibrary::build(&library, &limits).unwrap();
+    let templates: Vec<AssetTemplate> = library
+        .assets()
+        .iter()
+        .map(|a| (*a.template).clone())
+        .collect();
+
+    // the same scene a frame and a bit apart, so swaying and spinning groups really move
+    let before = showcase_instances(&library, &mut Rng(9), 1.25);
+    let after = showcase_instances(&library, &mut Rng(9), 1.3);
+    let mode = SceneAcceleration::TemplateMiniBvh;
+    let previous = SceneSnapshot::build(&templates, &before, mode, None);
+    let snapshot = SceneSnapshot::build(&templates, &after, mode, Some(&previous));
+    let scene = GpuSceneData::pack(&snapshot, &library, &geometry, HierarchyKind::Tree64);
+
+    let mut rng = Rng(31);
+    let rays: Vec<Ray> = (0..4000)
+        .map(|_| {
+            let target = Vec3::new(
+                rng.range(-12.0, 12.0),
+                rng.range(0.0, 4.0),
+                rng.range(-12.0, 8.0),
+            );
+            let dir = rng.direction();
+            Ray::new(target - dir * 15.0, dir)
+        })
+        .collect();
+    let cases: Vec<RayCase> = rays
+        .iter()
+        .map(|r| RayCase {
+            origin: r.origin.to_array(),
+            t_min: 0.0,
+            dir: r.dir.to_array(),
+            t_max: 3.0e38,
+        })
+        .collect();
+
+    let topology: Vec<wgpu::Buffer> = geometry.topology.iter().map(|s| gpu.storage(s)).collect();
+    let template_bvh = gpu.storage(&geometry.template_bvh);
+    let meta = gpu.uniform(&GpuGeometryMeta::new(
+        &geometry.topology_page_entries,
+        &geometry.attribute_page_entries,
+    ));
+    let uniform = gpu.uniform(&scene.uniform);
+    let bvh = gpu.storage(&scene.bvh);
+    let frames = gpu.storage(&scene.frames);
+    let instance_buffer = gpu.storage(&scene.instances);
+    let slot_frames = gpu.storage(&scene.slot_frames);
+    let ray_buffer = gpu.storage(&cases);
+    let output = gpu.output(cases.len() as u64 * 16);
+    let results: Vec<[f32; 4]> = gpu.run(
+        "scene_motion",
+        cases.len() as u32,
+        &[
+            (0, {
+                let mut bindings = topology_bindings(&topology);
+                bindings.push((3, template_bvh.as_entire_binding()));
+                bindings.push((4, meta.as_entire_binding()));
+                bindings
+            }),
+            (
+                1,
+                vec![
+                    (0, uniform.as_entire_binding()),
+                    (1, bvh.as_entire_binding()),
+                    (2, frames.as_entire_binding()),
+                    (3, instance_buffer.as_entire_binding()),
+                    (4, slot_frames.as_entire_binding()),
+                ],
+            ),
+            (
+                2,
+                vec![
+                    (2, ray_buffer.as_entire_binding()),
+                    (5, output.as_entire_binding()),
+                ],
+            ),
+        ],
+        &output,
+    );
+
+    let (mut hits, mut moving, mut mismatches) = (0, 0, Vec::new());
+    for (ray, gpu_result) in rays.iter().zip(&results) {
+        let (cpu, _) = snapshot.intersect(&templates, ray, 0.0, 3.0e38, |frame, local, t0, t1| {
+            let module =
+                library.assets()[frame.asset as usize].assembly.groups[frame.group as usize].module;
+            geometry.assets[frame.asset as usize]
+                .root(module, HierarchyKind::Tree64)
+                .trace(&geometry, local, t0, t1)
+        });
+        let expected = cpu
+            .map(|hit| snapshot.frames[hit.frame as usize].previous_position(ray.at(hit.voxel.t)));
+        let gpu_previous =
+            (gpu_result[3] == 1.0).then(|| Vec3::new(gpu_result[0], gpu_result[1], gpu_result[2]));
+        let agree = match (expected, gpu_previous) {
+            (None, None) => true,
+            (Some(e), Some(g)) => {
+                hits += 1;
+                moving += (e.distance(ray.at(cpu.unwrap().voxel.t)) > 1e-4) as u32;
+                e.distance(g) <= 1e-3 * (1.0 + e.length())
+            }
+            _ => false,
+        };
+        if !agree {
+            mismatches.push(format!("cpu {expected:?} gpu {gpu_previous:?} ray {ray:?}"));
+        }
+    }
+    eprintln!(
+        "  {} rays, {hits} hits, {moving} on moving groups, {} disagreements",
+        rays.len(),
+        mismatches.len()
+    );
+    assert!(hits > rays.len() / 4, "the test scene should be hit");
+    assert!(moving > 20, "some hits should be on animated groups");
+    // exact float ties may resolve differently, but they are vanishingly rare in this set
+    assert!(
+        mismatches.len() * 1000 <= rays.len(),
+        "{} disagreements, first: {}",
+        mismatches.len(),
+        mismatches[0]
+    );
+}
+
 /// A dense grove of hundreds of animated, varied pose instances: the spec's workload for comparing
 /// template-shared, per-instance refit, and flattened pose-group organization.
 fn grove_instances(library: &common::world::VantaAssetLibrary) -> Vec<voxel::scene::InstanceDesc> {
@@ -937,7 +1080,7 @@ fn gpu_scene_throughput() {
     let scenes = [
         (
             "showcase",
-            showcase_instances(&library, &mut Rng(9)),
+            showcase_instances(&library, &mut Rng(9), 1.3),
             camera(Vec3::new(0.0, 1.7, 14.0), Vec3::new(0.0, 1.7, 0.0)),
         ),
         (

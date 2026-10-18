@@ -20,7 +20,7 @@ use crate::{
     math::{Aabb, Ray},
     pose::PoseState,
 };
-use glam::Affine3A;
+use glam::{Affine3A, Vec3};
 use std::collections::HashMap;
 
 /// Frame IDs are 20 bits in the visibility buffer.
@@ -108,6 +108,16 @@ pub struct ResolvedPoseFrame {
     pub prev_group_to_world: Affine3A,
     /// Tight bound of the group's current pose, in world space.
     pub world_bounds: Aabb,
+}
+
+impl ResolvedPoseFrame {
+    /// Where the point at world position `p` on this frame's geometry was at the previous
+    /// snapshot: the motion source for temporal reprojection. Group-local geometry is rigid, so
+    /// the point keeps its local position and only the frame moves.
+    pub fn previous_position(&self, p: Vec3) -> Vec3 {
+        self.prev_group_to_world
+            .transform_point3(self.world_to_group.transform_point3(p))
+    }
 }
 
 /// Per-instance search data.

@@ -480,3 +480,60 @@ fn history_tracks_previous_transforms() {
         second.frames[1].prev_group_to_world
     );
 }
+
+/// The gate's reconstruction contract: from a hit's world distance and resolved frame, the world
+/// position lands inside the exact reported cell, and its previous position is where that same
+/// local point was in the previous snapshot, for moving and static groups alike.
+#[test]
+fn hits_reconstruct_position_and_motion() {
+    let mut rng = Rng(21);
+    let world = World::new(vec![rotor_asset(), bough_asset(&mut rng)]);
+    let before = scatter_instances(&world, &mut Rng(22), 120, 0.4);
+    let after = scatter_instances(&world, &mut Rng(22), 120, 0.55);
+    let previous = SceneSnapshot::build(
+        &world.templates,
+        &before,
+        SceneAcceleration::TemplateMiniBvh,
+        None,
+    );
+    let current = SceneSnapshot::build(
+        &world.templates,
+        &after,
+        SceneAcceleration::TemplateMiniBvh,
+        Some(&previous),
+    );
+
+    let (mut hits, mut moving) = (0, 0);
+    for _ in 0..3000 {
+        let ray = random_ray(&mut rng);
+        let Some(hit) = world.intersect(&current, &ray) else {
+            continue;
+        };
+        hits += 1;
+        let frame = &current.frames[hit.frame as usize];
+        let p = ray.at(hit.voxel.t);
+
+        // the reconstructed point lies in (or on the boundary of) the reported cell
+        let local = frame.world_to_group.transform_point3(p);
+        let lo = hit.voxel.cell.as_vec3();
+        let slack = 2e-3 * (1.0 + local.abs().max_element());
+        assert!(
+            local.cmpge(lo - slack).all() && local.cmple(lo + 1.0 + slack).all(),
+            "hit at local {local} outside cell {}",
+            hit.voxel.cell
+        );
+
+        // and its motion follows the same instance's group from the previous snapshot
+        let then = &previous.frames[hit.frame as usize];
+        assert_eq!((then.instance, then.group), (frame.instance, frame.group));
+        let expected = then.group_to_world.transform_point3(local);
+        let reconstructed = frame.previous_position(p);
+        assert!(
+            reconstructed.distance(expected) < 1e-4 * (1.0 + expected.length()),
+            "{reconstructed} != {expected}"
+        );
+        moving += (reconstructed.distance(p) > 1e-4) as u32;
+    }
+    assert!(hits > 500, "the rays should hit the scene");
+    assert!(moving > 50, "some hits should be on animated groups");
+}

@@ -9,6 +9,7 @@ use crate::render::{
     VoxelCamera, environment::ExtractedEnvironment, gpu::layout::*, settings::RenderSettings,
 };
 use bevy::{
+    platform::collections::HashMap,
     prelude::*,
     render::{
         camera::ExtractedCamera,
@@ -134,6 +135,7 @@ pub fn prepare_visibility_targets(
 /// Writes the view uniform and builds the per-view bind groups.
 #[allow(clippy::too_many_arguments)]
 pub fn prepare_view_bind_groups(
+    mut previous_clip_from_world: Local<HashMap<Entity, Mat4>>,
     mut commands: Commands,
     device: Res<RenderDevice>,
     pipeline_cache: Res<PipelineCache>,
@@ -146,12 +148,19 @@ pub fn prepare_view_bind_groups(
     let visibility_layout = pipeline_cache.get_bind_group_layout(&visibility_view_layout());
     let lighting_layout = pipeline_cache.get_bind_group_layout(&lighting_view_layout());
 
+    let mut seen = HashMap::new();
     for (entity, view, target, targets) in &views {
         let view_from_world = view.world_from_view.to_matrix().inverse();
         let clip_from_world = view.clip_from_view * view_from_world;
+        let prev_clip_from_world = previous_clip_from_world
+            .get(&entity)
+            .copied()
+            .unwrap_or(clip_from_world);
+        seen.insert(entity, clip_from_world);
         let uniform = GpuViewUniform {
             world_from_clip: clip_from_world.inverse().to_cols_array(),
             clip_from_world: clip_from_world.to_cols_array(),
+            prev_clip_from_world: prev_clip_from_world.to_cols_array(),
             camera_position: view.world_from_view.translation().to_array(),
             debug_view,
             viewport: targets.size.as_vec2().to_array(),
@@ -201,4 +210,6 @@ pub fn prepare_view_bind_groups(
             lighting,
         });
     }
+    // views that disappeared are forgotten, so a reused entity starts without stale history
+    *previous_clip_from_world = seen;
 }

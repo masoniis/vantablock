@@ -3,7 +3,7 @@
 
 import super::lib::types::{ViewUniform, Environment, VISIBILITY_MISS, VIEW_TONEMAP_IN_SHADER};
 import super::lib::geometry::{materials, voxel_material};
-import super::lib::scene::{frames, trace_scene};
+import super::lib::scene::{frames, trace_scene, previous_world_position};
 import super::lib::view::{camera_ray_direction, sky_color, tonemap, id_color, heatmap};
 
 @group(2) @binding(0) var<uniform> view: ViewUniform;
@@ -22,6 +22,7 @@ const DEBUG_TRAVERSAL_STEPS: u32 = 4u;
 const DEBUG_GROUP_CANDIDATES: u32 = 5u;
 const DEBUG_SCENE_NODES: u32 = 6u;
 const DEBUG_DEPTH: u32 = 7u;
+const DEBUG_MOTION: u32 = 8u;
 
 const FOG_DENSITY: f32 = 0.0035;
 
@@ -89,6 +90,16 @@ fn shade(pixel: vec2<i32>, dir: vec3<f32>) -> vec3<f32> {
         }
         case DEBUG_DEPTH: {
             return vec3<f32>(exp(-t * 0.05));
+        }
+        case DEBUG_MOTION: {
+            // where this surface point was last frame, through the hit frame's pose history and
+            // the camera's: red/green encode the screen-space motion in pixels, blue its length
+            let position = view.camera_position + dir * t;
+            let previous = previous_world_position(frame_id, position);
+            let now_clip = view.clip_from_world * vec4<f32>(position, 1.0);
+            let then_clip = view.prev_clip_from_world * vec4<f32>(previous, 1.0);
+            let motion = (now_clip.xy / now_clip.w - then_clip.xy / then_clip.w) * 0.5 * view.viewport;
+            return vec3<f32>(clamp(motion / 16.0, vec2<f32>(-1.0), vec2<f32>(1.0)) * 0.5 + 0.5, clamp(length(motion) / 32.0, 0.0, 1.0));
         }
         default: {}
     }

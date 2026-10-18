@@ -23,10 +23,12 @@ pub enum DebugView {
     /// Scene BVH nodes visited per pixel.
     SceneNodes,
     Depth,
+    /// Screen-space motion reconstructed from pose-frame and camera history.
+    Motion,
 }
 
 impl DebugView {
-    const ALL: [Self; 8] = [
+    const ALL: [Self; 9] = [
         Self::Shaded,
         Self::Normals,
         Self::PoseFrames,
@@ -35,6 +37,7 @@ impl DebugView {
         Self::GroupCandidates,
         Self::SceneNodes,
         Self::Depth,
+        Self::Motion,
     ];
 
     pub fn index(self) -> u32 {

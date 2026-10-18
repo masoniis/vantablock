@@ -7,7 +7,7 @@ import super::super::lib::ray::sanitize_direction;
 import super::super::lib::dda::{VoxelRoot, VoxelHit};
 import super::super::lib::tree64::trace_tree64;
 import super::super::lib::octree::trace_octree;
-import super::super::lib::scene::trace_scene;
+import super::super::lib::scene::{trace_scene, previous_world_position};
 
 struct MaskCase {
     mask: vec2<u32>,
@@ -42,6 +42,7 @@ struct RootParams {
 @group(2) @binding(2) var<storage, read> ray_cases: array<RayCase>;
 @group(2) @binding(3) var<storage, read_write> ray_results: array<RayResult>;
 @group(2) @binding(4) var<uniform> root_params: RootParams;
+@group(2) @binding(5) var<storage, read_write> motion_results: array<vec4<f32>>;
 
 @compute @workgroup_size(64, 1, 1)
 fn masks(@builtin(global_invocation_id) id: vec3<u32>) {
@@ -91,4 +92,21 @@ fn scene_rays(@builtin(global_invocation_id) id: vec3<u32>) {
     result.cell = hit.voxel.cell.x | (hit.voxel.cell.y << 10u) | (hit.voxel.cell.z << 20u);
     result.attribute_handle = hit.frame;
     ray_results[id.x] = result;
+}
+
+// Whole-scene queries that also reconstruct each hit's previous world position (xyz, w = 1 for
+// hits) from the hit distance and resolved frame, as temporal reprojection will.
+@compute @workgroup_size(64, 1, 1)
+fn scene_motion(@builtin(global_invocation_id) id: vec3<u32>) {
+    if id.x >= arrayLength(&ray_cases) {
+        return;
+    }
+    let c = ray_cases[id.x];
+    let hit = trace_scene(c.origin, c.dir, c.t_min, c.t_max);
+    if !hit.hit {
+        motion_results[id.x] = vec4<f32>(0.0);
+        return;
+    }
+    let p = c.origin + c.dir * hit.t;
+    motion_results[id.x] = vec4<f32>(previous_world_position(hit.frame, p), 1.0);
 }

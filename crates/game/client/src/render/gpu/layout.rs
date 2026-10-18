@@ -158,6 +158,9 @@ impl GpuGeometryMeta {
 pub struct GpuViewUniform {
     pub world_from_clip: [f32; 16],
     pub clip_from_world: [f32; 16],
+    /// Last frame's `clip_from_world`, for motion vectors (equal to the current one on a view's
+    /// first frame).
+    pub prev_clip_from_world: [f32; 16],
     pub camera_position: [f32; 3],
     pub debug_view: u32,
     /// Size of the traced ray grid (the visibility buffer), in pixels.
@@ -166,7 +169,7 @@ pub struct GpuViewUniform {
     /// Ray grid pixels per view target pixel (the render scale).
     pub target_to_grid: f32,
 }
-const _: () = assert!(std::mem::size_of::<GpuViewUniform>() == 160);
+const _: () = assert!(std::mem::size_of::<GpuViewUniform>() == 224);
 
 /// Sun, sky, and atmosphere parameters.
 #[repr(C)]

@@ -178,6 +178,14 @@ fn intersect_instance(instance_index: u32, o: vec3<f32>, d: vec3<f32>, inv: vec3
     }
 }
 
+// Where the point at world position `p` on a frame's geometry was at the previous snapshot. Mirrors
+// `ResolvedPoseFrame::previous_position`: group-local geometry is rigid, so the point keeps its
+// local position and only the frame moves.
+fn previous_world_position(frame_id: u32, p: vec3<f32>) -> vec3<f32> {
+    let f = frames[frame_id];
+    return transform_point(f.prev_local_to_world, transform_point(f.world_to_local, p));
+}
+
 // Finds the nearest hit along a world ray (`query_scene_candidates` + `intersect_instance`).
 fn trace_scene(o: vec3<f32>, d_in: vec3<f32>, t_min: f32, t_max: f32) -> SceneHit {
     var best: SceneHit;
