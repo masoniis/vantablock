@@ -20,19 +20,27 @@
 
 pub mod arena;
 pub mod assembly;
+pub mod bvh;
 pub mod format;
+pub mod geometry;
 pub mod handle;
+pub mod hierarchy;
 pub mod lod;
 pub mod mask;
 pub mod math;
 pub mod module;
 pub mod node;
 pub mod pose;
+pub mod reference;
 pub mod residency;
+pub mod scene;
 
 pub use arena::{ArenaError, ArenaKind, Attributes, Handle, Topology, WordArena};
 pub use assembly::{CanonicalAssembly, Material, Motion, PoseGroupTemplate};
+pub use bvh::{BVH_EMPTY, BVH_LEAF_BIT, Bvh4, Bvh4Node};
+pub use geometry::{GeometryArenas, GeometrySource};
 pub use handle::ArenaHandle;
+pub use hierarchy::tree64::{Tree64Root, VoxelHit};
 pub use mask::Mask64;
 pub use math::{Aabb, Ray};
 pub use module::{MaterialId, VoxelModule};

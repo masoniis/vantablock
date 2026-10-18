@@ -1,0 +1,438 @@
+//! Scene-level contracts: flattened pose-group leaves and template-shared mini-BVHs must find
+//! exactly the same nearest hit as an exhaustive search over every resolved frame, for every
+//! legal pose, and rotated groups must stay hittable.
+
+mod common;
+
+use common::{Rng, foliage_module};
+use glam::{Affine3A, Quat, UVec3, Vec3};
+use voxel::{
+    CanonicalAssembly, GeometryArenas, Material, Motion, PoseDriver, PoseGroupTemplate, PoseState,
+    Ray, Tree64Root, VoxelModule,
+    hierarchy::tree64::trace,
+    scene::{AssetTemplate, InstanceDesc, SceneAcceleration, SceneHit, SceneSnapshot},
+};
+
+/// The spec's minimal articulated asset: a static base plus two groups sharing one blade
+/// module under two differently rotating transforms.
+fn rotor_asset() -> CanonicalAssembly {
+    let mut base = VoxelModule::new(3);
+    for x in 24..40 {
+        for z in 24..40 {
+            for y in 0..6 {
+                base.set(UVec3::new(x, y, z), 1);
+            }
+        }
+    }
+    let mut blade = VoxelModule::new(3);
+    for x in 0..60 {
+        for z in 30..34 {
+            blade.set(UVec3::new(x, 30 + (x % 3), z), 2);
+        }
+    }
+    let pivot = Vec3::new(32.0, 31.0, 32.0);
+    CanonicalAssembly {
+        name: "rotor".into(),
+        voxel_size: 1.0 / 32.0,
+        palette: vec![
+            Material::new([0.0; 3]),
+            Material::new([0.5; 3]),
+            Material::new([0.9, 0.3, 0.2]),
+        ],
+        modules: vec![base, blade],
+        groups: vec![
+            PoseGroupTemplate {
+                name: "base".into(),
+                parent: None,
+                module: 0,
+                rest: Affine3A::IDENTITY,
+                motion: Motion::Static,
+            },
+            PoseGroupTemplate {
+                name: "rotor_a".into(),
+                parent: Some(0),
+                module: 1,
+                rest: Affine3A::from_translation(Vec3::new(0.0, 10.0, 0.0)),
+                motion: Motion::Spin {
+                    pivot,
+                    axis: Vec3::Y,
+                    rate: 1.3,
+                },
+            },
+            PoseGroupTemplate {
+                name: "rotor_b".into(),
+                parent: Some(0),
+                module: 1,
+                rest: Affine3A::from_translation(Vec3::new(0.0, 30.0, 0.0)),
+                motion: Motion::Spin {
+                    pivot,
+                    axis: Vec3::new(1.0, 0.2, 0.0),
+                    rate: -0.7,
+                },
+            },
+        ],
+    }
+}
+
+/// A two-level hinged chain whose pieces swing through each other's space.
+fn bough_asset(rng: &mut Rng) -> CanonicalAssembly {
+    CanonicalAssembly {
+        name: "bough".into(),
+        voxel_size: 1.0 / 32.0,
+        palette: vec![
+            Material::new([0.0; 3]),
+            Material::new([0.3; 3]),
+            Material::new([0.1, 0.6, 0.2]),
+        ],
+        modules: vec![foliage_module(3, rng), foliage_module(3, rng)],
+        groups: vec![
+            PoseGroupTemplate {
+                name: "limb".into(),
+                parent: None,
+                module: 0,
+                rest: Affine3A::IDENTITY,
+                motion: Motion::Hinge {
+                    pivot: Vec3::new(32.0, 0.0, 32.0),
+                    axis: Vec3::Z,
+                    min_angle: -0.4,
+                    max_angle: 0.4,
+                    response_hz: 0.8,
+                },
+            },
+            PoseGroupTemplate {
+                name: "twig".into(),
+                parent: Some(0),
+                module: 1,
+                rest: Affine3A::from_rotation_translation(
+                    Quat::from_rotation_y(0.9),
+                    Vec3::new(20.0, 40.0, 10.0),
+                ),
+                motion: Motion::Hinge {
+                    pivot: Vec3::new(0.0, 0.0, 32.0),
+                    axis: Vec3::X,
+                    min_angle: -0.6,
+                    max_angle: 0.6,
+                    response_hz: 1.7,
+                },
+            },
+        ],
+    }
+}
+
+struct World {
+    assemblies: Vec<CanonicalAssembly>,
+    templates: Vec<AssetTemplate>,
+    geometry: GeometryArenas,
+    /// Baked roots per asset, indexed by module.
+    roots: Vec<Vec<Tree64Root>>,
+}
+
+impl World {
+    fn new(assemblies: Vec<CanonicalAssembly>) -> Self {
+        let mut geometry = GeometryArenas::default();
+        let roots = assemblies
+            .iter()
+            .map(|a| {
+                a.modules
+                    .iter()
+                    .map(|m| geometry.bake_tree64(m).unwrap().0)
+                    .collect()
+            })
+            .collect();
+        Self {
+            templates: assemblies.iter().map(AssetTemplate::new).collect(),
+            assemblies,
+            geometry,
+            roots,
+        }
+    }
+
+    fn root(&self, asset: u32, group: u32) -> &Tree64Root {
+        let module = self.assemblies[asset as usize].groups[group as usize].module;
+        &self.roots[asset as usize][module as usize]
+    }
+
+    fn intersect(&self, snapshot: &SceneSnapshot, ray: &Ray) -> Option<SceneHit> {
+        snapshot
+            .intersect(
+                &self.templates,
+                ray,
+                0.0,
+                f32::MAX,
+                |frame, local, t0, t1| {
+                    trace(
+                        &self.geometry,
+                        self.root(frame.asset, frame.group),
+                        local,
+                        t0,
+                        t1,
+                    )
+                },
+            )
+            .0
+    }
+
+    /// Exhaustive reference: trace every frame, keep the nearest.
+    fn intersect_naive(&self, snapshot: &SceneSnapshot, ray: &Ray) -> Option<SceneHit> {
+        let mut best: Option<SceneHit> = None;
+        for (id, frame) in snapshot.frames.iter().enumerate() {
+            let local = ray.transformed(&frame.world_to_group);
+            if let Some(voxel) = trace(
+                &self.geometry,
+                self.root(frame.asset, frame.group),
+                &local,
+                0.0,
+                f32::MAX,
+            ) && best.is_none_or(|b| voxel.t < b.voxel.t)
+            {
+                best = Some(SceneHit {
+                    frame: id as u32,
+                    voxel,
+                });
+            }
+        }
+        best
+    }
+}
+
+fn key(hit: Option<SceneHit>) -> Option<(f32, u32, UVec3)> {
+    hit.map(|h| (h.voxel.t, h.frame, h.voxel.cell))
+}
+
+fn scatter_instances(world: &World, rng: &mut Rng, count: usize, time: f32) -> Vec<InstanceDesc> {
+    (0..count)
+        .map(|i| {
+            let asset = (i % world.assemblies.len()) as u32;
+            let assembly = &world.assemblies[asset as usize];
+            let rotation = Quat::from_euler(
+                glam::EulerRot::YXZ,
+                rng.range(0.0, std::f32::consts::TAU),
+                rng.range(-0.3, 0.3),
+                0.0,
+            );
+            let position = Vec3::new(
+                rng.range(-6.0, 6.0),
+                rng.range(-1.0, 1.0),
+                rng.range(-6.0, 6.0),
+            );
+            let scale = assembly.voxel_size * rng.range(0.7, 1.4);
+            let driver = PoseDriver {
+                phase: rng.range(0.0, std::f32::consts::TAU),
+                gust: rng.unit(),
+            };
+            InstanceDesc {
+                key: i as u64,
+                asset,
+                root_to_world: Affine3A::from_scale_rotation_translation(
+                    Vec3::splat(scale),
+                    rotation,
+                    position,
+                ),
+                pose: driver.evaluate(assembly, time),
+            }
+        })
+        .collect()
+}
+
+fn random_ray(rng: &mut Rng) -> Ray {
+    let target = Vec3::new(
+        rng.range(-6.0, 6.0),
+        rng.range(-1.0, 3.0),
+        rng.range(-6.0, 6.0),
+    );
+    let dir = rng.direction();
+    Ray::new(target - dir * 20.0, dir)
+}
+
+#[test]
+fn both_acceleration_modes_match_exhaustive_search() {
+    let mut rng = Rng(11);
+    let world = World::new(vec![rotor_asset(), bough_asset(&mut rng)]);
+
+    for step in 0..6 {
+        let time = step as f32 * 0.83;
+        // hundreds of overlapping, rotated instances
+        let instances = scatter_instances(&world, &mut rng, 240, time);
+        let template = SceneSnapshot::build(
+            &world.templates,
+            &instances,
+            SceneAcceleration::TemplateMiniBvh,
+            None,
+        );
+        let flattened = SceneSnapshot::build(
+            &world.templates,
+            &instances,
+            SceneAcceleration::FlattenedGroups,
+            None,
+        );
+        assert_eq!(template.frames.len(), flattened.frames.len());
+
+        for _ in 0..400 {
+            let ray = random_ray(&mut rng);
+            let naive = key(world.intersect_naive(&template, &ray));
+            assert_eq!(
+                key(world.intersect(&template, &ray)),
+                naive,
+                "template mini-BVH, t = {time}"
+            );
+            assert_eq!(
+                key(world.intersect(&flattened, &ray)),
+                naive,
+                "flattened groups, t = {time}"
+            );
+        }
+    }
+}
+
+#[test]
+fn rotated_pose_groups_stay_hittable() {
+    let world = World::new(vec![rotor_asset()]);
+    let blade_voxel = UVec3::new(45, 30, 31);
+    assert_ne!(world.assemblies[0].modules[1].get(blade_voxel), 0);
+
+    for step in 0..64 {
+        let time = step as f32 * 0.21;
+        let instances = vec![InstanceDesc {
+            key: 0,
+            asset: 0,
+            root_to_world: Affine3A::from_scale(Vec3::splat(1.0 / 32.0)),
+            pose: PoseDriver::default().evaluate(&world.assemblies[0], time),
+        }];
+        let snapshot = SceneSnapshot::build(
+            &world.templates,
+            &instances,
+            SceneAcceleration::TemplateMiniBvh,
+            None,
+        );
+
+        // both rotors show the same shared module under different transforms
+        for group in [1u32, 2] {
+            let frame = snapshot
+                .frames
+                .iter()
+                .position(|f| f.group == group)
+                .unwrap() as u32;
+            let f = &snapshot.frames[frame as usize];
+            let target = f
+                .group_to_world
+                .transform_point3(blade_voxel.as_vec3() + Vec3::splat(0.5));
+            // approach along the voxel's own (rotated) -y axis so nothing in the module occludes it
+            let up = f.group_to_world.transform_vector3(Vec3::Y).normalize();
+            let ray = Ray::new(target + up * 0.5, -up);
+            let hit = world
+                .intersect(&snapshot, &ray)
+                .expect("rotated group was missed");
+            assert_eq!(
+                (hit.frame, hit.voxel.cell),
+                (frame, blade_voxel),
+                "group {group} at t = {time}"
+            );
+        }
+    }
+}
+
+#[test]
+fn out_of_envelope_poses_fall_back_safely() {
+    let mut rng = Rng(12);
+    let world = World::new(vec![bough_asset(&mut rng)]);
+    let mut pose = PoseState::rest(&world.assemblies[0]);
+    // far outside the hinge's legal range, so the template envelopes don't cover it
+    pose.angles[1] = 2.5;
+    let instances = vec![InstanceDesc {
+        key: 0,
+        asset: 0,
+        root_to_world: Affine3A::from_scale(Vec3::splat(1.0 / 32.0)),
+        pose,
+    }];
+    let snapshot = SceneSnapshot::build(
+        &world.templates,
+        &instances,
+        SceneAcceleration::TemplateMiniBvh,
+        None,
+    );
+    assert!(!snapshot.instances[0].uses_template);
+
+    let mut hits = 0;
+    for _ in 0..1500 {
+        let target = Vec3::new(
+            rng.range(-1.0, 3.0),
+            rng.range(-1.0, 3.0),
+            rng.range(-1.0, 3.0),
+        );
+        let dir = rng.direction();
+        let ray = Ray::new(target - dir * 10.0, dir);
+        let naive = key(world.intersect_naive(&snapshot, &ray));
+        hits += naive.is_some() as u32;
+        assert_eq!(key(world.intersect(&snapshot, &ray)), naive);
+    }
+    assert!(hits > 50, "the test rays should actually hit the asset");
+}
+
+#[test]
+fn far_from_origin_and_nonuniform_instances_hit_their_own_voxels() {
+    let world = World::new(vec![rotor_asset()]);
+    let base_voxel = UVec3::new(30, 5, 30);
+    for (translation, scale) in [
+        (
+            Vec3::new(10_000.0, -300.0, 4_000.0),
+            Vec3::new(1.0, 2.0, 0.5) / 32.0,
+        ),
+        (
+            Vec3::new(-2_500.0, 40.0, 0.0),
+            Vec3::new(0.5, 0.5, 3.0) / 32.0,
+        ),
+    ] {
+        let to_world = Affine3A::from_scale_rotation_translation(
+            scale,
+            Quat::from_rotation_y(0.6),
+            translation,
+        );
+        let instances = vec![InstanceDesc {
+            key: 0,
+            asset: 0,
+            root_to_world: to_world,
+            pose: PoseState::rest(&world.assemblies[0]),
+        }];
+        let snapshot = SceneSnapshot::build(
+            &world.templates,
+            &instances,
+            SceneAcceleration::FlattenedGroups,
+            None,
+        );
+        let target = to_world.transform_point3(base_voxel.as_vec3() + Vec3::new(0.5, 1.0, 0.5));
+        let ray = Ray::new(target + Vec3::Y * 0.01, Vec3::NEG_Y);
+        let hit = world.intersect(&snapshot, &ray).expect("hit");
+        assert_eq!(hit.voxel.cell, base_voxel);
+        assert_eq!(snapshot.frames[hit.frame as usize].group, 0);
+    }
+}
+
+#[test]
+fn history_tracks_previous_transforms() {
+    let world = World::new(vec![rotor_asset()]);
+    let instance = |time: f32| InstanceDesc {
+        key: 7,
+        asset: 0,
+        root_to_world: Affine3A::IDENTITY,
+        pose: PoseDriver::default().evaluate(&world.assemblies[0], time),
+    };
+    let first = SceneSnapshot::build(
+        &world.templates,
+        &[instance(0.0)],
+        SceneAcceleration::TemplateMiniBvh,
+        None,
+    );
+    let second = SceneSnapshot::build(
+        &world.templates,
+        &[instance(0.5)],
+        SceneAcceleration::TemplateMiniBvh,
+        Some(&first),
+    );
+    for (a, b) in first.frames.iter().zip(&second.frames) {
+        assert_eq!(b.prev_group_to_world, a.group_to_world);
+    }
+    assert_ne!(
+        second.frames[1].group_to_world,
+        second.frames[1].prev_group_to_world
+    );
+}
