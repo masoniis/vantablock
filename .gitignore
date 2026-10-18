@@ -3,6 +3,7 @@
 
 # tooling
 .direnv
+/.claude/settings.local.json
 
 # project specific
 target
