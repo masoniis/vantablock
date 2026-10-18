@@ -1,12 +1,14 @@
 [workspace]
+# crates are grouped by layer; dependencies only flow downward:
+#   platform, engine/{voxel <- baker} <- game/common <- game/{server, client} <- app
 members = [
-  "crates/baker",
-  "crates/client",
-  "crates/runner",
-  "crates/server",
-  "crates/shared",
-  "crates/utils",
-  "crates/voxel",
+  "crates/app",
+  "crates/engine/baker",
+  "crates/engine/voxel",
+  "crates/game/client",
+  "crates/game/common",
+  "crates/game/server",
+  "crates/platform",
 ]
 resolver = "3"
 
@@ -59,12 +61,12 @@ debug = false
 
 [workspace.dependencies]
 # other crates
-client = { path = "./crates/client", package = "vantablock-client" }
-server = { path = "./crates/server", package = "vantablock-server" }
-shared = { path = "./crates/shared", package = "vantablock-shared" }
-utils = { path = "./crates/utils", package = "vantablock-utils" }
-voxel = { path = "./crates/voxel", package = "vantablock-voxel" }
-baker = { path = "./crates/baker", package = "vantablock-baker" }
+platform = { path = "./crates/platform", package = "vantablock-platform" }
+voxel = { path = "./crates/engine/voxel", package = "vantablock-voxel" }
+baker = { path = "./crates/engine/baker", package = "vantablock-baker" }
+common = { path = "./crates/game/common", package = "vantablock-common" }
+server = { path = "./crates/game/server", package = "vantablock-server" }
+client = { path = "./crates/game/client", package = "vantablock-client" }
 
 # development deps
 criterion = { version = "0.5", features = ["html_reports"] }

@@ -1,4 +1,4 @@
-// GPU data layouts, mirrored field for field in crates/client/src/render/gpu/layout.rs.
+// GPU data layouts, mirrored field for field in crates/game/client/src/render/gpu/layout.rs.
 
 struct Bvh4Node {
     min_x: vec4<f32>,

@@ -1,5 +1,5 @@
 // The 8-way octree with 8x8x8 bricks, the comparison hierarchy. Mirrors `trace` in
-// crates/voxel/src/hierarchy/octree.rs line for line, following the shared rules in dda.wesl.
+// crates/engine/voxel/src/hierarchy/octree.rs line for line, following the shared rules in dda.wesl.
 //
 // node  (2 words):  child mask (bits 0..8) | brick-children tag (bit 31), child block handle
 // brick (17 words): occupancy (16 words, voxel x + 8y + 64z), attribute block handle

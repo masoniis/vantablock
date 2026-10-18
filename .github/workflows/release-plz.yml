@@ -61,7 +61,7 @@ jobs:
     needs: [release-plz-release]
     permissions:
       contents: write
-    if: ${{ contains(needs.release-plz-release.outputs.releases, '"package_name":"vantablock-runner"') }}
+    if: ${{ contains(needs.release-plz-release.outputs.releases, '"package_name":"vantablock-app"') }}
     strategy:
       fail-fast: false
       matrix:
@@ -90,13 +90,13 @@ jobs:
 
       - name: Build and Package Game
         run: |
-          cargo build -p vantablock-runner --bin vantablock --profile distribution --features distribution
-          cargo packager -p vantablock-runner --profile distribution
+          cargo build -p vantablock-app --bin vantablock --profile distribution --features distribution
+          cargo packager -p vantablock-app --profile distribution
 
       - name: Build and Package Server
         shell: bash
         run: |
-          cargo build -p vantablock-runner --bin vantablock-server --no-default-features --features server --profile distribution
+          cargo build -p vantablock-app --bin vantablock-server --no-default-features --features server --profile distribution
 
           # the dedicated server loads its assets from an assets folder next to the executable
           ARCH=$(uname -m)
@@ -116,9 +116,9 @@ jobs:
         id: release_tag
         shell: bash
         run: |
-          TAG=$(echo '${{ needs.release-plz-release.outputs.releases }}' | jq -r '.[] | select(.package_name == "vantablock-runner") | .tag')
+          TAG=$(echo '${{ needs.release-plz-release.outputs.releases }}' | jq -r '.[] | select(.package_name == "vantablock-app") | .tag')
           if [ -z "$TAG" ] || [ "$TAG" == "null" ]; then
-            echo "Error: Could not find tag for runner package."
+            echo "Error: Could not find tag for the app package."
             exit 1
           fi
           echo "tag=$TAG" >> $GITHUB_OUTPUT

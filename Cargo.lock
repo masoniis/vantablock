@@ -7946,6 +7946,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29d5dcacd3a65"
 
 [[package]]
+name = "vantablock-app"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "crossbeam-channel",
+ "lightyear",
+ "tracing",
+ "vantablock-client",
+ "vantablock-common",
+ "vantablock-platform",
+ "vantablock-server",
+]
+
+[[package]]
 name = "vantablock-baker"
 version = "0.1.0"
 dependencies = [
@@ -7973,25 +7987,40 @@ dependencies = [
  "tracing",
  "tracing-tracy",
  "tracy-client",
- "vantablock-shared",
- "vantablock-utils",
+ "vantablock-common",
+ "vantablock-platform",
  "vantablock-voxel",
  "wesl",
  "wgpu",
 ]
 
 [[package]]
-name = "vantablock-runner"
+name = "vantablock-common"
 version = "0.1.0"
 dependencies = [
  "bevy",
- "crossbeam-channel",
+ "derive_more",
+ "leafwing-input-manager",
  "lightyear",
+ "ron 0.11.0",
+ "serde",
  "tracing",
- "vantablock-client",
- "vantablock-server",
- "vantablock-shared",
- "vantablock-utils",
+ "vantablock-baker",
+ "vantablock-platform",
+ "vantablock-voxel",
+]
+
+[[package]]
+name = "vantablock-platform"
+version = "0.1.0"
+dependencies = [
+ "directories",
+ "sysinfo",
+ "time",
+ "tracing",
+ "tracing-subscriber",
+ "tracing-tracy",
+ "tracy-client",
 ]
 
 [[package]]
@@ -8006,37 +8035,8 @@ dependencies = [
  "serde",
  "tracing",
  "tracing-subscriber",
- "vantablock-shared",
- "vantablock-utils",
-]
-
-[[package]]
-name = "vantablock-shared"
-version = "0.1.0"
-dependencies = [
- "bevy",
- "derive_more",
- "leafwing-input-manager",
- "lightyear",
- "ron 0.11.0",
- "serde",
- "tracing",
- "vantablock-baker",
- "vantablock-utils",
- "vantablock-voxel",
-]
-
-[[package]]
-name = "vantablock-utils"
-version = "0.1.0"
-dependencies = [
- "directories",
- "sysinfo",
- "time",
- "tracing",
- "tracing-subscriber",
- "tracing-tracy",
- "tracy-client",
+ "vantablock-common",
+ "vantablock-platform",
 ]
 
 [[package]]

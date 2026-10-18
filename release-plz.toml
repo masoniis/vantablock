@@ -18,9 +18,9 @@ pr_body = """
 {{ releases[0].changelog }}
 """
 
-# runner package is the main release entrypoint
+# the app package is the main release entrypoint
 [[package]]
-name = "vantablock-runner"
+name = "vantablock-app"
 release = true
 git_only = true                                 # rely on git tags instead of crates.io (fixed in release-plz 0.3.164+)
 git_tag_enable = true                           # create tags

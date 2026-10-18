@@ -1,4 +1,4 @@
-// The 64-tree hierarchical DDA. Mirrors `trace` in crates/voxel/src/hierarchy/tree64.rs line for
+// The 64-tree hierarchical DDA. Mirrors `trace` in crates/engine/voxel/src/hierarchy/tree64.rs line for
 // line, following the shared rules in dda.wesl: entry cells come from plane distances (never from
 // flooring a reconstructed position), boundary distances are recomputed from integer cells, and
 // ties pick the lowest axis.

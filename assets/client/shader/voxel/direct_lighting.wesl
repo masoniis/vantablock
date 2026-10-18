@@ -13,7 +13,7 @@ import super::lib::view::{camera_ray_direction, sky_color, tonemap, id_color, he
 @group(2) @binding(4) var cell_tex: texture_2d<u32>;
 @group(2) @binding(5) var stats_tex: texture_2d<u32>;
 
-// must match DebugView in crates/client/src/render/settings.rs
+// must match DebugView in crates/game/client/src/render/settings.rs
 const DEBUG_SHADED: u32 = 0u;
 const DEBUG_NORMALS: u32 = 1u;
 const DEBUG_POSE_FRAMES: u32 = 2u;

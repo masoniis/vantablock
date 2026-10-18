@@ -7,17 +7,21 @@ Phase 1 implements.
 
 ## Crates
 
-| Crate               | Role                                                                                         |
-| ------------------- | -------------------------------------------------------------------------------------------- |
-| `vantablock-voxel`  | Bevy-free geometry core: data model, memory contracts, CPU reference traversal, scene search |
-| `vantablock-baker`  | Procedural generators, RON recipes, `vanta_baker`, CPU traversal benchmarks                  |
-| `vantablock-shared` | Network protocol, asset library, replicated world objects, world clock, player simulation    |
-| `vantablock-server` | Authoritative scene population, world clock, connections                                     |
-| `vantablock-client` | Input, prediction, UI, and the voxel renderer                                                |
-| `vantablock-runner` | Binaries, singleplayer orchestrator, client/server integration tests                         |
-| `vantablock-utils`  | Logging and persistent paths                                                                 |
+Crates are grouped by layer, and dependencies only flow downward:
+`platform`, `engine/voxel` ← `engine/baker` ← `game/common` ← `game/server`/`game/client` ← `app`.
 
-Dependencies point one way: `voxel` ← `baker` ← `shared` ← `server`/`client` ← `runner`.
+| Crate                                      | Role                                                                                                  |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| `vantablock-platform` (`crates/platform`)  | Host services with no game knowledge: logging, tracing, persistent paths                              |
+| `vantablock-voxel` (`crates/engine/voxel`) | Bevy-free geometry core: data model, memory contracts, local hierarchies, CPU reference, scene search |
+| `vantablock-baker` (`crates/engine/baker`) | Bevy-free procedural generators, RON recipes, `vanta_baker`, CPU traversal benchmarks                 |
+| `vantablock-common` (`crates/game/common`) | The game both peers run: protocol, asset library, world objects, world clock, player simulation       |
+| `vantablock-server` (`crates/game/server`) | Authoritative scene population, world clock, connections                                              |
+| `vantablock-client` (`crates/game/client`) | Input, prediction, UI, and the voxel renderer                                                         |
+| `vantablock-app` (`crates/app`)            | Binaries, singleplayer orchestrator, client/server integration tests                                  |
+
+The `engine` crates serve every peer and tool: the server bakes canonical assets through
+`common`, and the client additionally bakes their GPU hierarchies with `voxel`.
 
 ## Data flow
 
@@ -62,13 +66,13 @@ client: GpuGeometryLibrary (bake every module into one set of 64-tree arenas, pa
   the ray truly enters, at its entry distance, with nothing solid meaningfully closer. Ties and
   sub-ulp grazing contacts may resolve either way.
 - **CPU traversal** is tested against brute force on boundary torture rays
-  (`crates/voxel/tests/tree64_reference.rs`): node boundaries, corners, edges, boundary planes,
+  (`crates/engine/voxel/tests/hierarchy_reference.rs`): node boundaries, corners, edges, boundary planes,
   near-parallel rays, inside starts, shared subtrees, multi-page layouts.
 - **Scene search** is tested against exhaustive per-frame search for both acceleration modes over
-  hundreds of animated, rotated instances (`crates/voxel/tests/scene_equivalence.rs`).
+  hundreds of animated, rotated instances (`crates/engine/voxel/tests/scene_equivalence.rs`).
 - **GPU** shaders are validated with naga and run on the real adapter against the CPU reference:
   masks bit-for-bit, 64-tree traversal by the reference rules on both page paths, and whole-scene
-  traversal on the real assets (`crates/client/tests/gpu_conformance.rs`, `just test-gpu`).
+  traversal on the real assets (`crates/game/client/tests/gpu_conformance.rs`, `just test-gpu`).
 
 Entry cells are chosen by comparing `t` against plane distances, never by flooring a reconstructed
 position; flooring misplaced near-parallel rays by an ulp and missed geometry.

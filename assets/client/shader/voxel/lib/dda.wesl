@@ -1,4 +1,4 @@
-// Shared hierarchical DDA rules for every local voxel hierarchy. Mirrors crates/voxel/src/hierarchy/mod.rs:
+// Shared hierarchical DDA rules for every local voxel hierarchy. Mirrors crates/engine/voxel/src/hierarchy/mod.rs:
 // boundary distances are recomputed from integer cells, ties pick the lowest axis, and entry faces
 // come from the same plane distances as the slab test.
 

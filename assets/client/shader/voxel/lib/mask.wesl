@@ -1,4 +1,4 @@
-// Portable 64-bit occupancy masks as two u32 halves. Mirrors crates/voxel/src/mask.rs.
+// Portable 64-bit occupancy masks as two u32 halves. Mirrors crates/engine/voxel/src/mask.rs.
 
 const NODE_WORDS: u32 = 4u;
 

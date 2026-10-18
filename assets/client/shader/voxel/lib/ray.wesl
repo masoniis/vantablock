@@ -1,4 +1,4 @@
-// Ray helpers. Mirrors crates/voxel/src/math.rs.
+// Ray helpers. Mirrors crates/engine/voxel/src/math.rs.
 
 const MIN_DIRECTION_COMPONENT: f32 = 1e-8;
 

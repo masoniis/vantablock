@@ -1,5 +1,5 @@
 // Bind group 1 and scene-level search. Mirrors `SceneSnapshot::intersect` in
-// crates/voxel/src/scene.rs: scene BVH -> (template mini-BVH | flattened frames) -> pose frame ->
+// crates/engine/voxel/src/scene.rs: scene BVH -> (template mini-BVH | flattened frames) -> pose frame ->
 // group-local hierarchy (64-tree or octree), keeping the nearest world-distance hit.
 
 import super::types::{

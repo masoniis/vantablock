@@ -1,0 +1,35 @@
+[package]
+name = "vantablock-platform"
+description = "platform services for vantablock: logging, tracing, and persistent paths"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+name = "platform"
+path = "src/lib.rs"
+
+[features]
+tracy = ["dep:tracy-client", "dep:tracing-tracy"]
+
+[dependencies]
+
+# INFO: --------------------------------
+#         logging/error handling
+# --------------------------------------
+
+time = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracy-client = { workspace = true, optional = true }
+tracing-tracy = { workspace = true, optional = true }
+
+# INFO: ---------------
+#         utils
+# ---------------------
+
+sysinfo = { workspace = true }
+directories = { workspace = true } # platform-specific dirs
