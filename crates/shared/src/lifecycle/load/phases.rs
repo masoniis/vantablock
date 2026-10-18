@@ -1,5 +1,4 @@
 use crate::lifecycle::load::LoadingDagPhase;
-use bevy::prelude::*;
 
 /// Marker for the app startup loading phase.
 ///
@@ -14,11 +13,3 @@ pub struct AppStartupLoadingPhase;
 impl LoadingDagPhase for AppStartupLoadingPhase {
     const PHASE_NAME: &'static str = "AppStartupLoading";
 }
-
-/// Marker node for loading block definitions.
-#[derive(Component)]
-pub struct LoadBlocks;
-
-/// Marker node for loading biome definitions.
-#[derive(Component)]
-pub struct LoadBiomes;

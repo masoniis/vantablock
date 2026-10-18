@@ -1,4 +1,3 @@
-use crate::world::chunk::ChunkCoord;
 use bevy::prelude::*;
 use lightyear::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -8,15 +7,10 @@ use serde::{Deserialize, Serialize};
 /// while the client also has other means of communication like replication.
 #[derive(Message, Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum ClientMessage {
-    /// A request for the server to send block data for these chunks. The client sends this
-    /// whenever it starts waiting on chunks, including ones it unloaded and needs again.
-    RequestChunks(Vec<ChunkCoord>),
-    /// Intent to break a block at the specified position.
-    BreakBlock { position: IVec3 },
-    /// Intent to place a block at the specified position.
-    PlaceBlock { position: IVec3, block_id: u8 },
-    /// Request the server to jump the game time by a specific amount.
-    RequestTimeJump { amount: f32 },
+    /// Request the server to jump the time of day by `seconds` (negative to rewind).
+    RequestTimeJump { seconds: f32 },
+    /// Request the server to pause or resume the day/night cycle.
+    RequestToggleDayCycle,
 }
 
 /// A protocol defining all the direct server messages that a server communicates
@@ -24,15 +18,12 @@ pub enum ClientMessage {
 /// while the server also has other means of communication like replication.
 #[derive(Message, Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum ServerMessage {
-    /// Direct block update for a specific world position. Represents generalized state change broadcast.
-    BlockUpdate { position: IVec3, block_id: u8 },
-    /// Bulk data for a chunk, typically compressed or encoded from ChunkVolumeData.
-    ChunkData {
-        coord: ChunkCoord,
-        data: Vec<u8>, // u8 matches BlockId
+    /// The authoritative world clock: animation time and time of day.
+    SyncWorldClock {
+        elapsed_seconds: f64,
+        time_of_day_seconds: f32,
+        day_cycle_paused: bool,
     },
-    /// Synchronizes the authoritative game time across all clients.
-    SyncTime { game_time: f32, tick: u64 },
 }
 
 // INFO: ---------------------------

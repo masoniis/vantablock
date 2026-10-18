@@ -8065,19 +8065,15 @@ name = "vantablock-shared"
 version = "0.1.0"
 dependencies = [
  "bevy",
- "bytemuck",
- "crossbeam",
  "derive_more",
- "futures-lite",
  "leafwing-input-manager",
  "lightyear",
- "noise",
- "rand 0.9.4",
  "ron 0.11.0",
  "serde",
  "tracing",
+ "vantablock-baker",
  "vantablock-utils",
- "zstd",
+ "vantablock-voxel",
 ]
 
 [[package]]

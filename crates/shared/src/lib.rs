@@ -23,7 +23,7 @@ impl PluginGroup for SharedPlugins {
     fn build(self) -> PluginGroupBuilder {
         PluginGroupBuilder::start::<Self>()
             .add_group(lifecycle::SharedLifecyclePlugins)
-            .add_group(world::WorldPlugins)
+            .add(world::SharedWorldPlugin)
             .add(time::TimeControlPlugin)
             .add(player::SharedPlayerPlugin)
     }

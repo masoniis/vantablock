@@ -14,18 +14,14 @@ path = "src/lib.rs"
 
 [dependencies]
 utils = { workspace = true }
+voxel = { workspace = true }
+baker = { workspace = true }
 
 # INFO: --------------------------------
 #         logging/error handling
 # --------------------------------------
 
 tracing = { workspace = true }
-
-# INFO: ------------------
-#         graphics
-# ------------------------
-
-bytemuck = { workspace = true } # gpu friendly data
 
 # INFO: --------------------------
 #         simulation logic
@@ -38,16 +34,11 @@ lightyear = { workspace = true, features = [
   "interpolation", # smoothing intended for more pleasing visuals
   "prediction",    # for local predictions agaisnt server to get snappy feedback
 ] }
-futures-lite = { workspace = true } # future utils
 
 # INFO: ---------------
 #         utils
 # ---------------------
 
-serde = { workspace = true }       # serializing
+serde = { workspace = true } # serializing
 derive_more = { workspace = true }
-noise = { workspace = true }       # gen random noise
-crossbeam = { workspace = true }   # thread comms
-rand = { workspace = true }        # rng
-ron = { workspace = true }         # parsing RON files
-zstd = { workspace = true }
+ron = { workspace = true }   # parsing RON files

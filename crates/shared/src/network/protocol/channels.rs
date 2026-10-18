@@ -3,47 +3,20 @@ use lightyear::prelude::{
     AppChannelExt, ChannelMode, ChannelSettings, NetworkDirection, ReliableSettings,
 };
 
-/// High-frequency input stream for player movement and orientation.
+/// Periodic authoritative world clock updates.
 ///
 /// **Mode:** `SequencedUnreliable`
-/// - Unreliable because dropped packets don't matter as a newer one is coming next tick.
-/// - Sequenced because older out-of-order packets should be discarded to prevent "jitter".
-///
-/// **Direction:** `ClientToServer`
-pub struct PlayerMovement;
-
-/// Requests for block destruction/placement and the resulting state updates.
-///
-/// **Mode:** `OrderedReliable`
-/// - Reliable because a dropped packet would leave a "ghost block" (desync).
-/// - Ordered because mining block A then placing block B in the same spot must resolve in that exact sequence.
-///
-/// **Direction:** `Bidirectional` (Requests C->S, Updates S->C)
-pub struct BlockUpdates;
-
-/// Massive terrain payloads for world generation and chunk loading.
-///
-/// **Mode:** `UnorderedReliable`
-/// - Reliable because missing chunk data leaves a hole in the world.
-/// - Unordered because Chunk A arriving before Chunk B doesn't break simulation and prevents head-of-line blocking.
-///
-/// **Direction:** `Bidirectional` (Requests C->S, Data S->C)
-pub struct ChunkData;
-
-/// Spawning and despawning of players, dropped items, or mobs.
-///
-/// **Mode:** `OrderedReliable`
-/// - Reliable because ghost entities or missing spawns break the game state.
-/// - Ordered to ensure spawn events precede any updates for that entity.
+/// - Unreliable because a newer sync is always on its way.
+/// - Sequenced so a late, older sync never rewinds the clock.
 ///
 /// **Direction:** `ServerToClient`
-pub struct EntityLifecycle;
+pub struct ClockSync;
 
-/// Text chat and critical server system broadcasts.
+/// Text chat, commands, and critical server system broadcasts.
 ///
 /// **Mode:** `OrderedReliable`
 /// - Reliable to ensure messages are not lost.
-/// - Ordered so that conversations and system logs make sense.
+/// - Ordered so that conversations and requests resolve in the order they were made.
 ///
 /// **Direction:** `Bidirectional`
 pub struct ChatAndSystem;
@@ -58,26 +31,8 @@ pub struct NetChannelsPlugin;
 
 impl Plugin for NetChannelsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_channel::<PlayerMovement>(ChannelSettings {
+        app.add_channel::<ClockSync>(ChannelSettings {
             mode: ChannelMode::SequencedUnreliable,
-            ..default()
-        })
-        .add_direction(NetworkDirection::ClientToServer);
-
-        app.add_channel::<BlockUpdates>(ChannelSettings {
-            mode: ChannelMode::OrderedReliable(ReliableSettings { ..default() }),
-            ..default()
-        })
-        .add_direction(NetworkDirection::Bidirectional);
-
-        app.add_channel::<ChunkData>(ChannelSettings {
-            mode: ChannelMode::UnorderedReliable(ReliableSettings { ..default() }),
-            ..default()
-        })
-        .add_direction(NetworkDirection::Bidirectional);
-
-        app.add_channel::<EntityLifecycle>(ChannelSettings {
-            mode: ChannelMode::OrderedReliable(ReliableSettings { ..default() }),
             ..default()
         })
         .add_direction(NetworkDirection::ServerToClient);

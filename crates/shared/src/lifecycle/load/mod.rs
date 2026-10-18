@@ -5,11 +5,9 @@
 
 mod dag;
 mod phases;
-mod tasks;
 
 pub use dag::*;
 pub use phases::*;
-pub use tasks::*;
 
 // INFO: ---------------------------
 //         plugin definition
