@@ -46,12 +46,13 @@ impl DebugView {
     }
 }
 
-/// How pose groups are organized for spatial search; both must render identically.
+/// How pose groups are organized for spatial search; all must render identically.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
 pub enum AccelerationMode {
     #[default]
     TemplateMiniBvh,
     FlattenedGroups,
+    InstanceRefit,
 }
 
 impl From<AccelerationMode> for SceneAcceleration {
@@ -59,6 +60,7 @@ impl From<AccelerationMode> for SceneAcceleration {
         match mode {
             AccelerationMode::TemplateMiniBvh => SceneAcceleration::TemplateMiniBvh,
             AccelerationMode::FlattenedGroups => SceneAcceleration::FlattenedGroups,
+            AccelerationMode::InstanceRefit => SceneAcceleration::InstanceRefit,
         }
     }
 }
@@ -145,7 +147,8 @@ fn cycle_render_scale_system(mut settings: ResMut<RenderSettings>) {
 fn toggle_acceleration_system(mut settings: ResMut<RenderSettings>) {
     settings.acceleration = match settings.acceleration {
         AccelerationMode::TemplateMiniBvh => AccelerationMode::FlattenedGroups,
-        AccelerationMode::FlattenedGroups => AccelerationMode::TemplateMiniBvh,
+        AccelerationMode::FlattenedGroups => AccelerationMode::InstanceRefit,
+        AccelerationMode::InstanceRefit => AccelerationMode::TemplateMiniBvh,
     };
     info!("Scene acceleration: {:?}", settings.acceleration);
 }

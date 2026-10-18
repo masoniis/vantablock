@@ -560,13 +560,10 @@ fn showcase_instances(
 /// Every scene organization with every local hierarchy.
 fn scene_variants() -> Vec<(voxel::scene::SceneAcceleration, HierarchyKind)> {
     use voxel::scene::SceneAcceleration;
-    [
-        SceneAcceleration::TemplateMiniBvh,
-        SceneAcceleration::FlattenedGroups,
-    ]
-    .into_iter()
-    .flat_map(|mode| HierarchyKind::ALL.map(|kind| (mode, kind)))
-    .collect()
+    SceneAcceleration::ALL
+        .into_iter()
+        .flat_map(|mode| HierarchyKind::ALL.map(|kind| (mode, kind)))
+        .collect()
 }
 
 #[test]
@@ -718,13 +715,45 @@ fn gpu_scene_traversal_matches_cpu() {
     }
 }
 
-/// Primary-ray throughput of the production scene kernel on the real assets. Not a correctness
-/// test; run with `just test-gpu gpu_scene_throughput --ignored` to compare shader changes.
+/// A dense grove of hundreds of animated, varied pose instances: the spec's workload for comparing
+/// template-shared, per-instance refit, and flattened pose-group organization.
+fn grove_instances(library: &common::world::VantaAssetLibrary) -> Vec<voxel::scene::InstanceDesc> {
+    use bevy::math::{Affine3A, Quat};
+    (0..300)
+        .map(|i| {
+            let name = ["oak", "oak", "kinetic_rotor"][i % 3];
+            let index = library
+                .index_of(library.id_by_name(name).expect(name))
+                .unwrap();
+            let assembly = &library.assets()[index].assembly;
+            let angle = i as f32 * 2.399;
+            let position = Vec3::new(angle.cos(), 0.0, angle.sin()) * (i as f32).sqrt() * 2.2;
+            voxel::scene::InstanceDesc {
+                key: i as u64,
+                asset: index as u32,
+                root_to_world: Affine3A::from_scale_rotation_translation(
+                    Vec3::splat(assembly.voxel_size * (0.7 + 0.1 * (i % 5) as f32)),
+                    Quat::from_rotation_y(angle),
+                    position,
+                ),
+                pose: voxel::PoseDriver {
+                    phase: angle,
+                    gust: 1.0,
+                }
+                .evaluate(assembly, 1.3),
+            }
+        })
+        .collect()
+}
+
+/// Primary-ray throughput of the production scene kernel on the real assets, plus the search
+/// statistics that explain it. Not a correctness test; run with
+/// `just test-gpu gpu_scene_throughput --ignored` (ideally with `--release`) to compare changes.
 #[test]
 #[ignore]
 fn gpu_scene_throughput() {
     use client::render::{geometry::GpuGeometryLibrary, scene::GpuSceneData};
-    use voxel::scene::{AssetTemplate, SceneSnapshot};
+    use voxel::scene::{AssetTemplate, SceneAcceleration, SceneSnapshot, SceneTraceStats};
 
     let Some(gpu) = gpu() else { return };
     let workspace = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
@@ -742,23 +771,35 @@ fn gpu_scene_throughput() {
         .iter()
         .map(|a| (*a.template).clone())
         .collect();
-    let instances = showcase_instances(&library, &mut Rng(9));
 
     let (width, height) = (1280u32, 720u32);
-    let eye = Vec3::new(0.0, 1.7, 14.0);
-    let cases: Vec<RayCase> = (0..width * height)
-        .map(|i| {
-            let u = ((i % width) as f32 + 0.5) / width as f32 * 2.0 - 1.0;
-            let v = 1.0 - ((i / width) as f32 + 0.5) / height as f32 * 2.0;
-            let dir = Vec3::new(u * 1.03, v * 0.58, -1.0).normalize();
-            RayCase {
-                origin: eye.to_array(),
-                t_min: 0.0,
-                dir: dir.to_array(),
-                t_max: 3.0e38,
-            }
-        })
-        .collect();
+    let camera = |eye: Vec3, target: Vec3| -> Vec<Ray> {
+        let forward = (target - eye).normalize();
+        let right = forward.cross(Vec3::Y).normalize();
+        let up = right.cross(forward);
+        (0..width * height)
+            .map(|i| {
+                let u = ((i % width) as f32 + 0.5) / width as f32 * 2.0 - 1.0;
+                let v = 1.0 - ((i / width) as f32 + 0.5) / height as f32 * 2.0;
+                Ray::new(
+                    eye,
+                    (forward + right * u * 1.03 + up * v * 0.58).normalize(),
+                )
+            })
+            .collect()
+    };
+    let scenes = [
+        (
+            "showcase",
+            showcase_instances(&library, &mut Rng(9)),
+            camera(Vec3::new(0.0, 1.7, 14.0), Vec3::new(0.0, 1.7, 0.0)),
+        ),
+        (
+            "grove of 300",
+            grove_instances(&library),
+            camera(Vec3::new(0.0, 6.0, 48.0), Vec3::new(0.0, 4.0, 0.0)),
+        ),
+    ];
 
     let meta = gpu.uniform(&GpuGeometryMeta::new(
         &geometry.topology_page_bases,
@@ -766,55 +807,115 @@ fn gpu_scene_throughput() {
     ));
     let topology = gpu.storage(&geometry.topology);
     let template_bvh = gpu.storage(&geometry.template_bvh);
-    let ray_buffer = gpu.storage(&cases);
-    let output = gpu.output(cases.len() as u64 * 16);
+    let template_bytes = geometry.template_bvh.len() * std::mem::size_of::<voxel::Bvh4Node>();
 
-    for (mode, hierarchy) in scene_variants() {
-        let snapshot = SceneSnapshot::build(&templates, &instances, mode, None);
-        let scene = GpuSceneData::pack(&snapshot, &library, &geometry, hierarchy);
-        let uniform = gpu.uniform(&scene.uniform);
-        let bvh = gpu.storage(&scene.bvh);
-        let frames = gpu.storage(&scene.frames);
-        let instance_buffer = gpu.storage(&scene.instances);
-        let slot_frames = gpu.storage(&scene.slot_frames);
-        let groups = [
-            (
-                0,
-                vec![
-                    (0, topology.as_entire_binding()),
-                    (3, template_bvh.as_entire_binding()),
-                    (4, meta.as_entire_binding()),
-                ],
-            ),
-            (
-                1,
-                vec![
-                    (0, uniform.as_entire_binding()),
-                    (1, bvh.as_entire_binding()),
-                    (2, frames.as_entire_binding()),
-                    (3, instance_buffer.as_entire_binding()),
-                    (4, slot_frames.as_entire_binding()),
-                ],
-            ),
-            (
-                2,
-                vec![
-                    (2, ray_buffer.as_entire_binding()),
-                    (3, output.as_entire_binding()),
-                ],
-            ),
-        ];
-        // warm up (pipeline creation, caches), then time
-        let _: Vec<RayResult> = gpu.run("scene_rays", cases.len() as u32, &groups, &output);
-        let start = std::time::Instant::now();
-        let runs = 5;
-        for _ in 0..runs {
-            let _: Vec<RayResult> = gpu.run("scene_rays", cases.len() as u32, &groups, &output);
+    for (scene_name, instances, rays) in &scenes {
+        eprintln!("  {scene_name}: {} instances", instances.len());
+        let cases: Vec<RayCase> = rays
+            .iter()
+            .map(|r| RayCase {
+                origin: r.origin.to_array(),
+                t_min: 0.0,
+                dir: r.dir.to_array(),
+                t_max: 3.0e38,
+            })
+            .collect();
+        let ray_buffer = gpu.storage(&cases);
+        let output = gpu.output(cases.len() as u64 * 16);
+
+        for mode in SceneAcceleration::ALL {
+            let build_start = std::time::Instant::now();
+            let snapshot = SceneSnapshot::build(&templates, instances, mode, None);
+            let build_ms = build_start.elapsed().as_secs_f64() * 1000.0;
+
+            // search statistics from the CPU reference on a subsample of the same rays
+            let mut totals = SceneTraceStats::default();
+            let sample: Vec<&Ray> = rays.iter().step_by(97).collect();
+            for ray in &sample {
+                let (_, stats) =
+                    snapshot.intersect(&templates, ray, 0.0, 3.0e38, |frame, local, t0, t1| {
+                        let module = library.assets()[frame.asset as usize].assembly.groups
+                            [frame.group as usize]
+                            .module;
+                        geometry.assets[frame.asset as usize]
+                            .root(module, HierarchyKind::Tree64)
+                            .trace(&geometry, local, t0, t1)
+                    });
+                totals.scene_nodes += stats.scene_nodes;
+                totals.mini_bvh_nodes += stats.mini_bvh_nodes;
+                totals.group_candidates += stats.group_candidates;
+            }
+            let per_ray = |n: u32| n as f64 / sample.len() as f64;
+            let node_bytes = std::mem::size_of::<voxel::Bvh4Node>();
+            let mini_bvh_bytes = match mode {
+                SceneAcceleration::TemplateMiniBvh => template_bytes,
+                SceneAcceleration::FlattenedGroups => 0,
+                SceneAcceleration::InstanceRefit => {
+                    snapshot
+                        .instance_bvhs
+                        .iter()
+                        .map(|b| b.nodes.len())
+                        .sum::<usize>()
+                        * node_bytes
+                }
+            };
+            eprintln!(
+                "    {mode:?}: scene BVH {:.1} KiB, mini-BVHs {:.1} KiB, snapshot build {build_ms:.2} ms; per ray {:.1} scene nodes, {:.1} mini-BVH nodes, {:.2} group candidates",
+                (snapshot.bvh.nodes.len() * node_bytes) as f64 / 1024.0,
+                mini_bvh_bytes as f64 / 1024.0,
+                per_ray(totals.scene_nodes),
+                per_ray(totals.mini_bvh_nodes),
+                per_ray(totals.group_candidates),
+            );
+
+            for hierarchy in HierarchyKind::ALL {
+                let scene = GpuSceneData::pack(&snapshot, &library, &geometry, hierarchy);
+                let uniform = gpu.uniform(&scene.uniform);
+                let bvh = gpu.storage(&scene.bvh);
+                let frames = gpu.storage(&scene.frames);
+                let instance_buffer = gpu.storage(&scene.instances);
+                let slot_frames = gpu.storage(&scene.slot_frames);
+                let groups = [
+                    (
+                        0,
+                        vec![
+                            (0, topology.as_entire_binding()),
+                            (3, template_bvh.as_entire_binding()),
+                            (4, meta.as_entire_binding()),
+                        ],
+                    ),
+                    (
+                        1,
+                        vec![
+                            (0, uniform.as_entire_binding()),
+                            (1, bvh.as_entire_binding()),
+                            (2, frames.as_entire_binding()),
+                            (3, instance_buffer.as_entire_binding()),
+                            (4, slot_frames.as_entire_binding()),
+                        ],
+                    ),
+                    (
+                        2,
+                        vec![
+                            (2, ray_buffer.as_entire_binding()),
+                            (3, output.as_entire_binding()),
+                        ],
+                    ),
+                ];
+                // warm up (pipeline creation, caches), then time
+                let _: Vec<RayResult> = gpu.run("scene_rays", cases.len() as u32, &groups, &output);
+                let start = std::time::Instant::now();
+                let runs = 5;
+                for _ in 0..runs {
+                    let _: Vec<RayResult> =
+                        gpu.run("scene_rays", cases.len() as u32, &groups, &output);
+                }
+                let ms = start.elapsed().as_secs_f64() * 1000.0 / runs as f64;
+                eprintln!(
+                    "      {hierarchy:?}: {width}x{height} primary rays in {ms:.1} ms ({:.1} Mrays/s, includes readback)",
+                    cases.len() as f64 / ms / 1000.0
+                );
+            }
         }
-        let ms = start.elapsed().as_secs_f64() * 1000.0 / runs as f64;
-        eprintln!(
-            "  {mode:?} {hierarchy:?}: {width}x{height} primary rays in {ms:.1} ms ({:.1} Mrays/s, includes readback)",
-            cases.len() as f64 / ms / 1000.0
-        );
     }
 }

@@ -1,15 +1,15 @@
-//! Scene-level contracts: flattened pose-group leaves and template-shared mini-BVHs must find
-//! exactly the same nearest hit as an exhaustive search over every resolved frame, for every
-//! legal pose, and rotated groups must stay hittable.
+//! Scene-level contracts: flattened pose-group leaves, template-shared mini-BVHs, and
+//! per-instance refit mini-BVHs must find exactly the same nearest hit as an exhaustive search over
+//! every resolved frame, for every legal pose and both local hierarchies, and rotated groups must
+//! stay hittable.
 
 mod common;
 
 use common::{Rng, foliage_module};
 use glam::{Affine3A, Quat, UVec3, Vec3};
 use voxel::{
-    CanonicalAssembly, GeometryArenas, Material, Motion, PoseDriver, PoseGroupTemplate, PoseState,
-    Ray, Tree64Root, VoxelModule,
-    hierarchy::tree64::trace,
+    CanonicalAssembly, GeometryArenas, HierarchyKind, Material, Motion, PoseDriver,
+    PoseGroupTemplate, PoseState, Ray, VoxelModule, VoxelRoot,
     scene::{AssetTemplate, InstanceDesc, SceneAcceleration, SceneHit, SceneSnapshot},
 };
 
@@ -124,18 +124,22 @@ struct World {
     templates: Vec<AssetTemplate>,
     geometry: GeometryArenas,
     /// Baked roots per asset, indexed by module.
-    roots: Vec<Vec<Tree64Root>>,
+    roots: Vec<Vec<VoxelRoot>>,
 }
 
 impl World {
     fn new(assemblies: Vec<CanonicalAssembly>) -> Self {
+        Self::with_hierarchy(assemblies, HierarchyKind::Tree64)
+    }
+
+    fn with_hierarchy(assemblies: Vec<CanonicalAssembly>, kind: HierarchyKind) -> Self {
         let mut geometry = GeometryArenas::default();
         let roots = assemblies
             .iter()
             .map(|a| {
                 a.modules
                     .iter()
-                    .map(|m| geometry.bake_tree64(m).unwrap().0)
+                    .map(|m| geometry.bake(m, kind).unwrap())
                     .collect()
             })
             .collect();
@@ -147,7 +151,7 @@ impl World {
         }
     }
 
-    fn root(&self, asset: u32, group: u32) -> &Tree64Root {
+    fn root(&self, asset: u32, group: u32) -> &VoxelRoot {
         let module = self.assemblies[asset as usize].groups[group as usize].module;
         &self.roots[asset as usize][module as usize]
     }
@@ -160,13 +164,8 @@ impl World {
                 0.0,
                 f32::MAX,
                 |frame, local, t0, t1| {
-                    trace(
-                        &self.geometry,
-                        self.root(frame.asset, frame.group),
-                        local,
-                        t0,
-                        t1,
-                    )
+                    self.root(frame.asset, frame.group)
+                        .trace(&self.geometry, local, t0, t1)
                 },
             )
             .0
@@ -177,13 +176,10 @@ impl World {
         let mut best: Option<SceneHit> = None;
         for (id, frame) in snapshot.frames.iter().enumerate() {
             let local = ray.transformed(&frame.world_to_group);
-            if let Some(voxel) = trace(
-                &self.geometry,
-                self.root(frame.asset, frame.group),
-                &local,
-                0.0,
-                f32::MAX,
-            ) && best.is_none_or(|b| voxel.t < b.voxel.t)
+            if let Some(voxel) =
+                self.root(frame.asset, frame.group)
+                    .trace(&self.geometry, &local, 0.0, f32::MAX)
+                && best.is_none_or(|b| voxel.t < b.voxel.t)
             {
                 best = Some(SceneHit {
                     frame: id as u32,
@@ -245,43 +241,82 @@ fn random_ray(rng: &mut Rng) -> Ray {
 }
 
 #[test]
-fn both_acceleration_modes_match_exhaustive_search() {
-    let mut rng = Rng(11);
-    let world = World::new(vec![rotor_asset(), bough_asset(&mut rng)]);
+fn every_acceleration_mode_matches_exhaustive_search() {
+    for kind in HierarchyKind::ALL {
+        let mut rng = Rng(11);
+        let world = World::with_hierarchy(vec![rotor_asset(), bough_asset(&mut rng)], kind);
 
-    for step in 0..6 {
-        let time = step as f32 * 0.83;
-        // hundreds of overlapping, rotated instances
-        let instances = scatter_instances(&world, &mut rng, 240, time);
-        let template = SceneSnapshot::build(
-            &world.templates,
-            &instances,
-            SceneAcceleration::TemplateMiniBvh,
-            None,
-        );
-        let flattened = SceneSnapshot::build(
-            &world.templates,
-            &instances,
-            SceneAcceleration::FlattenedGroups,
-            None,
-        );
-        assert_eq!(template.frames.len(), flattened.frames.len());
+        for step in 0..6 {
+            let time = step as f32 * 0.83;
+            // hundreds of overlapping, rotated instances
+            let instances = scatter_instances(&world, &mut rng, 240, time);
+            let snapshots = SceneAcceleration::ALL
+                .map(|mode| SceneSnapshot::build(&world.templates, &instances, mode, None));
+            for snapshot in &snapshots[1..] {
+                assert_eq!(snapshot.frames.len(), snapshots[0].frames.len());
+            }
 
-        for _ in 0..400 {
-            let ray = random_ray(&mut rng);
-            let naive = key(world.intersect_naive(&template, &ray));
-            assert_eq!(
-                key(world.intersect(&template, &ray)),
-                naive,
-                "template mini-BVH, t = {time}"
-            );
-            assert_eq!(
-                key(world.intersect(&flattened, &ray)),
-                naive,
-                "flattened groups, t = {time}"
-            );
+            for _ in 0..400 {
+                let ray = random_ray(&mut rng);
+                let naive = key(world.intersect_naive(&snapshots[0], &ray));
+                for snapshot in &snapshots {
+                    assert_eq!(
+                        key(world.intersect(snapshot, &ray)),
+                        naive,
+                        "{:?} {kind:?}, t = {time}",
+                        snapshot.mode
+                    );
+                }
+            }
         }
     }
+}
+
+/// Refit mini-BVHs bound each instance's current pose, so they never need the template's
+/// out-of-envelope fallback and never test more groups than the template does.
+#[test]
+fn refit_mini_bvhs_are_tighter_than_templates() {
+    let mut rng = Rng(13);
+    let world = World::new(vec![bough_asset(&mut rng), rotor_asset()]);
+    let instances = scatter_instances(&world, &mut rng, 200, 2.1);
+    let template = SceneSnapshot::build(
+        &world.templates,
+        &instances,
+        SceneAcceleration::TemplateMiniBvh,
+        None,
+    );
+    let refit = SceneSnapshot::build(
+        &world.templates,
+        &instances,
+        SceneAcceleration::InstanceRefit,
+        None,
+    );
+    assert_eq!(refit.instance_bvhs.len(), instances.len());
+    assert!(refit.instances.iter().all(|i| i.refit_bvh.is_some()));
+
+    let (mut template_groups, mut refit_groups) = (0, 0);
+    for _ in 0..2000 {
+        let ray = random_ray(&mut rng);
+        let trace = |snapshot: &SceneSnapshot| {
+            snapshot.intersect(
+                &world.templates,
+                &ray,
+                0.0,
+                f32::MAX,
+                |frame, local, t0, t1| {
+                    world
+                        .root(frame.asset, frame.group)
+                        .trace(&world.geometry, local, t0, t1)
+                },
+            )
+        };
+        let (a, a_stats) = trace(&template);
+        let (b, b_stats) = trace(&refit);
+        assert_eq!(key(a), key(b));
+        template_groups += a_stats.group_candidates;
+        refit_groups += b_stats.group_candidates;
+    }
+    assert!(refit_groups <= template_groups);
 }
 
 #[test]
@@ -351,6 +386,14 @@ fn out_of_envelope_poses_fall_back_safely() {
         None,
     );
     assert!(!snapshot.instances[0].uses_template);
+    // refitting needs no fallback: its bounds follow the actual pose
+    let refit = SceneSnapshot::build(
+        &world.templates,
+        &instances,
+        SceneAcceleration::InstanceRefit,
+        None,
+    );
+    assert!(refit.instances[0].refit_bvh.is_some());
 
     let mut hits = 0;
     for _ in 0..1500 {
@@ -364,6 +407,7 @@ fn out_of_envelope_poses_fall_back_safely() {
         let naive = key(world.intersect_naive(&snapshot, &ray));
         hits += naive.is_some() as u32;
         assert_eq!(key(world.intersect(&snapshot, &ray)), naive);
+        assert_eq!(key(world.intersect(&refit, &ray)), naive);
     }
     assert!(hits > 50, "the test rays should actually hit the asset");
 }

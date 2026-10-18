@@ -3,7 +3,7 @@
 //! ```text
 //! world ray
 //!   -> scene BVH4 (instances, or flattened pose frames)
-//!     -> template-shared mini-BVH (group slots, in asset root space)
+//!     -> mini-BVH (group slots, in asset root space): template-shared, or refit per instance
 //!       -> resolved pose frame (instance + group)
 //!         -> group-local voxel hierarchy
 //! ```
@@ -37,6 +37,18 @@ pub enum SceneAcceleration {
     TemplateMiniBvh,
     /// Option A: every resolved pose frame is its own scene leaf.
     FlattenedGroups,
+    /// Scene leaves are instances; each articulated instance gets its own copy of its template's
+    /// mini-BVH, refit to the tight bounds of its current pose. Never needs the out-of-envelope
+    /// fallback, at the cost of per-instance nodes rebuilt every snapshot.
+    InstanceRefit,
+}
+
+impl SceneAcceleration {
+    pub const ALL: [Self; 3] = [
+        Self::TemplateMiniBvh,
+        Self::FlattenedGroups,
+        Self::InstanceRefit,
+    ];
 }
 
 /// Immutable, derived search data for one asset, shared by all of its instances.
@@ -110,12 +122,16 @@ pub struct InstanceRecord {
     /// `false` when the pose left its baked envelopes, so the template mini-BVH can't be trusted
     /// and every slot is tested against its current bound instead.
     pub uses_template: bool,
+    /// In [`SceneAcceleration::InstanceRefit`], this instance's refit mini-BVH in
+    /// [`SceneSnapshot::instance_bvhs`].
+    pub refit_bvh: Option<u32>,
 }
 
 /// Counters for one scene query.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SceneTraceStats {
     pub scene_nodes: u32,
+    pub mini_bvh_nodes: u32,
     pub instance_candidates: u32,
     pub group_candidates: u32,
     pub voxel_traces: u32,
@@ -139,6 +155,9 @@ pub struct SceneSnapshot {
     pub slot_frames: Vec<u32>,
     /// Scene leaves are instance indices or frame indices, depending on `mode`.
     pub bvh: Bvh4,
+    /// Per-instance refit mini-BVHs ([`SceneAcceleration::InstanceRefit`] only), in asset root
+    /// space with leaves naming group slots, exactly like the templates they were copied from.
+    pub instance_bvhs: Vec<Bvh4>,
     /// Frames that did not fit the 20-bit frame ID space and are not rendered.
     pub overflowed_frames: usize,
     history: HashMap<(u64, u32), Affine3A>,
@@ -163,6 +182,7 @@ impl SceneSnapshot {
             let to_root = group_to_root(&template.groups, &desc.pose);
             let slot_base = snapshot.slot_frames.len() as u32;
             let mut current_bounds = Aabb::EMPTY;
+            let mut root_bounds = Vec::new();
 
             for (group, root_from_group) in to_root.iter().enumerate() {
                 if snapshot.frames.len() >= MAX_POSE_FRAMES {
@@ -170,6 +190,7 @@ impl SceneSnapshot {
                     snapshot.slot_frames.push(INVALID_FRAME);
                     continue;
                 }
+                root_bounds.push(template.group_bounds[group].transformed(root_from_group));
                 let group_to_world = desc.root_to_world * *root_from_group;
                 let world_bounds = template.group_bounds[group].transformed(&group_to_world);
                 current_bounds = current_bounds.union(&world_bounds);
@@ -199,7 +220,19 @@ impl SceneSnapshot {
                     .iter()
                     .zip(&desc.pose.angles)
                     .all(|(g, &a)| g.motion.allows(a));
-            let world_bounds = if uses_template {
+            let refit_bvh = match (&template.mini_bvh, mode) {
+                // overflowed frames have no bound, but they are never traced either
+                (Some(mini_bvh), SceneAcceleration::InstanceRefit)
+                    if root_bounds.len() == template.groups.len() =>
+                {
+                    let mut bvh = mini_bvh.clone();
+                    bvh.refit(&root_bounds);
+                    snapshot.instance_bvhs.push(bvh);
+                    Some(snapshot.instance_bvhs.len() as u32 - 1)
+                }
+                _ => None,
+            };
+            let world_bounds = if uses_template && refit_bvh.is_none() {
                 template.root_envelope.transformed(&desc.root_to_world)
             } else {
                 current_bounds
@@ -212,11 +245,12 @@ impl SceneSnapshot {
                 slot_base,
                 group_count: template.group_count(),
                 uses_template,
+                refit_bvh,
             });
         }
 
         let leaf_bounds: Vec<Aabb> = match mode {
-            SceneAcceleration::TemplateMiniBvh => {
+            SceneAcceleration::TemplateMiniBvh | SceneAcceleration::InstanceRefit => {
                 snapshot.instances.iter().map(|i| i.world_bounds).collect()
             }
             SceneAcceleration::FlattenedGroups => {
@@ -259,7 +293,7 @@ impl SceneSnapshot {
                     stats.group_candidates += 1;
                     test_frame(leaf, t_best, &mut stats)
                 }
-                SceneAcceleration::TemplateMiniBvh => {
+                SceneAcceleration::TemplateMiniBvh | SceneAcceleration::InstanceRefit => {
                     stats.instance_candidates += 1;
                     self.intersect_instance(
                         templates,
@@ -322,12 +356,20 @@ impl SceneSnapshot {
         };
 
         let template = &templates[instance.asset as usize];
-        match (&template.mini_bvh, instance.uses_template) {
-            (Some(mini_bvh), true) => {
+        let mini_bvh = match instance.refit_bvh {
+            Some(index) => Some(&self.instance_bvhs[index as usize]),
+            None => template
+                .mini_bvh
+                .as_ref()
+                .filter(|_| instance.uses_template),
+        };
+        match mini_bvh {
+            Some(mini_bvh) => {
                 let root_ray = ray.transformed(&instance.world_to_root);
-                mini_bvh.traverse(&root_ray, t_min, t_max, |slot, _, _| {
+                let bvh_stats = mini_bvh.traverse(&root_ray, t_min, t_max, |slot, _, _| {
                     try_slot(slot, stats, &mut best)
                 });
+                stats.mini_bvh_nodes += bvh_stats.nodes_visited;
             }
             // single-root assets and out-of-envelope poses test every slot directly
             _ => {

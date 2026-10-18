@@ -78,8 +78,10 @@ struct Environment {
 const FRAME_SINGLE_PAGE: u32 = 1u;
 const FRAME_OCTREE: u32 = 2u;
 const INSTANCE_USES_TEMPLATE: u32 = 1u;
+const INSTANCE_OWN_BVH: u32 = 2u;
 const NO_MINI_BVH: u32 = 0xFFFFFFFFu;
 const VISIBILITY_MISS: u32 = 0xFFFFFFFFu;
 const MODE_TEMPLATE_MINI_BVH: u32 = 0u;
 const MODE_FLATTENED_GROUPS: u32 = 1u;
+const MODE_INSTANCE_REFIT: u32 = 2u;
 const VIEW_TONEMAP_IN_SHADER: u32 = 1u;

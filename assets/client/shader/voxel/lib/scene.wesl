@@ -1,10 +1,10 @@
 // Bind group 1 and scene-level search. Mirrors `SceneSnapshot::intersect` in
-// crates/engine/voxel/src/scene.rs: scene BVH -> (template mini-BVH | flattened frames) -> pose frame ->
+// crates/engine/voxel/src/scene.rs: scene BVH -> (template or refit mini-BVH | flattened frames) -> pose frame ->
 // group-local hierarchy (64-tree or octree), keeping the nearest world-distance hit.
 
 import super::types::{
     Bvh4Node, PoseFrame, InstanceRecord, SceneUniform,
-    FRAME_SINGLE_PAGE, FRAME_OCTREE, INSTANCE_USES_TEMPLATE, NO_MINI_BVH, MODE_FLATTENED_GROUPS,
+    FRAME_SINGLE_PAGE, FRAME_OCTREE, INSTANCE_USES_TEMPLATE, INSTANCE_OWN_BVH, NO_MINI_BVH, MODE_FLATTENED_GROUPS,
 };
 import super::geometry::template_bvh;
 import super::dda::{VoxelRoot, VoxelHit};
@@ -122,10 +122,19 @@ fn try_bounded_frame(frame_id: u32, o: vec3<f32>, d: vec3<f32>, inv: vec3<f32>, 
     try_frame(frame_id, o, d, t_min, best);
 }
 
+// Refit mini-BVHs follow the scene BVH in its buffer; templates have their own.
+fn mini_bvh_node(own_bvh: bool, index: u32) -> Bvh4Node {
+    if own_bvh {
+        return scene_bvh[index];
+    }
+    return template_bvh[index];
+}
+
 fn intersect_instance(instance_index: u32, o: vec3<f32>, d: vec3<f32>, inv: vec3<f32>, t_min: f32, best: ptr<function, SceneHit>) {
     let instance = instances[instance_index];
 
-    if (instance.flags & INSTANCE_USES_TEMPLATE) == 0u || instance.mini_bvh_root == NO_MINI_BVH {
+    let own_bvh = (instance.flags & INSTANCE_OWN_BVH) != 0u;
+    if (instance.flags & (INSTANCE_USES_TEMPLATE | INSTANCE_OWN_BVH)) == 0u || instance.mini_bvh_root == NO_MINI_BVH {
         // single-root assets and out-of-envelope poses test every slot directly
         for (var slot = 0u; slot < instance.group_count; slot++) {
             try_bounded_frame(slot_frames[instance.slot_base + slot], o, d, inv, t_min, best);
@@ -133,7 +142,7 @@ fn intersect_instance(instance_index: u32, o: vec3<f32>, d: vec3<f32>, inv: vec3
         return;
     }
 
-    // the template-shared mini-BVH lives in asset root space
+    // template-shared and per-instance refit mini-BVHs both live in asset root space
     let root_o = transform_point(instance.world_to_root, o);
     let root_inv = 1.0 / sanitize_direction(transform_vector(instance.world_to_root, d));
 
@@ -149,7 +158,7 @@ fn intersect_instance(instance_index: u32, o: vec3<f32>, d: vec3<f32>, inv: vec3
         if bitcast<f32>(entry.y) > (*best).t {
             continue;
         }
-        let ordered = order_children(template_bvh[entry.x], root_o, root_inv, t_min, (*best).t);
+        let ordered = order_children(mini_bvh_node(own_bvh, entry.x), root_o, root_inv, t_min, (*best).t);
         // visit leaves nearest first so early hits prune the rest
         for (var i = 0u; i < 4u; i++) {
             let child = ordered.entries[i];

@@ -8,8 +8,8 @@ use crate::{
     render::{
         geometry::{GeometryLibraryHandle, GpuGeometryLibrary},
         gpu::layout::{
-            GpuInstance, GpuPoseFrame, GpuSceneUniform, INSTANCE_USES_TEMPLATE,
-            MODE_FLATTENED_GROUPS, MODE_TEMPLATE_MINI_BVH, affine_rows,
+            GpuInstance, GpuPoseFrame, GpuSceneUniform, INSTANCE_OWN_BVH, INSTANCE_USES_TEMPLATE,
+            MODE_FLATTENED_GROUPS, MODE_INSTANCE_REFIT, MODE_TEMPLATE_MINI_BVH, affine_rows,
         },
         settings::RenderSettings,
     },
@@ -21,7 +21,7 @@ use common::{
 };
 use std::{sync::Arc, time::Instant};
 use voxel::{
-    Bvh4Node, HierarchyKind, PoseDriver,
+    BVH_EMPTY, BVH_LEAF_BIT, Bvh4Node, HierarchyKind, PoseDriver,
     scene::{AssetTemplate, InstanceDesc, SceneAcceleration, SceneSnapshot},
 };
 
@@ -29,6 +29,7 @@ use voxel::{
 #[derive(Default)]
 pub struct GpuSceneData {
     pub uniform: GpuSceneUniform,
+    /// The scene BVH, followed by every per-instance refit mini-BVH.
     pub bvh: Vec<Bvh4Node>,
     pub frames: Vec<GpuPoseFrame>,
     pub instances: Vec<GpuInstance>,
@@ -59,19 +60,33 @@ impl GpuSceneData {
                 )
             })
             .collect();
+        let mut bvh = snapshot.bvh.nodes.clone();
         let instances = snapshot
             .instances
             .iter()
-            .map(|instance| GpuInstance {
-                world_to_root: affine_rows(&instance.world_to_root),
-                mini_bvh_root: geometry.assets[instance.asset as usize].mini_bvh_root,
-                slot_base: instance.slot_base,
-                group_count: instance.group_count,
-                flags: if instance.uses_template {
-                    INSTANCE_USES_TEMPLATE
-                } else {
-                    0
-                },
+            .map(|instance| {
+                let (mini_bvh_root, flags) = match instance.refit_bvh {
+                    Some(index) => {
+                        let base = bvh.len() as u32;
+                        bvh.extend(rebased(&snapshot.instance_bvhs[index as usize].nodes, base));
+                        (base, INSTANCE_OWN_BVH)
+                    }
+                    None => (
+                        geometry.assets[instance.asset as usize].mini_bvh_root,
+                        if instance.uses_template {
+                            INSTANCE_USES_TEMPLATE
+                        } else {
+                            0
+                        },
+                    ),
+                };
+                GpuInstance {
+                    world_to_root: affine_rows(&instance.world_to_root),
+                    mini_bvh_root,
+                    slot_base: instance.slot_base,
+                    group_count: instance.group_count,
+                    flags,
+                }
             })
             .collect();
 
@@ -83,14 +98,28 @@ impl GpuSceneData {
                 mode: match snapshot.mode {
                     SceneAcceleration::TemplateMiniBvh => MODE_TEMPLATE_MINI_BVH,
                     SceneAcceleration::FlattenedGroups => MODE_FLATTENED_GROUPS,
+                    SceneAcceleration::InstanceRefit => MODE_INSTANCE_REFIT,
                 },
             },
-            bvh: snapshot.bvh.nodes.clone(),
+            bvh,
             frames,
             instances,
             slot_frames: snapshot.slot_frames.clone(),
         }
     }
+}
+
+/// BVH nodes with their node references offset by `base`, for concatenating trees.
+pub fn rebased(nodes: &[Bvh4Node], base: u32) -> impl Iterator<Item = Bvh4Node> + '_ {
+    nodes.iter().map(move |node| {
+        let mut node = *node;
+        for child in &mut node.children {
+            if *child != BVH_EMPTY && *child & BVH_LEAF_BIT == 0 {
+                *child += base;
+            }
+        }
+        node
+    })
 }
 
 #[derive(Resource, ExtractResource, Clone, Default)]
@@ -102,6 +131,8 @@ pub struct SceneStats {
     pub frames: usize,
     pub instances: usize,
     pub bvh_nodes: usize,
+    /// Nodes of every per-instance refit mini-BVH (refit mode only).
+    pub refit_nodes: usize,
     pub overflowed_frames: usize,
     pub out_of_envelope: usize,
     pub build_millis: f32,
@@ -187,6 +218,7 @@ fn build_scene_system(
         frames: snapshot.frames.len(),
         instances: snapshot.instances.len(),
         bvh_nodes: snapshot.bvh.nodes.len(),
+        refit_nodes: snapshot.instance_bvhs.iter().map(|b| b.nodes.len()).sum(),
         overflowed_frames: snapshot.overflowed_frames,
         // single-root assets never use a template; only count poses that escaped one
         out_of_envelope: snapshot

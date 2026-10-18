@@ -8,7 +8,7 @@
 
 use crate::{
     lifecycle::load::ClientLaunchLoadingPhase,
-    render::{device::GpuCapabilities, gpu::layout::NO_MINI_BVH},
+    render::{device::GpuCapabilities, gpu::layout::NO_MINI_BVH, scene::rebased},
 };
 use bevy::{
     ecs::world::CommandQueue, prelude::*, render::extract_resource::ExtractResource,
@@ -20,8 +20,7 @@ use common::{
 };
 use std::{sync::Arc, time::Instant};
 use voxel::{
-    ArenaHandle, BVH_EMPTY, BVH_LEAF_BIT, Bvh4Node, GeometryArenas, GeometrySource, HierarchyKind,
-    VoxelRoot,
+    ArenaHandle, Bvh4Node, GeometryArenas, GeometrySource, HierarchyKind, VoxelRoot,
     residency::{ResidencyLimits, plan_single_slab},
 };
 
@@ -102,15 +101,7 @@ impl GpuGeometryLibrary {
             let mini_bvh_root = match &asset.template.mini_bvh {
                 Some(bvh) if !bvh.is_empty() => {
                     let base = template_bvh.len() as u32;
-                    template_bvh.extend(bvh.nodes.iter().map(|node| {
-                        let mut node = *node;
-                        for child in &mut node.children {
-                            if *child != BVH_EMPTY && *child & BVH_LEAF_BIT == 0 {
-                                *child += base;
-                            }
-                        }
-                        node
-                    }));
+                    template_bvh.extend(rebased(&bvh.nodes, base));
                     base
                 }
                 _ => NO_MINI_BVH,

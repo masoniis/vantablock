@@ -12,6 +12,9 @@ pub const FRAME_SINGLE_PAGE: u32 = 1;
 pub const FRAME_OCTREE: u32 = 2;
 /// `InstanceRecord::flags`: search this instance with its template mini-BVH.
 pub const INSTANCE_USES_TEMPLATE: u32 = 1;
+/// `InstanceRecord::flags`: search this instance with its own refit mini-BVH, whose nodes follow
+/// the scene BVH's in the scene node buffer.
+pub const INSTANCE_OWN_BVH: u32 = 2;
 /// `InstanceRecord::mini_bvh_root` for single-root assets.
 pub const NO_MINI_BVH: u32 = u32::MAX;
 /// Visibility buffer value for pixels that hit nothing.
@@ -20,6 +23,7 @@ pub const VISIBILITY_MISS: u32 = u32::MAX;
 /// `SceneUniform::mode` values.
 pub const MODE_TEMPLATE_MINI_BVH: u32 = 0;
 pub const MODE_FLATTENED_GROUPS: u32 = 1;
+pub const MODE_INSTANCE_REFIT: u32 = 2;
 
 /// `ViewUniform::flags`: the target is not HDR, so the shader tonemaps itself.
 pub const VIEW_TONEMAP_IN_SHADER: u32 = 1;
@@ -103,7 +107,8 @@ pub fn root_flags(root: &VoxelRoot) -> u32 {
 #[derive(Clone, Copy, Debug, Default, Pod, Zeroable)]
 pub struct GpuInstance {
     pub world_to_root: AffineRows,
-    /// Index of the asset's template mini-BVH root in the template node buffer.
+    /// The instance's mini-BVH root: in the template node buffer, or in the scene node buffer
+    /// with `INSTANCE_OWN_BVH`.
     pub mini_bvh_root: u32,
     pub slot_base: u32,
     pub group_count: u32,
