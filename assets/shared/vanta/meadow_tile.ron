@@ -1,0 +1,7 @@
+// A 10m ground tile carpeted in individual grass blades, instanced to cover the ground.
+(
+    name: "meadow_tile",
+    voxel_size: 0.02,
+    seed: 11,
+    kind: Meadow(()),
+)

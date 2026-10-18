@@ -1,0 +1,7 @@
+// Faceted crystals with glowing tips growing out of a rock base.
+(
+    name: "crystal_cluster",
+    voxel_size: 0.02,
+    seed: 3,
+    kind: Crystal(()),
+)

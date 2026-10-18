@@ -1,0 +1,30 @@
+[package]
+name = "vantablock-baker"
+description = "procedural content generation and .vanta baking for vantablock"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+name = "baker"
+path = "src/lib.rs"
+
+[[bin]]
+name = "vanta_baker"
+path = "src/main.rs"
+
+[lints]
+workspace = true
+
+[[bench]]
+name = "traversal"
+harness = false
+
+[dependencies]
+voxel = { workspace = true }
+glam = { workspace = true }
+serde = { workspace = true }
+ron = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }

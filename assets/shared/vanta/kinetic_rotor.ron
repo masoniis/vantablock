@@ -1,0 +1,7 @@
+// The minimal articulated test asset: two rotors share one blade module but spin differently.
+(
+    name: "kinetic_rotor",
+    voxel_size: 0.025,
+    seed: 1,
+    kind: Rotor(()),
+)

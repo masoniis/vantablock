@@ -1,5 +1,6 @@
 [workspace]
 members = [
+  "crates/baker",
   "crates/client",
   "crates/runner",
   "crates/server",
@@ -39,6 +40,9 @@ strip = false
 [profile.dev.package.vantablock-voxel]
 opt-level = 3
 
+[profile.dev.package.vantablock-baker]
+opt-level = 3
+
 # distribution: fast, super slow compile, limited logging and debugging
 # used via `cargo build --profile distribution --features distribution`
 [profile.distribution]
@@ -60,6 +64,7 @@ server = { path = "./crates/server", package = "vantablock-server" }
 shared = { path = "./crates/shared", package = "vantablock-shared" }
 utils = { path = "./crates/utils", package = "vantablock-utils" }
 voxel = { path = "./crates/voxel", package = "vantablock-voxel" }
+baker = { path = "./crates/baker", package = "vantablock-baker" }
 
 # development deps
 criterion = { version = "0.5", features = ["html_reports"] }
