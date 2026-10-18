@@ -26,7 +26,7 @@ impl PluginGroup for ServerCoreLogicPlugins {
         PluginGroupBuilder::start::<Self>()
             .add_group(lifecycle::ServerLifecyclePlugins)
             .add(network::ServerNetworkPlugin)
-            .add(world::WorldPlugin)
+            .add(world::ServerWorldPlugin)
     }
 }
 
@@ -36,6 +36,8 @@ pub struct DefaultServerPlugins;
 
 impl PluginGroup for DefaultServerPlugins {
     fn build(self) -> PluginGroupBuilder {
+        // the singleplayer server runs inside the packaged client, so it resolves assets the
+        // same way the client does
         let persistent_paths = utils::PersistentPaths::resolve_client();
         let asset_path = persistent_paths.assets_dir.to_string_lossy().to_string();
 

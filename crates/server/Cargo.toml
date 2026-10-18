@@ -14,7 +14,6 @@ workspace = true
 [dependencies]
 utils = { workspace = true }
 shared = { workspace = true }
-zstd = { workspace = true }
 
 # INFO: --------------------------------
 #         logging/error handling
@@ -32,9 +31,15 @@ bevy = { workspace = true, features = [
   "bevy_state", # state machines
 ] }
 leafwing-input-manager = { workspace = true }
-crossbeam = { workspace = true }
-noise = { workspace = true }
 lightyear = { workspace = true, features = [
   # extends default lightyear features in workspace
   "server", # server plugins
 ] }
+
+# INFO: ---------------
+#         utils
+# ---------------------
+
+serde = { workspace = true } # serializing
+ron = { workspace = true }   # parsing RON files
+rand = { workspace = true }  # scene scattering

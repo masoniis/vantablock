@@ -8,7 +8,7 @@ use shared::lifecycle::state::AppState;
 #[source(AppState = AppState::Running)]
 pub enum ServerState {
     #[default]
-    /// The server is loading data (biomes, blocks) and other tasks needed to be
+    /// The server is loading data (canonical assets) and other tasks needed to be
     /// finished before a user connects.
     ///
     /// The network port is **closed** during this phase to prevent clients from
@@ -22,7 +22,7 @@ pub enum ServerState {
 
     /// The server has received a shutdown signal.
     /// New connections are rejected, existing players are gracefully kicked,
-    /// and chunk data is safely flushed to the database.
+    /// and world state is safely persisted.
     Terminating,
 }
 

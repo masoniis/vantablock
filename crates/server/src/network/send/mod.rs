@@ -1,4 +1,4 @@
-mod sync_time;
+mod sync_clock;
 
 // INFO: ---------------------------
 //         plugin definition
@@ -10,6 +10,6 @@ pub struct ServerEgressPlugin;
 
 impl Plugin for ServerEgressPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, sync_time::send_sync_time);
+        app.add_systems(Update, sync_clock::send_clock_sync);
     }
 }

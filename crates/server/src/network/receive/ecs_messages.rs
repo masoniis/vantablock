@@ -5,23 +5,15 @@
 
 use bevy::ecs::message::Message;
 use bevy::prelude::*;
-use shared::world::chunk::ChunkCoord;
 
 #[derive(Message, Clone)]
-pub struct InboundRequestChunkMessage {
-    pub player: Entity,
-    pub coord: ChunkCoord,
+pub struct InboundTimeJumpMessage {
+    /// The client connection entity that asked.
+    pub client: Entity,
+    pub seconds: f32,
 }
 
 #[derive(Message, Clone)]
-pub struct InboundBreakBlockMessage {
-    pub player: Entity,
-    pub position: IVec3,
-}
-
-#[derive(Message, Clone)]
-pub struct InboundPlaceBlockMessage {
-    pub player: Entity,
-    pub position: IVec3,
-    pub block_id: u8,
+pub struct InboundToggleDayCycleMessage {
+    pub client: Entity,
 }

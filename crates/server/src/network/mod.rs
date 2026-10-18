@@ -12,7 +12,7 @@ use lightyear::prelude::server::ServerPlugins;
 use shared::network::{NETWORK_TICK_DURATION, SharedNetworkPlugin};
 use std::time::Duration;
 
-use types::MessageTimer;
+use types::ClockSyncTimer;
 
 pub struct ServerNetworkPlugin;
 
@@ -32,6 +32,9 @@ impl Plugin for ServerNetworkPlugin {
         // (protocol) must be added AFTER lightyear plugin
         app.add_plugins(SharedNetworkPlugin);
 
-        app.insert_resource(MessageTimer(Timer::from_seconds(1.0, TimerMode::Repeating)));
+        app.insert_resource(ClockSyncTimer(Timer::from_seconds(
+            0.5,
+            TimerMode::Repeating,
+        )));
     }
 }

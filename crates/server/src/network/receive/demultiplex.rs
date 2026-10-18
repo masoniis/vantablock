@@ -12,31 +12,17 @@ pub fn translate_client_network_messages(
     // incoming network messages
     mut query: Query<(Entity, &mut MessageReceiver<ClientMessage>)>,
     // outgoing ECS messages
-    mut ev_request_chunk: MessageWriter<InboundRequestChunkMessage>,
-    mut ev_break_block: MessageWriter<InboundBreakBlockMessage>,
-    mut ev_place_block: MessageWriter<InboundPlaceBlockMessage>,
+    mut ev_time_jump: MessageWriter<InboundTimeJumpMessage>,
+    mut ev_toggle_day_cycle: MessageWriter<InboundToggleDayCycleMessage>,
 ) {
-    for (player, mut receiver) in query.iter_mut() {
+    for (client, mut receiver) in query.iter_mut() {
         for message in receiver.receive() {
             match message {
-                ClientMessage::RequestChunks(coords) => {
-                    for coord in coords {
-                        ev_request_chunk.write(InboundRequestChunkMessage { player, coord });
-                    }
+                ClientMessage::RequestTimeJump { seconds } => {
+                    ev_time_jump.write(InboundTimeJumpMessage { client, seconds });
                 }
-                ClientMessage::BreakBlock { position } => {
-                    ev_break_block.write(InboundBreakBlockMessage { player, position });
-                }
-                ClientMessage::PlaceBlock { position, block_id } => {
-                    ev_place_block.write(InboundPlaceBlockMessage {
-                        player,
-                        position,
-                        block_id,
-                    });
-                }
-                ClientMessage::RequestTimeJump { amount: _ } => {
-                    // TODO: implement time jump handling
-                    warn!("RequestTimeJump received but not yet implemented");
+                ClientMessage::RequestToggleDayCycle => {
+                    ev_toggle_day_cycle.write(InboundToggleDayCycleMessage { client });
                 }
             }
         }

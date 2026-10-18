@@ -8049,15 +8049,15 @@ name = "vantablock-server"
 version = "0.1.0"
 dependencies = [
  "bevy",
- "crossbeam",
  "leafwing-input-manager",
  "lightyear",
- "noise",
+ "rand 0.9.4",
+ "ron 0.11.0",
+ "serde",
  "tracing",
  "tracing-subscriber",
  "vantablock-shared",
  "vantablock-utils",
- "zstd",
 ]
 
 [[package]]

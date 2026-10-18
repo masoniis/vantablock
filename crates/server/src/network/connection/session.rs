@@ -1,4 +1,4 @@
-use crate::{network::types::ClientConnection, world::chunk_loading::ClientChunkTracker};
+use crate::network::types::ClientConnection;
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::ActionState;
 use lightyear::prelude::*;
@@ -12,6 +12,9 @@ use shared::{
 use std::time::Duration;
 use tracing::{error, info};
 
+/// Where new players appear: just above the meadow, looking into the showcase.
+const SPAWN_POSITION: Vec3 = Vec3::new(0.0, 1.7, 14.0);
+
 pub fn on_client_connect(
     trigger: On<Add, Connected>,
     mut commands: Commands,
@@ -21,7 +24,7 @@ pub fn on_client_connect(
 
     info!("Client connected with entity: {:?}", client_entity);
 
-    let spawn_pos = Vec3::new(0.0, 120.0, 60.0);
+    let spawn_pos = SPAWN_POSITION;
 
     let Ok(remote_id) = client_ids.get(client_entity) else {
         error!(
@@ -50,7 +53,6 @@ pub fn on_client_connect(
             LogicalPosition(spawn_pos),
             ActionState::<PlayerAction>::default(),
             ClientConnection { client_entity },
-            ClientChunkTracker::default(),
             ControlledBy {
                 owner: client_entity,
                 lifetime: Default::default(),
