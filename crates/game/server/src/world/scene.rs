@@ -50,6 +50,9 @@ pub struct Scatter {
     pub tilt_degrees: f32,
     #[serde(default = "unit_range")]
     pub gust: (f32, f32),
+    /// Circles `(center, radius)` on the ground that stay clear, e.g. around a placed landmark.
+    #[serde(default)]
+    pub avoid: Vec<([f32; 3], f32)>,
     #[serde(default)]
     pub seed: u64,
 }
@@ -124,10 +127,11 @@ impl SceneLayout {
                     let angle = rng.random_range(0.0..TAU);
                     let r = s.radius * rng.random::<f32>().sqrt();
                     let p = Vec3::from(s.center) + Vec3::new(angle.cos() * r, 0.0, angle.sin() * r);
-                    placed
-                        .iter()
-                        .all(|q| q.distance(p) >= s.min_spacing)
-                        .then_some(p)
+                    let clear = s.avoid.iter().all(|&(center, radius)| {
+                        let offset = p - Vec3::from(center);
+                        Vec2::new(offset.x, offset.z).length() >= radius
+                    });
+                    (clear && placed.iter().all(|q| q.distance(p) >= s.min_spacing)).then_some(p)
                 }) else {
                     continue;
                 };

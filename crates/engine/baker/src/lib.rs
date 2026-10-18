@@ -15,4 +15,4 @@ pub mod voxelize;
 pub use recipe::{AssetRecipe, RecipeKind, bake_recipe, parse_recipe};
 
 /// Bump whenever any generator's output changes, so cached `.vanta` bakes are invalidated.
-pub const BAKER_VERSION: u32 = 1;
+pub const BAKER_VERSION: u32 = 2;

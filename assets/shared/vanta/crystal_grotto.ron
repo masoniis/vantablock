@@ -1,0 +1,7 @@
+// A walk-in rock grotto with crystal clusters growing sparsely from its walls, floor, and ceiling.
+(
+    name: "crystal_grotto",
+    voxel_size: 0.04,
+    seed: 5,
+    kind: Grotto(()),
+)

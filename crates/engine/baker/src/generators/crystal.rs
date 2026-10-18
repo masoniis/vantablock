@@ -33,10 +33,83 @@ impl Default for CrystalParams {
     }
 }
 
-const ROCK: [u16; 3] = [1, 2, 3];
+pub(crate) const ROCK: [u16; 3] = [1, 2, 3];
 /// Each hue has a body material and a brighter, glowing tip.
-const HUES: [(u16, u16); 4] = [(4, 5), (6, 7), (8, 9), (10, 11)];
+pub(crate) const HUES: [(u16, u16); 4] = [(4, 5), (6, 7), (8, 9), (10, 11)];
 const ROCK_SHELL: f32 = 4.0;
+
+/// Dark rock followed by the crystal hues, in the order [`ROCK`] and [`HUES`] index.
+pub(crate) const PALETTE: [([f32; 3], f32); 11] = [
+    ([0.09, 0.085, 0.08], 0.0),
+    ([0.14, 0.13, 0.12], 0.0),
+    ([0.05, 0.05, 0.055], 0.0),
+    ([0.15, 0.62, 0.75], 0.0),
+    ([0.45, 0.95, 1.0], 0.9),
+    ([0.40, 0.20, 0.80], 0.0),
+    ([0.75, 0.55, 1.0], 0.9),
+    ([0.80, 0.18, 0.50], 0.0),
+    ([1.0, 0.50, 0.75], 0.9),
+    ([0.85, 0.55, 0.15], 0.0),
+    ([1.0, 0.82, 0.45], 0.9),
+];
+
+/// One faceted hexagonal prism with a pointed tip.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Prism {
+    pub base: Vec3,
+    pub dir: Vec3,
+    pub length: f32,
+    pub radius: f32,
+    /// Length of the pointed tip.
+    pub tip: f32,
+    /// Rotation of the facets about the prism's axis.
+    pub twist: f32,
+}
+
+/// Voxelizes a prism with `body` material, and `glow` near its tip.
+pub(crate) fn grow_prism(module: &mut VoxelModule, prism: Prism, (body, glow): (u16, u16)) {
+    let Prism {
+        base,
+        dir,
+        length,
+        radius,
+        tip,
+        twist,
+    } = prism;
+    let frame = frame_from(dir);
+    let (u, v) = (
+        frame[0] * twist.cos() + frame[1] * twist.sin(),
+        frame[1] * twist.cos() - frame[0] * twist.sin(),
+    );
+
+    let crystal_sdf = |q: Vec3| {
+        let d = q - base;
+        let h = d.dot(dir);
+        let r = if h > length - tip {
+            radius * ((length - h) / tip).max(0.0)
+        } else {
+            radius
+        };
+        hexagon(Vec2::new(d.dot(u), d.dot(v)), r)
+            .max(-h)
+            .max(h - length)
+    };
+    let reach = Vec3::splat(radius + 2.0);
+    let end = base + dir * length;
+    fill_sdf(
+        module,
+        base.min(end) - reach,
+        base.max(end) + reach,
+        crystal_sdf,
+        |q, _| {
+            if (q - base).dot(dir) > length - tip * 0.6 {
+                glow
+            } else {
+                body
+            }
+        },
+    );
+}
 
 pub fn generate(recipe: &AssetRecipe, p: &CrystalParams) -> CanonicalAssembly {
     let mut rng = Rng::new(recipe.seed);
@@ -85,63 +158,30 @@ pub fn generate(recipe: &AssetRecipe, p: &CrystalParams) -> CanonicalAssembly {
             };
         let radius = (length * rng.range(0.1, 0.15)).min(p.max_radius).max(3.0);
         let tip = radius * rng.range(1.3, 2.2);
-        let (body, glow) = HUES[if rng.unit() < 0.7 {
+        let hue = HUES[if rng.unit() < 0.7 {
             hue_bias
         } else {
             rng.below(HUES.len() as u32) as usize
         }];
-        let frame = frame_from(dir);
         let twist = rng.range(0.0, 1.0);
-        let (u, v) = (
-            frame[0] * twist.cos() + frame[1] * twist.sin(),
-            frame[1] * twist.cos() - frame[0] * twist.sin(),
-        );
-
-        let crystal_sdf = |q: Vec3| {
-            let d = q - base;
-            let h = d.dot(dir);
-            let r = if h > length - tip {
-                radius * ((length - h) / tip).max(0.0)
-            } else {
-                radius
-            };
-            hexagon(Vec2::new(d.dot(u), d.dot(v)), r)
-                .max(-h)
-                .max(h - length)
-        };
-        let reach = Vec3::splat(radius + 2.0);
-        let end = base + dir * length;
-        fill_sdf(
+        grow_prism(
             &mut module,
-            base.min(end) - reach,
-            base.max(end) + reach,
-            crystal_sdf,
-            |q, _| {
-                if (q - base).dot(dir) > length - tip * 0.6 {
-                    glow
-                } else {
-                    body
-                }
+            Prism {
+                base,
+                dir,
+                length,
+                radius,
+                tip,
+                twist,
             },
+            hue,
         );
     }
 
     CanonicalAssembly {
         name: recipe.name.clone(),
         voxel_size: recipe.voxel_size,
-        palette: palette(&[
-            ([0.09, 0.085, 0.08], 0.0),
-            ([0.14, 0.13, 0.12], 0.0),
-            ([0.05, 0.05, 0.055], 0.0),
-            ([0.15, 0.62, 0.75], 0.0),
-            ([0.45, 0.95, 1.0], 0.9),
-            ([0.40, 0.20, 0.80], 0.0),
-            ([0.75, 0.55, 1.0], 0.9),
-            ([0.80, 0.18, 0.50], 0.0),
-            ([1.0, 0.50, 0.75], 0.9),
-            ([0.85, 0.55, 0.15], 0.0),
-            ([1.0, 0.82, 0.45], 0.9),
-        ]),
+        palette: palette(&PALETTE),
         modules: vec![module],
         groups: vec![PoseGroupTemplate {
             name: "cluster".into(),

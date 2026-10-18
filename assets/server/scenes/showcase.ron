@@ -1,5 +1,5 @@
-// The phase 1 showcase: a meadow grove with crystal outcrops and kinetic sculptures, built to
-// stress close-up detail and hundreds of overlapping, rotated, animated instances.
+// The phase 1 showcase: a meadow grove, a walk-in crystal grotto, and kinetic sculptures, built
+// to stress close-up detail and hundreds of overlapping, rotated, animated instances.
 (
     grids: [
         // 12 x 12 tiles of 10.24 m meadow
@@ -9,11 +9,14 @@
         (asset: "kinetic_rotor", position: (0.0, 0.0, 6.0), yaw_degrees: 20.0),
         (asset: "kinetic_rotor", position: (-4.5, 0.0, 3.0), yaw_degrees: -35.0, scale: 0.7),
         (asset: "oak", position: (3.5, 0.0, -2.0), yaw_degrees: 40.0, scale: 1.1),
+        // the entrance (+x in the asset) faces the spawn point
+        (asset: "crystal_grotto", position: (17.0, 0.0, -3.0), yaw_degrees: -135.0),
     ],
     scatters: [
-        (asset: "oak", count: 36, center: (0.0, 0.0, -24.0), radius: 30.0, min_spacing: 5.0, scale: (0.75, 1.25), gust: (0.4, 1.0), seed: 1),
-        // overlapping, tilted clusters: the instancing stress case
-        (asset: "crystal_cluster", count: 160, center: (14.0, 0.0, 4.0), radius: 9.0, scale: (0.4, 1.4), tilt_degrees: 35.0, seed: 2),
+        // keeps clear of the grotto and its entrance
+        (asset: "oak", count: 36, center: (0.0, 0.0, -24.0), radius: 30.0, min_spacing: 5.0, scale: (0.75, 1.25), gust: (0.4, 1.0), avoid: [((17.0, 0.0, -3.0), 13.0), ((8.0, 0.0, 6.0), 5.0)], seed: 1),
+        // a few lone outcrops in the meadow beside the grotto
+        (asset: "crystal_cluster", count: 5, center: (29.0, 0.0, 11.0), radius: 7.0, min_spacing: 4.0, scale: (0.3, 0.6), tilt_degrees: 25.0, seed: 2),
         (asset: "kinetic_rotor", count: 40, center: (-16.0, 0.0, 6.0), radius: 8.0, min_spacing: 1.5, scale: (0.4, 0.9), seed: 3),
     ],
 )

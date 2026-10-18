@@ -3,6 +3,7 @@
 //! groups, exactly like any other articulated part.
 
 pub mod crystal;
+pub mod grotto;
 pub mod meadow;
 pub mod rotor;
 pub mod tree;

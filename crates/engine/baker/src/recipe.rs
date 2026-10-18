@@ -2,6 +2,7 @@
 
 use crate::generators::{
     crystal::{self, CrystalParams},
+    grotto::{self, GrottoParams},
     meadow::{self, MeadowParams},
     rotor::{self, RotorParams},
     tree::{self, TreeParams},
@@ -24,6 +25,7 @@ pub struct AssetRecipe {
 pub enum RecipeKind {
     Tree(TreeParams),
     Crystal(CrystalParams),
+    Grotto(GrottoParams),
     Meadow(MeadowParams),
     Rotor(RotorParams),
 }
@@ -37,6 +39,7 @@ pub fn bake_recipe(recipe: &AssetRecipe) -> CanonicalAssembly {
     let assembly = match &recipe.kind {
         RecipeKind::Tree(p) => tree::generate(recipe, p),
         RecipeKind::Crystal(p) => crystal::generate(recipe, p),
+        RecipeKind::Grotto(p) => grotto::generate(recipe, p),
         RecipeKind::Meadow(p) => meadow::generate(recipe, p),
         RecipeKind::Rotor(p) => rotor::generate(recipe, p),
     };

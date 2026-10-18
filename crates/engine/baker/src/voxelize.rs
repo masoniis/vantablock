@@ -31,6 +31,84 @@ pub fn fill_sdf(
     }
 }
 
+/// Like [`fill_sdf`], but only writes the solid within `shell` voxels of the surface, skipping
+/// empty space and buried interior by recursively subdividing `16^3` blocks: a block whose
+/// center is farther from the shell than the sdf can change across it is skipped whole. That
+/// makes large hollow shapes cheap.
+///
+/// `lipschitz` bounds how fast `sdf` can change per voxel; skipping trusts it, so noise
+/// displacements must be accounted for or thin features near block corners can be lost.
+pub fn fill_sdf_shell(
+    module: &mut VoxelModule,
+    min: Vec3,
+    max: Vec3,
+    sdf: impl Fn(Vec3) -> f32,
+    lipschitz: f32,
+    shell: f32,
+    mut material: impl FnMut(Vec3, f32) -> MaterialId,
+) {
+    const BLOCK: u32 = 16;
+    let extent = module.extent() as f32;
+    let lo = min.floor().max(Vec3::ZERO).as_uvec3();
+    let hi = max.ceil().min(Vec3::splat(extent)).as_uvec3();
+    let mut shell_block = ShellBlock {
+        module,
+        sdf: &sdf,
+        material: &mut material,
+        lipschitz,
+        shell,
+        lo,
+        hi,
+    };
+    for z in (lo.z..hi.z).step_by(BLOCK as usize) {
+        for y in (lo.y..hi.y).step_by(BLOCK as usize) {
+            for x in (lo.x..hi.x).step_by(BLOCK as usize) {
+                shell_block.fill(glam::UVec3::new(x, y, z), BLOCK);
+            }
+        }
+    }
+}
+
+struct ShellBlock<'a, S, M> {
+    module: &'a mut VoxelModule,
+    sdf: &'a S,
+    material: &'a mut M,
+    lipschitz: f32,
+    shell: f32,
+    lo: glam::UVec3,
+    hi: glam::UVec3,
+}
+
+impl<S: Fn(Vec3) -> f32, M: FnMut(Vec3, f32) -> MaterialId> ShellBlock<'_, S, M> {
+    fn fill(&mut self, corner: glam::UVec3, size: u32) {
+        if corner.cmpge(self.hi).any() {
+            return;
+        }
+        let center = corner.as_vec3() + size as f32 * 0.5;
+        let d = (self.sdf)(center);
+        if size == 1 {
+            if d <= 0.0 && d > -self.shell && corner.cmpge(self.lo).all() {
+                let m = (self.material)(center, d);
+                if m != 0 {
+                    self.module.set(corner, m);
+                }
+            }
+            return;
+        }
+        // how far the sdf can differ from the center anywhere in the block, voxel centers
+        // being at most half a voxel inside its faces
+        let reach = (size as f32 * 0.5 * 3f32.sqrt()) * self.lipschitz;
+        if d > reach || d < -self.shell - reach {
+            return;
+        }
+        let half = size / 2;
+        for k in 0..8 {
+            let offset = glam::UVec3::new(k & 1, (k >> 1) & 1, k >> 2) * half;
+            self.fill(corner + offset, half);
+        }
+    }
+}
+
 /// A capsule whose radius tapers linearly from `ra` at `a` to `rb` at `b`.
 pub fn tapered_capsule(p: Vec3, a: Vec3, b: Vec3, ra: f32, rb: f32) -> f32 {
     let ab = b - a;

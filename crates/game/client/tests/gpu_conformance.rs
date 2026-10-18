@@ -506,7 +506,8 @@ fn gpu_hierarchy_traversal_matches_reference() {
 //         scene kernel
 // -----------------------------
 
-/// The real assets in a showcase-like layout: meadow ground, a grove, crystals, and rotors.
+/// The real assets in a showcase-like layout: meadow ground, a grove, a crystal grotto whose
+/// crystals are rotated, finer-grained pose groups, crystal outcrops, and rotors.
 fn showcase_instances(
     library: &common::world::VantaAssetLibrary,
     rng: &mut Rng,
@@ -542,6 +543,12 @@ fn showcase_instances(
             );
         }
     }
+    place(
+        "crystal_grotto",
+        Vec3::new(9.0, 0.0, -6.0),
+        Quat::from_rotation_y(-2.3),
+        1.0,
+    );
     for i in 0..60 {
         let p = Vec3::new(rng.range(-12.0, 12.0), 0.0, rng.range(-12.0, 8.0));
         let r = Quat::from_euler(

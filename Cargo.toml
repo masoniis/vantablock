@@ -45,6 +45,11 @@ opt-level = 3
 [profile.dev.package.vantablock-baker]
 opt-level = 3
 
+# the generators and reference traversal do all their math through glam, which is otherwise
+# unoptimized in dev builds and makes a first-launch bake take a minute instead of seconds
+[profile.dev.package.glam]
+opt-level = 3
+
 # distribution: fast, super slow compile, limited logging and debugging
 # used via `cargo build --profile distribution --features distribution`
 [profile.distribution]
