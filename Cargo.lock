@@ -8584,6 +8584,7 @@ dependencies = [
 name = "vantablock-client"
 version = "0.1.0"
 dependencies = [
+ "ash",
  "bevy",
  "bevy_brp_extras",
  "bytemuck",

@@ -27,6 +27,9 @@ use std::collections::HashMap;
 pub const MAX_POSE_FRAMES: usize = 1 << 20;
 /// A template group slot with no resolved frame.
 pub const INVALID_FRAME: u32 = u32::MAX;
+/// How far [`SceneSnapshot::frame_boxes`] grow each group's occupied bounds, in group-local
+/// voxels, so a ray that reaches geometry properly crosses its box instead of grazing a face.
+pub const FRAME_BOX_PADDING: f32 = 1.0 / 64.0;
 
 /// How pose groups are organized for spatial search. Both modes must find identical hits.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -269,6 +272,30 @@ impl SceneSnapshot {
         };
         snapshot.bvh = Bvh4::build(&leaf_bounds);
         snapshot
+    }
+
+    /// Each frame's box for a hardware broad phase: the map from the unit cube onto the frame's
+    /// padded group-local bounds, in world space. `None` for a group with no geometry.
+    pub fn frame_boxes<'a>(
+        &'a self,
+        templates: &'a [AssetTemplate],
+    ) -> impl Iterator<Item = Option<Affine3A>> + 'a {
+        self.frames.iter().map(|frame| {
+            let bounds = templates[frame.asset as usize].group_bounds[frame.group as usize];
+            if bounds.is_empty() {
+                return None;
+            }
+            let pad = Vec3::splat(FRAME_BOX_PADDING) + (bounds.max - bounds.min) * 1e-5;
+            let (min, max) = (bounds.min - pad, bounds.max + pad);
+            Some(
+                frame.group_to_world
+                    * Affine3A::from_scale_rotation_translation(
+                        max - min,
+                        glam::Quat::IDENTITY,
+                        min,
+                    ),
+            )
+        })
     }
 
     /// Finds the nearest hit along a world ray.

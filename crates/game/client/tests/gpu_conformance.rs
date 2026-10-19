@@ -33,6 +33,8 @@ const PRIMARY_VISIBILITY_MULTI_SLAB: &str = include_wesl!("primary_visibility_mu
 const DIRECT_LIGHTING_MULTI_SLAB: &str = include_wesl!("direct_lighting_multi_slab");
 const CONFORMANCE_MULTI_SLAB: &str = include_wesl!("voxel_conformance_multi_slab");
 const CONFORMANCE_STACKLESS: &str = include_wesl!("voxel_conformance_stackless");
+const PRIMARY_VISIBILITY_RAY_QUERY: &str = include_wesl!("primary_visibility_ray_query");
+const CONFORMANCE_RAY_QUERY: &str = include_wesl!("voxel_conformance_ray_query");
 
 // INFO: -----------------------------
 //         shader validation
@@ -51,12 +53,15 @@ fn shaders_validate() {
         ("direct_lighting_multi_slab", DIRECT_LIGHTING_MULTI_SLAB),
         ("voxel_conformance_multi_slab", CONFORMANCE_MULTI_SLAB),
         ("voxel_conformance_stackless", CONFORMANCE_STACKLESS),
+        ("primary_visibility_ray_query", PRIMARY_VISIBILITY_RAY_QUERY),
+        ("voxel_conformance_ray_query", CONFORMANCE_RAY_QUERY),
     ] {
         let module = naga::front::wgsl::parse_str(source)
             .unwrap_or_else(|e| panic!("{name} failed to parse:\n{}", e.emit_to_string(source)));
         naga::valid::Validator::new(
             naga::valid::ValidationFlags::all(),
-            naga::valid::Capabilities::default(),
+            // the hardware broad phase variants need ray queries; the rest use none of this
+            naga::valid::Capabilities::default() | naga::valid::Capabilities::RAY_QUERY,
         )
         .validate(&module)
         .unwrap_or_else(|e| panic!("{name} failed validation:\n{}", e.emit_to_string(source)));
@@ -76,6 +81,8 @@ enum Variant {
     MultiSlab,
     /// The stackless 64-tree traversal-state experiment (single slab).
     Stackless,
+    /// The hardware scene broad phase: ray queries over flattened pose groups (single slab).
+    RayQuery,
 }
 
 impl Variant {
@@ -92,17 +99,25 @@ impl Variant {
 struct Gpu {
     device: wgpu::Device,
     queue: wgpu::Queue,
-    /// Conformance kernels, indexed by [`Variant`].
-    modules: [wgpu::ShaderModule; 3],
+    /// Conformance kernels, indexed by [`Variant`]; `None` where the device can't run them.
+    modules: [Option<wgpu::ShaderModule>; 4],
+    /// Whether the device has hardware ray queries (and so a [`Variant::RayQuery`] kernel).
+    ray_query: bool,
+    /// Whether [`Gpu::gpu_ms`] can time dispatches with timestamp queries.
+    timestamps: bool,
 }
 
 /// Bindings for one bind group: `(group, [(binding, resource)])`.
 type Group<'a> = (u32, Vec<(u32, wgpu::BindingResource<'a>)>);
 
+/// The adapter wgpu prefers (Vulkan before DX12 on Windows), or the one `WGPU_BACKEND` (e.g.
+/// `vulkan`, `dx12`, `metal`) and `WGPU_ADAPTER_NAME` select, as the game itself honors them.
 fn gpu() -> Option<Gpu> {
-    let instance = wgpu::Instance::default();
-    let adapter = match block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
-    {
+    let instance =
+        wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
+    let adapter = match block_on(wgpu::util::initialize_adapter_from_env_or_default(
+        &instance, None,
+    )) {
         Ok(adapter) => adapter,
         Err(e) => {
             eprintln!("skipping GPU conformance: no adapter ({e})");
@@ -111,27 +126,50 @@ fn gpu() -> Option<Gpu> {
     };
     let info = adapter.get_info();
     eprintln!("GPU conformance on {} ({:?})", info.name, info.backend);
+    let ray_query = adapter
+        .features()
+        .contains(wgpu::Features::EXPERIMENTAL_RAY_QUERY);
+    let timestamps = adapter.features().contains(wgpu::Features::TIMESTAMP_QUERY);
+    eprintln!("  hardware ray queries: {ray_query}, timestamp queries: {timestamps}");
     let (device, queue) = block_on(adapter.request_device(&wgpu::DeviceDescriptor {
         label: Some("conformance"),
+        required_features: adapter.features()
+            & (wgpu::Features::EXPERIMENTAL_RAY_QUERY | wgpu::Features::TIMESTAMP_QUERY),
         required_limits: adapter.limits(),
+        // SAFETY: ray queries are the only experimental feature requested, and they are only
+        // used by the broad phase kernels, which the tests hold to the CPU reference.
+        experimental_features: if ray_query {
+            unsafe { wgpu::ExperimentalFeatures::enabled() }
+        } else {
+            wgpu::ExperimentalFeatures::disabled()
+        },
         ..Default::default()
     }))
     .expect("device");
     let modules = [
-        ("voxel_conformance", CONFORMANCE),
-        ("voxel_conformance_multi_slab", CONFORMANCE_MULTI_SLAB),
-        ("voxel_conformance_stackless", CONFORMANCE_STACKLESS),
+        ("voxel_conformance", CONFORMANCE, true),
+        ("voxel_conformance_multi_slab", CONFORMANCE_MULTI_SLAB, true),
+        ("voxel_conformance_stackless", CONFORMANCE_STACKLESS, true),
+        (
+            "voxel_conformance_ray_query",
+            CONFORMANCE_RAY_QUERY,
+            ray_query,
+        ),
     ]
-    .map(|(label, source)| {
-        device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some(label),
-            source: wgpu::ShaderSource::Wgsl(source.into()),
+    .map(|(label, source, supported)| {
+        supported.then(|| {
+            device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some(label),
+                source: wgpu::ShaderSource::Wgsl(source.into()),
+            })
         })
     });
     Some(Gpu {
         device,
         queue,
         modules,
+        ray_query,
+        timestamps,
     })
 }
 
@@ -184,12 +222,111 @@ impl Gpu {
         groups: &[Group<'_>],
         output: &wgpu::Buffer,
     ) -> Vec<R> {
+        let (pipeline, bind_groups) = self.bind(entry, variant, groups);
+
+        let readback = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: None,
+            size: output.size(),
+            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let mut encoder = self.device.create_command_encoder(&Default::default());
+        {
+            let mut pass = encoder.begin_compute_pass(&Default::default());
+            pass.set_pipeline(&pipeline);
+            for (index, group) in &bind_groups {
+                pass.set_bind_group(*index, group, &[]);
+            }
+            pass.dispatch_workgroups(count.div_ceil(64), 1, 1);
+        }
+        encoder.copy_buffer_to_buffer(output, 0, &readback, 0, output.size());
+        self.queue.submit([encoder.finish()]);
+        self.read(&readback)
+    }
+
+    /// GPU time of one dispatch of `entry` over `count` items, in milliseconds: the mean of
+    /// `runs` dispatches measured with timestamp queries around each compute pass, so neither
+    /// readback nor pipeline creation is included. `None` without timestamp queries.
+    fn gpu_ms(
+        &self,
+        entry: &str,
+        variant: Variant,
+        count: u32,
+        groups: &[Group<'_>],
+        runs: u32,
+    ) -> Option<f64> {
+        if !self.timestamps {
+            return None;
+        }
+        let (pipeline, bind_groups) = self.bind(entry, variant, groups);
+        let queries = self.device.create_query_set(&wgpu::QuerySetDescriptor {
+            label: None,
+            ty: wgpu::QueryType::Timestamp,
+            count: runs * 2,
+        });
+        let resolve = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: None,
+            size: runs as u64 * 16,
+            usage: wgpu::BufferUsages::QUERY_RESOLVE | wgpu::BufferUsages::COPY_SRC,
+            mapped_at_creation: false,
+        });
+        let readback = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: None,
+            size: runs as u64 * 16,
+            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let mut encoder = self.device.create_command_encoder(&Default::default());
+        for run in 0..runs {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: None,
+                timestamp_writes: Some(wgpu::ComputePassTimestampWrites {
+                    query_set: &queries,
+                    beginning_of_pass_write_index: Some(run * 2),
+                    end_of_pass_write_index: Some(run * 2 + 1),
+                }),
+            });
+            pass.set_pipeline(&pipeline);
+            for (index, group) in &bind_groups {
+                pass.set_bind_group(*index, group, &[]);
+            }
+            pass.dispatch_workgroups(count.div_ceil(64), 1, 1);
+        }
+        encoder.resolve_query_set(&queries, 0..runs * 2, &resolve, 0);
+        encoder.copy_buffer_to_buffer(&resolve, 0, &readback, 0, resolve.size());
+        self.queue.submit([encoder.finish()]);
+        let ticks: Vec<u64> = self.read(&readback);
+        let period_ns = self.queue.get_timestamp_period() as f64;
+        let total: u64 = ticks.chunks(2).map(|t| t[1].saturating_sub(t[0])).sum();
+        Some(total as f64 * period_ns / 1e6 / runs as f64)
+    }
+
+    /// Waits for the queue and copies a mappable buffer's contents out.
+    fn read<R: Pod>(&self, readback: &wgpu::Buffer) -> Vec<R> {
+        let slice = readback.slice(..);
+        slice.map_async(wgpu::MapMode::Read, |r| r.expect("map"));
+        self.device
+            .poll(wgpu::PollType::wait_indefinitely())
+            .expect("poll");
+        bytemuck::cast_slice(&slice.get_mapped_range()).to_vec()
+    }
+
+    /// A pipeline for `entry` with an automatic layout (only the bindings it reads), and its
+    /// bind groups.
+    fn bind(
+        &self,
+        entry: &str,
+        variant: Variant,
+        groups: &[Group<'_>],
+    ) -> (wgpu::ComputePipeline, Vec<(u32, wgpu::BindGroup)>) {
         let pipeline = self
             .device
             .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
                 label: Some(entry),
                 layout: None,
-                module: &self.modules[variant as usize],
+                module: self.modules[variant as usize]
+                    .as_ref()
+                    .expect("the device doesn't support this kernel variant"),
                 entry_point: Some(entry),
                 compilation_options: Default::default(),
                 cache: None,
@@ -212,31 +349,7 @@ impl Gpu {
                 (*index, group)
             })
             .collect();
-
-        let readback = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: None,
-            size: output.size(),
-            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-        let mut encoder = self.device.create_command_encoder(&Default::default());
-        {
-            let mut pass = encoder.begin_compute_pass(&Default::default());
-            pass.set_pipeline(&pipeline);
-            for (index, group) in &bind_groups {
-                pass.set_bind_group(*index, group, &[]);
-            }
-            pass.dispatch_workgroups(count.div_ceil(64), 1, 1);
-        }
-        encoder.copy_buffer_to_buffer(output, 0, &readback, 0, output.size());
-        self.queue.submit([encoder.finish()]);
-
-        let slice = readback.slice(..);
-        slice.map_async(wgpu::MapMode::Read, |r| r.expect("map"));
-        self.device
-            .poll(wgpu::PollType::wait_indefinitely())
-            .expect("poll");
-        bytemuck::cast_slice(&slice.get_mapped_range()).to_vec()
+        (pipeline, bind_groups)
     }
 }
 
@@ -689,6 +802,146 @@ fn scene_variants() -> Vec<(voxel::scene::SceneAcceleration, HierarchyKind)> {
         .collect()
 }
 
+/// Bind groups for the `scene_rays` kernel: geometry, scene, and the test's rays and results. The
+/// automatic pipeline layout only holds what an entry point reads: tracing never reads attributes
+/// or materials, and the hardware broad phase (given its `tlas`) reads neither the software BVHs
+/// nor the instance tables.
+#[allow(clippy::too_many_arguments)]
+fn scene_groups<'a>(
+    topology: &'a [wgpu::Buffer],
+    template_bvh: &'a wgpu::Buffer,
+    meta: &'a wgpu::Buffer,
+    [uniform, bvh, frames, instances, slot_frames]: [&'a wgpu::Buffer; 5],
+    tlas: Option<&'a wgpu::Tlas>,
+    rays: &'a wgpu::Buffer,
+    output: &'a wgpu::Buffer,
+) -> [Group<'a>; 3] {
+    let mut geometry = topology_bindings(topology);
+    let scene = match tlas {
+        Some(tlas) => vec![
+            (0, uniform.as_entire_binding()),
+            (2, frames.as_entire_binding()),
+            (5, wgpu::BindingResource::AccelerationStructure(tlas)),
+        ],
+        None => {
+            geometry.push((3, template_bvh.as_entire_binding()));
+            vec![
+                (0, uniform.as_entire_binding()),
+                (1, bvh.as_entire_binding()),
+                (2, frames.as_entire_binding()),
+                (3, instances.as_entire_binding()),
+                (4, slot_frames.as_entire_binding()),
+            ]
+        }
+    };
+    geometry.push((4, meta.as_entire_binding()));
+    [
+        (0, geometry),
+        (1, scene),
+        (
+            2,
+            vec![
+                (2, rays.as_entire_binding()),
+                (3, output.as_entire_binding()),
+            ],
+        ),
+    ]
+}
+
+/// The hardware broad phase's acceleration structure: one shared unit-box BLAS, and a TLAS
+/// instance per pose frame mapping the box onto the frame's padded group-local bounds, with the
+/// frame index as custom data (see `trace_scene` in `lib/scene.wesl`).
+fn scene_tlas(
+    gpu: &Gpu,
+    snapshot: &voxel::scene::SceneSnapshot,
+    templates: &[voxel::scene::AssetTemplate],
+) -> wgpu::Tlas {
+    let device = &gpu.device;
+    let vertices: Vec<[f32; 3]> = (0..8u32)
+        .map(|i| [(i & 1) as f32, (i >> 1 & 1) as f32, (i >> 2 & 1) as f32])
+        .collect();
+    // two triangles per face; the query culls neither winding
+    let faces = [
+        [0, 2, 6, 4],
+        [1, 3, 7, 5],
+        [0, 1, 5, 4],
+        [2, 3, 7, 6],
+        [0, 1, 3, 2],
+        [4, 5, 7, 6],
+    ];
+    let indices: Vec<u32> = faces
+        .iter()
+        .flat_map(|[a, b, c, d]| [*a, *b, *c, *a, *c, *d])
+        .collect();
+    let input = |contents: &[u8]| {
+        device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: None,
+            contents,
+            usage: wgpu::BufferUsages::BLAS_INPUT,
+        })
+    };
+    let vertex_buffer = input(bytemuck::cast_slice(&vertices));
+    let index_buffer = input(bytemuck::cast_slice(&indices));
+
+    let size = wgpu::BlasTriangleGeometrySizeDescriptor {
+        vertex_format: wgpu::VertexFormat::Float32x3,
+        vertex_count: vertices.len() as u32,
+        index_format: Some(wgpu::IndexFormat::Uint32),
+        index_count: Some(indices.len() as u32),
+        // not opaque, so every face crossing is a candidate the shader sees
+        flags: wgpu::AccelerationStructureGeometryFlags::empty(),
+    };
+    let blas = device.create_blas(
+        &wgpu::CreateBlasDescriptor {
+            label: Some("unit_box"),
+            flags: wgpu::AccelerationStructureFlags::PREFER_FAST_TRACE,
+            update_mode: wgpu::AccelerationStructureUpdateMode::Build,
+        },
+        wgpu::BlasGeometrySizeDescriptors::Triangles {
+            descriptors: vec![size.clone()],
+        },
+    );
+
+    let boxes: Vec<_> = snapshot.frame_boxes(templates).collect();
+    let mut tlas = device.create_tlas(&wgpu::CreateTlasDescriptor {
+        label: Some("scene_frames"),
+        max_instances: boxes.len().max(1) as u32,
+        flags: wgpu::AccelerationStructureFlags::PREFER_FAST_TRACE,
+        update_mode: wgpu::AccelerationStructureUpdateMode::Build,
+    });
+    for (frame, frame_box) in boxes.iter().enumerate() {
+        if let Some(frame_box) = frame_box {
+            let rows = client::render::gpu::layout::affine_rows(frame_box);
+            tlas[frame] = Some(wgpu::TlasInstance::new(
+                &blas,
+                bytemuck::cast(rows),
+                frame as u32,
+                0xFF,
+            ));
+        }
+    }
+
+    let mut encoder = device.create_command_encoder(&Default::default());
+    encoder.build_acceleration_structures(
+        std::iter::once(&wgpu::BlasBuildEntry {
+            blas: &blas,
+            geometry: wgpu::BlasGeometries::TriangleGeometries(vec![wgpu::BlasTriangleGeometry {
+                size: &size,
+                vertex_buffer: &vertex_buffer,
+                first_vertex: 0,
+                vertex_stride: 12,
+                index_buffer: Some(&index_buffer),
+                first_index: Some(0),
+                transform_buffer: None,
+                transform_buffer_offset: None,
+            }]),
+        }),
+        std::iter::once(&tlas),
+    );
+    gpu.queue.submit([encoder.finish()]);
+    tlas
+}
+
 #[test]
 fn gpu_scene_traversal_matches_cpu() {
     use client::render::{geometry::GpuGeometryLibrary, scene::GpuSceneData};
@@ -785,80 +1038,78 @@ fn gpu_scene_traversal_matches_cpu() {
             let ray_buffer = gpu.storage(&cases);
             let output = gpu.output(cases.len() as u64 * 16);
 
-            let results: Vec<RayResult> = gpu.run_variant(
-                "scene_rays",
-                Variant::for_slabs(topology.len()),
-                cases.len() as u32,
-                &[
-                    (0, {
-                        // the automatic layout omits attributes and materials, which tracing never reads
-                        let mut bindings = topology_bindings(&topology);
-                        bindings.push((3, template_bvh.as_entire_binding()));
-                        bindings.push((4, meta_buffer.as_entire_binding()));
-                        bindings
-                    }),
-                    (
-                        1,
-                        vec![
-                            (0, uniform.as_entire_binding()),
-                            (1, bvh.as_entire_binding()),
-                            (2, frames.as_entire_binding()),
-                            (3, instance_buffer.as_entire_binding()),
-                            (4, slot_frames.as_entire_binding()),
-                        ],
-                    ),
-                    (
-                        2,
-                        vec![
-                            (2, ray_buffer.as_entire_binding()),
-                            (3, output.as_entire_binding()),
-                        ],
-                    ),
-                ],
-                &output,
-            );
-
-            let mut cpu_hits = 0;
-            let mut mismatches = Vec::new();
-            for (ray, gpu_result) in rays.iter().zip(&results) {
-                let (cpu, _) =
-                    snapshot.intersect(&templates, ray, 0.0, 3.0e38, |frame, local, t0, t1| {
-                        let module = library.assets()[frame.asset as usize].assembly.groups
-                            [frame.group as usize]
-                            .module;
-                        geometry.assets[frame.asset as usize]
-                            .root(module, hierarchy)
-                            .trace(&geometry, local, t0, t1)
-                    });
-                cpu_hits += cpu.is_some() as usize;
-                let agree = match (cpu, gpu_result.hit != 0) {
-                    (None, false) => true,
-                    (Some(c), true) => {
-                        (c.voxel.t - gpu_result.t).abs() <= 1e-3 * c.voxel.t.max(1.0)
-                    }
-                    _ => false,
-                };
-                if !agree {
-                    mismatches.push(format!(
-                        "cpu {:?} gpu {:?} ray {ray:?}",
-                        cpu.map(|c| (c.frame, c.voxel.t)),
-                        gpu_result
-                    ));
-                }
+            // the software broad phase, plus the hardware one where it applies: flattened groups
+            // on the single-slab fast path
+            let mut variants = vec![(Variant::for_slabs(topology.len()), None)];
+            if gpu.ray_query
+                && mode == voxel::scene::SceneAcceleration::FlattenedGroups
+                && topology.len() == 1
+            {
+                variants.push((
+                    Variant::RayQuery,
+                    Some(scene_tlas(&gpu, &snapshot, &templates)),
+                ));
             }
-            eprintln!(
-                "  {mode:?} {hierarchy:?}: {} rays, {cpu_hits} CPU hits, {} disagreements",
-                rays.len(),
-                mismatches.len()
-            );
-            assert!(cpu_hits > rays.len() / 4, "the test scene should be hit");
-            // exact float ties may resolve differently, but they are vanishingly rare in this set
-            assert!(
-                mismatches.len() * 1000 <= rays.len(),
-                "{} disagreements, first: {}",
-                mismatches.len(),
-                mismatches[0]
-            );
+
+            for (variant, tlas) in &variants {
+                let results: Vec<RayResult> = gpu.run_variant(
+                    "scene_rays",
+                    *variant,
+                    cases.len() as u32,
+                    &scene_groups(
+                        &topology,
+                        &template_bvh,
+                        &meta_buffer,
+                        [&uniform, &bvh, &frames, &instance_buffer, &slot_frames],
+                        tlas.as_ref(),
+                        &ray_buffer,
+                        &output,
+                    ),
+                    &output,
+                );
+
+                let mut cpu_hits = 0;
+                let mut mismatches = Vec::new();
+                for (ray, gpu_result) in rays.iter().zip(&results) {
+                    let (cpu, _) =
+                        snapshot.intersect(&templates, ray, 0.0, 3.0e38, |frame, local, t0, t1| {
+                            let module = library.assets()[frame.asset as usize].assembly.groups
+                                [frame.group as usize]
+                                .module;
+                            geometry.assets[frame.asset as usize]
+                                .root(module, hierarchy)
+                                .trace(&geometry, local, t0, t1)
+                        });
+                    cpu_hits += cpu.is_some() as usize;
+                    let agree = match (cpu, gpu_result.hit != 0) {
+                        (None, false) => true,
+                        (Some(c), true) => {
+                            (c.voxel.t - gpu_result.t).abs() <= 1e-3 * c.voxel.t.max(1.0)
+                        }
+                        _ => false,
+                    };
+                    if !agree {
+                        mismatches.push(format!(
+                            "cpu {:?} gpu {:?} ray {ray:?}",
+                            cpu.map(|c| (c.frame, c.voxel.t)),
+                            gpu_result
+                        ));
+                    }
+                }
+                eprintln!(
+                    "  {mode:?} {hierarchy:?} ({variant:?}): {} rays, {cpu_hits} CPU hits, {} disagreements",
+                    rays.len(),
+                    mismatches.len()
+                );
+                assert!(cpu_hits > rays.len() / 4, "the test scene should be hit");
+                // exact float ties may resolve differently, but they are vanishingly rare in this set
+                assert!(
+                    mismatches.len() * 1000 <= rays.len(),
+                    "{} disagreements, first: {}",
+                    mismatches.len(),
+                    mismatches[0]
+                );
+            }
         }
     }
 }
@@ -1157,42 +1408,48 @@ fn gpu_scene_throughput() {
                 per_ray(totals.group_candidates),
             );
 
-            for (hierarchy, variant) in [
+            // the hardware broad phase replaces the flattened scene BVH with a TLAS of frames
+            let tlas = (gpu.ray_query && mode == SceneAcceleration::FlattenedGroups).then(|| {
+                let start = std::time::Instant::now();
+                let tlas = scene_tlas(&gpu, &snapshot, &templates);
+                gpu.device
+                    .poll(wgpu::PollType::wait_indefinitely())
+                    .expect("poll");
+                eprintln!(
+                    "      TLAS of {} frames built in {:.2} ms (CPU instance writes + GPU build)",
+                    snapshot.frames.len(),
+                    start.elapsed().as_secs_f64() * 1000.0
+                );
+                tlas
+            });
+            let mut variants = vec![
                 (HierarchyKind::Tree64, Variant::Default),
                 (HierarchyKind::Tree64, Variant::Stackless),
                 (HierarchyKind::Octree, Variant::Default),
-            ] {
+            ];
+            if tlas.is_some() {
+                variants.extend([
+                    (HierarchyKind::Tree64, Variant::RayQuery),
+                    (HierarchyKind::Octree, Variant::RayQuery),
+                ]);
+            }
+
+            for (hierarchy, variant) in variants {
                 let scene = GpuSceneData::pack(&snapshot, &library, &geometry, hierarchy);
                 let uniform = gpu.uniform(&scene.uniform);
                 let bvh = gpu.storage(&scene.bvh);
                 let frames = gpu.storage(&scene.frames);
                 let instance_buffer = gpu.storage(&scene.instances);
                 let slot_frames = gpu.storage(&scene.slot_frames);
-                let groups = [
-                    (0, {
-                        let mut bindings = topology_bindings(&topology);
-                        bindings.push((3, template_bvh.as_entire_binding()));
-                        bindings.push((4, meta.as_entire_binding()));
-                        bindings
-                    }),
-                    (
-                        1,
-                        vec![
-                            (0, uniform.as_entire_binding()),
-                            (1, bvh.as_entire_binding()),
-                            (2, frames.as_entire_binding()),
-                            (3, instance_buffer.as_entire_binding()),
-                            (4, slot_frames.as_entire_binding()),
-                        ],
-                    ),
-                    (
-                        2,
-                        vec![
-                            (2, ray_buffer.as_entire_binding()),
-                            (3, output.as_entire_binding()),
-                        ],
-                    ),
-                ];
+                let groups = scene_groups(
+                    &topology,
+                    &template_bvh,
+                    &meta,
+                    [&uniform, &bvh, &frames, &instance_buffer, &slot_frames],
+                    tlas.as_ref().filter(|_| variant == Variant::RayQuery),
+                    &ray_buffer,
+                    &output,
+                );
                 let run = || -> Vec<RayResult> {
                     gpu.run_variant("scene_rays", variant, cases.len() as u32, &groups, &output)
                 };
@@ -1204,10 +1461,17 @@ fn gpu_scene_throughput() {
                     run();
                 }
                 let ms = start.elapsed().as_secs_f64() * 1000.0 / runs as f64;
-                eprintln!(
-                    "      {hierarchy:?} ({variant:?}): {width}x{height} primary rays in {ms:.1} ms ({:.1} Mrays/s, includes readback)",
-                    cases.len() as f64 / ms / 1000.0
-                );
+                let rays = cases.len() as f64;
+                match gpu.gpu_ms("scene_rays", variant, cases.len() as u32, &groups, 20) {
+                    Some(gpu_ms) => eprintln!(
+                        "      {hierarchy:?} ({variant:?}): {width}x{height} primary rays in {gpu_ms:.2} ms GPU ({:.0} Mrays/s), {ms:.1} ms with readback",
+                        rays / gpu_ms / 1000.0
+                    ),
+                    None => eprintln!(
+                        "      {hierarchy:?} ({variant:?}): {width}x{height} primary rays in {ms:.1} ms ({:.1} Mrays/s, includes readback)",
+                        rays / ms / 1000.0
+                    ),
+                }
             }
         }
     }
@@ -1333,7 +1597,13 @@ fn gpu_multi_slab_cost() {
                 run();
             }
             let ms = start.elapsed().as_secs_f64() * 1000.0 / runs as f64;
-            eprintln!("    {mode:?} Tree64: {ms:.1} ms (includes readback)");
+            let variant = Variant::for_slabs(geometry.topology.len());
+            match gpu.gpu_ms("scene_rays", variant, cases.len() as u32, &groups, 20) {
+                Some(gpu_ms) => {
+                    eprintln!("    {mode:?} Tree64: {gpu_ms:.2} ms GPU, {ms:.1} ms with readback")
+                }
+                None => eprintln!("    {mode:?} Tree64: {ms:.1} ms (includes readback)"),
+            }
         }
     }
 }

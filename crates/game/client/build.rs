@@ -11,7 +11,15 @@ fn build(module: &str, artifact: &str, features: &[(&str, bool)]) {
     let result = Compiler::new(options)
         .compile_module(SHADER_ROOT, &module.parse().unwrap())
         .unwrap_or_else(|e| panic!("failed to build WESL shader `{module}`:\n{e}"));
-    result.write_artifact(artifact);
+    // naga's ray queries are an enable extension, which WESL can't declare conditionally
+    let enables = if features.contains(&("ray_query", true)) {
+        "enable wgpu_ray_query;\n"
+    } else {
+        ""
+    };
+    let out_dir = std::env::var("OUT_DIR").unwrap();
+    let path = std::path::Path::new(&out_dir).join(format!("{artifact}.wgsl"));
+    std::fs::write(path, format!("{enables}{result}")).expect("failed to write shader");
 }
 
 fn main() {
@@ -34,7 +42,11 @@ fn main() {
             build(
                 module,
                 &format!("{artifact}{suffix}"),
-                &[("multi_slab", multi_slab), ("stackless", false)],
+                &[
+                    ("multi_slab", multi_slab),
+                    ("stackless", false),
+                    ("ray_query", false),
+                ],
             );
         }
     }
@@ -44,6 +56,33 @@ fn main() {
     build(
         "package::voxel::tests::conformance",
         "voxel_conformance_stackless",
-        &[("multi_slab", false), ("stackless", true)],
+        &[
+            ("multi_slab", false),
+            ("stackless", true),
+            ("ray_query", false),
+        ],
     );
+
+    // the optional hardware scene broad phase (ray queries over flattened pose groups), held to
+    // the same conformance tests and benchmarked against the software BVH4
+    for (module, artifact) in [
+        (
+            "package::voxel::primary_visibility",
+            "primary_visibility_ray_query",
+        ),
+        (
+            "package::voxel::tests::conformance",
+            "voxel_conformance_ray_query",
+        ),
+    ] {
+        build(
+            module,
+            artifact,
+            &[
+                ("multi_slab", false),
+                ("stackless", false),
+                ("ray_query", true),
+            ],
+        );
+    }
 }

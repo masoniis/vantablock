@@ -9,7 +9,7 @@ os_family := os()
 open_cmd := if os_family == "macos" { \
     "open" \
 } else if os_family == "windows" { \
-    "explorer.exe" \
+    "Start-Process" \
 } else { \
     "xdg-open" \
 }
@@ -78,15 +78,31 @@ fix *args:
     cargo fix --all-targets --allow-dirty {{args}}
 
 # runs nix fmt (rust, nix, wgsl/wesl, and prettier formatters)
+[unix]
 [group("development")]
 fmt:
     nix fmt
 
+# runs rustfmt (nix fmt, which also formats wgsl/wesl, nix, and markdown, needs unix or WSL)
+[windows]
+[group("development")]
+fmt:
+    cargo fmt --all
+    @Write-Host "Formatted Rust only: WGSL/WESL, nix, and markdown need nix fmt (unix or WSL)."
+
 # cleans build artifacts and local dev data
+[unix]
 [group("development")]
 clean:
     rm -rf target/
     rm -rf vantadev/
+
+# cleans build artifacts and local dev data
+[windows]
+[group("development")]
+clean:
+    if (Test-Path target) { Remove-Item -Recurse -Force target }
+    if (Test-Path vantadev) { Remove-Item -Recurse -Force vantadev }
 
 alias lint := check
 alias clip := clippy
@@ -118,6 +134,11 @@ bench *args:
 test-gpu *args:
     cargo test -p {{client}} --test gpu_conformance -- --nocapture {{args}}
 
+# reports the driver's register, spill, and shared-memory statistics for the voxel kernels (Vulkan)
+[group("testing")]
+shader-stats *args:
+    cargo test --release -p {{client}} --test shader_statistics -- --ignored --nocapture {{args}}
+
 # full pre-push verification suite
 [group("testing")]
 ready *args:
@@ -146,6 +167,7 @@ bake *args:
     cargo run --release -p {{baker}} --bin vanta_baker -- --stats {{args}}
 
 # strips macOS quarantine attributes from the app bundle
+[macos]
 [group("build")]
 sign:
     xattr -cr /Applications/Vantablock.app
@@ -160,6 +182,7 @@ asm path:
     cargo asm -p {{app}} --bin vantablock --color {{path}}
 
 # launches tracy if it isn't already running, then runs the client with tracing
+[unix]
 [group("profiling")]
 trace *args:
     #!/usr/bin/env bash
@@ -172,17 +195,46 @@ trace *args:
     fi
     cargo run -p {{app}} --bin vantablock --features tracy {{args}}
 
+# launches tracy (tracy-profiler or tracy on PATH) if it isn't already running, then runs the client with tracing
+[windows]
+[group("profiling")]
+[script("powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File")]
+[extension(".ps1")]
+trace *args:
+    if (Get-Process tracy-profiler, tracy -ErrorAction SilentlyContinue) {
+        Write-Host "Tracy profiler is already running." -ForegroundColor Green
+    } else {
+        $tracy = Get-Command tracy-profiler, tracy -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($tracy) {
+            Write-Host "Starting Tracy profiler..." -ForegroundColor Cyan
+            $env:TRACY_ENABLE_MEMORY = "1"
+            Start-Process $tracy.Source
+        } else {
+            Write-Host "Tracy not found on PATH; start it manually to connect." -ForegroundColor Yellow
+        }
+    }
+    cargo run -p {{app}} --bin vantablock --features tracy {{args}}
+    exit $LASTEXITCODE
+
 # runs the client with Bevy-specific debug features
 [group("profiling")]
 debug_bevy *args:
     cargo run -p {{app}} --bin vantablock --features bevy/trace,bevy/track_location,bevy/debug {{args}}
 
 # runs the client with verbose wgpu logging
+[unix]
 [group("profiling")]
 debug_wgpu *args:
     RUST_LOG=wgpu=trace cargo run -p {{app}} --bin vantablock {{args}}
 
+# runs the client with verbose wgpu logging
+[windows]
+[group("profiling")]
+debug_wgpu *args:
+    $env:RUST_LOG = "wgpu=trace"; cargo run -p {{app}} --bin vantablock {{args}}
+
 # targeted tracing, call without args to list targets found in source
+[unix]
 [group("profiling")]
 debug *args:
     #!/usr/bin/env bash
@@ -206,6 +258,27 @@ debug *args:
     echo -e "\033[1;32mRunning with RUST_LOG=\033[0m$RUST_LOG"
     cargo run -p {{app}} --bin vantablock
 
+# targeted tracing, call without args to list targets found in source
+[windows]
+[group("profiling")]
+[script("powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File")]
+[extension(".ps1")]
+debug *args:
+    $targets = @("{{args}}".Split(" ", [StringSplitOptions]::RemoveEmptyEntries))
+    if ($targets.Count -eq 0) {
+        Write-Host "No debug targets specified. Available targets are:" -ForegroundColor Yellow
+        Get-ChildItem crates -Recurse -Filter *.rs |
+            Select-String -Pattern 'target\s*:\s*"([^"]+)"' -AllMatches |
+            ForEach-Object { $_.Matches } | ForEach-Object { $_.Groups[1].Value } |
+            Group-Object | Sort-Object Count -Descending |
+            ForEach-Object { Write-Host ("  - {0} ({1}x)" -f $_.Name, $_.Count) }
+        exit 0
+    }
+    $env:RUST_LOG = (($targets | ForEach-Object { "$_=trace" }) -join ",") + ",{{project}}=info"
+    Write-Host "Running with RUST_LOG=$env:RUST_LOG" -ForegroundColor Green
+    cargo run -p {{app}} --bin vantablock
+    exit $LASTEXITCODE
+
 # INFO: ---------------------------------
 #         advanced/niche commands
 # ---------------------------------------
@@ -223,6 +296,7 @@ windows_wsl_target_dir := windows_temp + "\\vantablock-target"
 # - winget install --id Microsoft.VisualStudio.2022.BuildTools --override "--passive --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
 
 # compiles and runs the client natively on Windows from within WSL
+[linux]
 [group("advanced")]
 wsl *args:
     @echo "Compiling Windows target ({{windows_wsl_target_dir}})"

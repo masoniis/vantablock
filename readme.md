@@ -36,6 +36,7 @@ Compiling the project requires **Rust 1.99 or newer**.
 
 - A `rust-toolchain.toml` is provided to ensure this for any users using `rustup` will automatically run with this version.
 - Any other installation method will have to manually ensure the version 1.99 or newer.
+- [`just`](https://github.com/casey/just) is optional but recommended: the `.justfile` recipes run on Windows (PowerShell) as well as macOS and Linux. On Windows, install it with `winget install Casey.Just`; `just fmt` there only formats Rust, since WGSL/WESL formatting needs nix.
 
 Assuming rust is properly setup, `cargo` can be used like any standard Rust project:
 

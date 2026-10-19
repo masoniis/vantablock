@@ -17,6 +17,9 @@ import super::ray::{slab, sanitize_direction, transform_point, transform_vector}
 @group(1) @binding(2) var<storage, read> frames: array<PoseFrame>;
 @group(1) @binding(3) var<storage, read> instances: array<InstanceRecord>;
 @group(1) @binding(4) var<storage, read> slot_frames: array<u32>;
+// The optional hardware broad phase: one instance of a unit box per pose frame (see below).
+@ if(ray_query)
+@group(1) @binding(5) var scene_tlas: acceleration_structure;
 
 const BVH_LEAF_BIT: u32 = 0x80000000u;
 const BVH_EMPTY: u32 = 0xFFFFFFFFu;
@@ -187,6 +190,7 @@ fn previous_world_position(frame_id: u32, p: vec3<f32>) -> vec3<f32> {
 }
 
 // Finds the nearest hit along a world ray (`query_scene_candidates` + `intersect_instance`).
+@ if(!ray_query)
 fn trace_scene(o: vec3<f32>, d_in: vec3<f32>, t_min: f32, t_max: f32) -> SceneHit {
     var best: SceneHit;
     best.hit = false;
@@ -236,6 +240,51 @@ fn trace_scene(o: vec3<f32>, d_in: vec3<f32>, t_min: f32, t_max: f32) -> SceneHi
                 len += 1u;
             }
         }
+    }
+    return best;
+}
+
+// Box crossings within this fraction of the distance are treated as the same crossing.
+const BOX_CROSSING_TOLERANCE: f32 = 1e-4;
+const RAY_QUERY_FAR: f32 = 3.4e38;
+
+// The hardware broad phase (Vulkan ray queries), for flattened pose groups only. The TLAS holds
+// one instance of a unit box per pose frame, transformed onto the frame's padded group-local
+// bounds, with the frame index as custom data. Box faces are non-opaque triangles, so every face
+// crossing comes back as a candidate; a frame is traced at its first crossing (the entry face, or
+// the exit face when the ray starts inside the box). A ray through a box edge may trace a frame
+// twice, which costs time but never correctness. The query always runs to the far plane, since a
+// ray starting inside a box only crosses its exit face.
+@ if(ray_query)
+fn trace_scene(o: vec3<f32>, d_in: vec3<f32>, t_min: f32, t_max: f32) -> SceneHit {
+    var best: SceneHit;
+    best.hit = false;
+    best.t = t_max;
+    best.scene_nodes = 0u;
+    best.group_candidates = 0u;
+    if scene.frame_count == 0u {
+        return best;
+    }
+
+    let d = sanitize_direction(d_in);
+    var query: ray_query;
+    rayQueryInitialize(&query, scene_tlas, RayDesc(RAY_FLAG_FORCE_NO_OPAQUE, 0xFFu, t_min, RAY_QUERY_FAR, o, d));
+    while rayQueryProceed(&query) {
+        let candidate = rayQueryGetCandidateIntersection(&query);
+        best.scene_nodes += 1u;
+        // the unit box in its own space; affine maps keep t
+        let box_o = candidate.world_to_object * vec4<f32>(o, 1.0);
+        let box_d = sanitize_direction(candidate.world_to_object * vec4<f32>(d, 0.0));
+        let span = slab(vec3<f32>(0.0), vec3<f32>(1.0), box_o, 1.0 / box_d);
+        let inside = span.x <= t_min;
+        let first = select(span.x, span.y, inside);
+        if abs(candidate.t - first) > BOX_CROSSING_TOLERANCE * max(abs(first), 1.0) {
+            continue;
+        }
+        if !inside && first > best.t {
+            continue;
+        }
+        try_frame(candidate.instance_custom_data, o, d, t_min, &best);
     }
     return best;
 }

@@ -28,7 +28,9 @@ wesl = { workspace = true } # shader compliation from WESL to WGSL
 wesl-core = { workspace = true }
 # the exact versions bevy uses, for headless shader validation and GPU conformance tests
 wgpu = "29"
-naga = { version = "29", features = ["wgsl-in"] }
+naga = { version = "29", features = ["wgsl-in", "spv-out"] }
+# driver register/spill statistics for the voxel kernels (shader_statistics test)
+ash = "0.38"
 
 [dependencies]
 platform = { workspace = true }
