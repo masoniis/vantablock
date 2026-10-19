@@ -63,6 +63,10 @@ bevy = { workspace = true, features = [
   "ui_bevy_render",   # additional bevy ui render support
   "bevy_asset",       # asset management
   "bevy_state",       # state machines
+  "scene",            # bsn! scenes, used to build the ui
+  "bevy_ui_widgets",  # headless buttons and editable text the ui widgets are styled on
+  "ui_picking",       # pointer hover and press for ui widgets
+  "system_clipboard", # copy and paste in text fields (server addresses)
 ] }
 leafwing-input-manager = { workspace = true }
 lightyear = { workspace = true, features = [

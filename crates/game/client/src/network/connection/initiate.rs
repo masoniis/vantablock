@@ -1,5 +1,7 @@
 use crate::lifecycle::{ClientLifecycleState, InGameState, SessionTopology};
-use crate::network::connection::{ConnectType, InitiateConnection, RequestSingleplayerSession};
+use crate::network::connection::{
+    ConnectType, InitiateConnection, NetworkErrorEvent, RequestSingleplayerSession,
+};
 use bevy::prelude::*;
 use lightyear::{netcode::Key, prelude::client::*, prelude::*};
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
@@ -16,6 +18,22 @@ pub fn on_initiate_connection(
 ) {
     let event = trigger.event();
 
+    // parse before starting anything, so a bad address leaves no background server behind
+    let server_addr: SocketAddr = match event.server_addr.parse() {
+        Ok(addr) => addr,
+        Err(e) => {
+            error!(
+                "Failed to parse server address '{}': {}. Aborting connection.",
+                event.server_addr, e
+            );
+            next_client_state.set(ClientLifecycleState::Error);
+            commands.trigger(NetworkErrorEvent {
+                reason: format!("Invalid server address \"{}\": {e}", event.server_addr),
+            });
+            return;
+        }
+    };
+
     // handle session topology and singleplayer requests
     match event.connect_type {
         ConnectType::Singleplayer => {
@@ -26,17 +44,6 @@ pub fn on_initiate_connection(
             next_session_topology.set(SessionTopology::External);
         }
     }
-
-    let server_addr: SocketAddr = match event.server_addr.parse() {
-        Ok(addr) => addr,
-        Err(e) => {
-            error!(
-                "Failed to parse server address '{}': {}. Aborting connection.",
-                event.server_addr, e
-            );
-            return;
-        }
-    };
 
     let client_addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 0));
 

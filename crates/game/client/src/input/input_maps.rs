@@ -1,51 +1,85 @@
 use crate::input::local_actions::ClientAction;
 use bevy::prelude::KeyCode;
 use common::player::PlayerAction;
-use leafwing_input_manager::prelude::InputMap;
-use leafwing_input_manager::user_input::mouse::MouseScrollAxis;
+use leafwing_input_manager::{prelude::InputMap, user_input::mouse::MouseScrollAxis};
+
+/// Default keys for the networked player actions. The pause menu's controls list reads these, so
+/// it always shows what is actually bound.
+pub const PLAYER_KEYS: &[(PlayerAction, &[KeyCode])] = &[
+    (PlayerAction::MoveForward, &[KeyCode::KeyW]),
+    (PlayerAction::MoveBackward, &[KeyCode::KeyS]),
+    (PlayerAction::MoveLeft, &[KeyCode::KeyA]),
+    (PlayerAction::MoveRight, &[KeyCode::KeyD]),
+    (PlayerAction::MoveUp, &[KeyCode::Space]),
+    (PlayerAction::MoveDown, &[KeyCode::ControlLeft]),
+    (PlayerAction::MoveFaster, &[KeyCode::ShiftLeft]),
+];
+
+/// Default keys for the client-only actions (`Zoom` is the mouse wheel, bound separately).
+pub const CLIENT_KEYS: &[(ClientAction, &[KeyCode])] = &[
+    // menus
+    (ClientAction::TogglePause, &[KeyCode::Escape]),
+    (ClientAction::ToggleDebugMenu, &[KeyCode::F3]),
+    // renderer inspection
+    (ClientAction::CycleDebugView, &[KeyCode::F2, KeyCode::KeyV]),
+    (
+        ClientAction::ToggleSceneAcceleration,
+        &[KeyCode::F4, KeyCode::KeyB],
+    ),
+    (ClientAction::CycleRenderScale, &[KeyCode::F5]),
+    (
+        ClientAction::ToggleLocalHierarchy,
+        &[KeyCode::F6, KeyCode::KeyH],
+    ),
+    (
+        ClientAction::ToggleHardwareBroadPhase,
+        &[KeyCode::F7, KeyCode::KeyG],
+    ),
+    // world clock
+    (ClientAction::TimeForward, &[KeyCode::ArrowRight]),
+    (ClientAction::TimeBackward, &[KeyCode::ArrowLeft]),
+    (ClientAction::ToggleDayCycle, &[KeyCode::KeyP]),
+];
+
+/// The default keys bound to a player action.
+pub fn player_keys(action: PlayerAction) -> &'static [KeyCode] {
+    keys_in(PLAYER_KEYS, action)
+}
+
+/// The default keys bound to a client action.
+pub fn client_keys(action: ClientAction) -> &'static [KeyCode] {
+    keys_in(CLIENT_KEYS, action)
+}
+
+fn keys_in<A: PartialEq>(
+    table: &'static [(A, &'static [KeyCode])],
+    action: A,
+) -> &'static [KeyCode] {
+    table
+        .iter()
+        .find(|(a, _)| *a == action)
+        .map_or(&[], |(_, keys)| keys)
+}
 
 /// Provides the default input mapping for the game.
 pub fn get_default_player_action_input_map() -> InputMap<PlayerAction> {
     let mut input_map = InputMap::default();
-
-    // movement
-    input_map.insert(PlayerAction::MoveForward, KeyCode::KeyW);
-    input_map.insert(PlayerAction::MoveBackward, KeyCode::KeyS);
-    input_map.insert(PlayerAction::MoveLeft, KeyCode::KeyA);
-    input_map.insert(PlayerAction::MoveRight, KeyCode::KeyD);
-    input_map.insert(PlayerAction::MoveUp, KeyCode::Space);
-    input_map.insert(PlayerAction::MoveDown, KeyCode::ControlLeft);
-    input_map.insert(PlayerAction::MoveFaster, KeyCode::ShiftLeft);
-
+    for &(action, keys) in PLAYER_KEYS {
+        for &key in keys {
+            input_map.insert(action, key);
+        }
+    }
     input_map
 }
 
 /// Provides the default local input mapping for the game.
 pub fn get_default_client_action_input_map() -> InputMap<ClientAction> {
     let mut input_map = InputMap::default();
-
-    // continuous inputs
     input_map.insert_axis(ClientAction::Zoom, MouseScrollAxis::Y);
-
-    // menus
-    input_map.insert(ClientAction::TogglePause, KeyCode::Escape);
-    input_map.insert(ClientAction::ToggleDebugMenu, KeyCode::F3);
-
-    // renderer inspection
-    input_map.insert(ClientAction::CycleDebugView, KeyCode::F2);
-    input_map.insert(ClientAction::CycleDebugView, KeyCode::KeyV);
-    input_map.insert(ClientAction::ToggleSceneAcceleration, KeyCode::F4);
-    input_map.insert(ClientAction::ToggleSceneAcceleration, KeyCode::KeyB);
-    input_map.insert(ClientAction::CycleRenderScale, KeyCode::F5);
-    input_map.insert(ClientAction::ToggleLocalHierarchy, KeyCode::F6);
-    input_map.insert(ClientAction::ToggleLocalHierarchy, KeyCode::KeyH);
-    input_map.insert(ClientAction::ToggleHardwareBroadPhase, KeyCode::F7);
-    input_map.insert(ClientAction::ToggleHardwareBroadPhase, KeyCode::KeyG);
-
-    // world clock
-    input_map.insert(ClientAction::TimeForward, KeyCode::ArrowRight);
-    input_map.insert(ClientAction::TimeBackward, KeyCode::ArrowLeft);
-    input_map.insert(ClientAction::ToggleDayCycle, KeyCode::KeyP);
-
+    for &(action, keys) in CLIENT_KEYS {
+        for &key in keys {
+            input_map.insert(action, key);
+        }
+    }
     input_map
 }

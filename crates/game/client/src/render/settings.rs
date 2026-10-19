@@ -1,6 +1,6 @@
 //! Runtime renderer settings, switchable in game for inspection and A/B comparisons.
 
-use crate::input::local_actions::ClientAction;
+use crate::{input::local_actions::ClientAction, lifecycle::state::ClientLifecycleState};
 use bevy::{prelude::*, render::extract_resource::ExtractResource};
 use leafwing_input_manager::common_conditions::action_just_pressed;
 use voxel::{HierarchyKind, scene::SceneAcceleration};
@@ -53,7 +53,7 @@ impl DebugView {
 ///
 /// Flattened groups are the default because they measured fastest (or within a few percent) on
 /// both benchmark scenes; template mini-BVHs pay for loose sphere-swept motion envelopes. See the
-/// Phase 1 results in `docs/architecture.md`.
+/// Phase 1 results in `docs/progress.md`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
 pub enum AccelerationMode {
     TemplateMiniBvh,
@@ -139,7 +139,9 @@ impl Plugin for RenderSettingsPlugin {
                         .run_if(action_just_pressed(ClientAction::ToggleLocalHierarchy)),
                     toggle_hardware_broad_phase_system
                         .run_if(action_just_pressed(ClientAction::ToggleHardwareBroadPhase)),
-                ),
+                )
+                    // in game only, so typing in a menu text field doesn't flip settings
+                    .run_if(in_state(ClientLifecycleState::InGame)),
             );
     }
 }
