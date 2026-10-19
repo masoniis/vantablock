@@ -10,7 +10,7 @@ pub use components::*;
 //         player plugin
 // -----------------------------
 
-use crate::lifecycle::ClientLifecycleState;
+use crate::lifecycle::{ClientLifecycleState, state::InGameState};
 use bevy::prelude::*;
 use lightyear::prelude::client::input::InputSystems;
 use systems::*;
@@ -31,10 +31,11 @@ impl Plugin for PlayerPlugin {
         app.add_systems(
             Update,
             (
-                setup_replicated_players::dress_replicated_players_system,
-                look::local_player_look_system,
-            )
-                .run_if(in_state(ClientLifecycleState::InGame)),
+                setup_replicated_players::dress_replicated_players_system
+                    .run_if(in_state(ClientLifecycleState::InGame)),
+                // mouse look only while playing, so the pause menu cursor doesn't turn the camera
+                look::local_player_look_system.run_if(in_state(InGameState::Playing)),
+            ),
         );
     }
 }

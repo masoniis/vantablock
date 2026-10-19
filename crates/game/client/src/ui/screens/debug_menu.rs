@@ -103,8 +103,8 @@ fn debug_overlay() -> impl Scene {
             justify_content: JustifyContent::SpaceBetween,
             align_items: AlignItems::FlexStart,
         }
-        // above the menus, so it can be read while paused
-        GlobalZIndex(10)
+        // behind the menus, so the pause scrim dims it along with the game
+        GlobalZIndex(-1)
         Children [
             (
                 template_value(DebugColumn { side: Side::Left, shape: Vec::new() })
