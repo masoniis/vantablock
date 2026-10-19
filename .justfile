@@ -94,6 +94,7 @@ fmt:
 [unix]
 [group("development")]
 clean:
+    cargo clean
     rm -rf target/
     rm -rf vantadev/
 
