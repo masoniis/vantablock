@@ -9,7 +9,7 @@ use bevy::{
     prelude::*,
     render::{
         renderer::{RenderAdapterInfo, RenderDevice},
-        settings::{WgpuFeatures, WgpuSettings, WgpuSettingsPriority},
+        settings::{Backends, WgpuFeatures, WgpuSettings, WgpuSettingsPriority},
     },
 };
 use voxel::residency::ResidencyLimits;
@@ -26,6 +26,17 @@ pub fn wgpu_settings() -> WgpuSettings {
         priority: WgpuSettingsPriority::Functionality,
         ..default()
     }
+}
+
+/// Whether the hardware broad phase can run: the device has ray queries, on a backend whose
+/// shader translation supports them.
+///
+/// naga's Metal backend (as of wgpu 29) lowers `rayQueryProceed` to a flag that only
+/// `rayQueryTerminate` clears, over a single closest-hit `intersect`. It never steps to the next
+/// candidate, so the broad phase's `while rayQueryProceed(..)` loop never ends and the command
+/// buffer never completes. Vulkan and DX12 translate the candidate loop faithfully.
+pub fn ray_query_supported(backend: impl Into<Backends>, features: WgpuFeatures) -> bool {
+    features.contains(WgpuFeatures::EXPERIMENTAL_RAY_QUERY) && backend.into() != Backends::METAL
 }
 
 /// What the created device can actually do.
@@ -56,7 +67,7 @@ impl GpuCapabilities {
             },
             max_storage_buffers_per_stage: limits.max_storage_buffers_per_shader_stage,
             max_storage_textures_per_stage: limits.max_storage_textures_per_shader_stage,
-            ray_query: features.contains(WgpuFeatures::EXPERIMENTAL_RAY_QUERY),
+            ray_query: ray_query_supported(adapter.backend, features),
             timestamp_queries: features.contains(WgpuFeatures::TIMESTAMP_QUERY),
             subgroups: features.contains(WgpuFeatures::SUBGROUP),
             shader_f16: features.contains(WgpuFeatures::SHADER_F16),

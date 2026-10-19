@@ -37,6 +37,11 @@ const PRIMARY_VISIBILITY_RAY_QUERY: &str = include_wesl!("primary_visibility_ray
 const DIRECT_LIGHTING_RAY_QUERY: &str = include_wesl!("direct_lighting_ray_query");
 const CONFORMANCE_RAY_QUERY: &str = include_wesl!("voxel_conformance_ray_query");
 
+/// How long any one submission may take before the test fails instead of waiting forever. wgpu's
+/// Metal backend only stops waiting once a command buffer completes, so a faulted one would
+/// otherwise hang the test.
+const GPU_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+
 // INFO: -----------------------------
 //         shader validation
 // -----------------------------------
@@ -128,15 +133,29 @@ fn gpu() -> Option<Gpu> {
     };
     let info = adapter.get_info();
     eprintln!("GPU conformance on {} ({:?})", info.name, info.backend);
-    let ray_query = adapter
-        .features()
-        .contains(wgpu::Features::EXPERIMENTAL_RAY_QUERY);
+    let ray_query = client::render::device::ray_query_supported(info.backend, adapter.features());
     let timestamps = adapter.features().contains(wgpu::Features::TIMESTAMP_QUERY);
-    eprintln!("  hardware ray queries: {ray_query}, timestamp queries: {timestamps}");
+    let skipped = !ray_query
+        && adapter
+            .features()
+            .contains(wgpu::Features::EXPERIMENTAL_RAY_QUERY);
+    eprintln!(
+        "  hardware ray queries: {ray_query}{}, timestamp queries: {timestamps}",
+        if skipped {
+            " (adapter has them, unsupported on this backend)"
+        } else {
+            ""
+        }
+    );
     let (device, queue) = block_on(adapter.request_device(&wgpu::DeviceDescriptor {
         label: Some("conformance"),
         required_features: adapter.features()
-            & (wgpu::Features::EXPERIMENTAL_RAY_QUERY | wgpu::Features::TIMESTAMP_QUERY),
+            & (wgpu::Features::TIMESTAMP_QUERY
+                | if ray_query {
+                    wgpu::Features::EXPERIMENTAL_RAY_QUERY
+                } else {
+                    wgpu::Features::empty()
+                }),
         required_limits: adapter.limits(),
         // SAFETY: ray queries are the only experimental feature requested, and they are only
         // used by the broad phase kernels, which the tests hold to the CPU reference.
@@ -303,13 +322,21 @@ impl Gpu {
         Some(total as f64 * period_ns / 1e6 / runs as f64)
     }
 
+    /// Waits for every submission so far, failing after [`GPU_TIMEOUT`].
+    fn wait(&self) {
+        if let Err(e) = self.device.poll(wgpu::PollType::Wait {
+            submission_index: None,
+            timeout: Some(GPU_TIMEOUT),
+        }) {
+            panic!("GPU work did not complete ({e}); the command buffer likely faulted");
+        }
+    }
+
     /// Waits for the queue and copies a mappable buffer's contents out.
     fn read<R: Pod>(&self, readback: &wgpu::Buffer) -> Vec<R> {
         let slice = readback.slice(..);
-        slice.map_async(wgpu::MapMode::Read, |r| r.expect("map"));
-        self.device
-            .poll(wgpu::PollType::wait_indefinitely())
-            .expect("poll");
+        slice.map_async(wgpu::MapMode::Read, |_| {});
+        self.wait();
         bytemuck::cast_slice(&slice.get_mapped_range()).to_vec()
     }
 
@@ -1414,9 +1441,7 @@ fn gpu_scene_throughput() {
             let tlas = (gpu.ray_query && mode == SceneAcceleration::FlattenedGroups).then(|| {
                 let start = std::time::Instant::now();
                 let tlas = scene_tlas(&gpu, &snapshot, &templates);
-                gpu.device
-                    .poll(wgpu::PollType::wait_indefinitely())
-                    .expect("poll");
+                gpu.wait();
                 eprintln!(
                     "      TLAS of {} frames built in {:.2} ms (CPU instance writes + GPU build)",
                     snapshot.frames.len(),
