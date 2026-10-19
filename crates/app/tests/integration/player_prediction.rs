@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use client::{
     HeadlessClientPlugins,
+    lifecycle::ClientLifecycleState,
     network::connection::{ConnectType, InitiateConnection},
     player::{LocalPlayer, LocalPlayerLook},
 };
@@ -10,7 +11,7 @@ use common::{
     player::components::{LogicalPosition, NetworkPlayer, PlayerLook},
     world::{ObjectPlacement, WorldObject},
 };
-use lightyear::prelude::Predicted;
+use lightyear::prelude::{Client, Predicted, PredictionManager};
 use server::{DefaultServerPlugins, lifecycle::state::ServerState};
 use std::time::{Duration, Instant};
 
@@ -63,7 +64,8 @@ fn world_objects(app: &mut App) -> usize {
 
 /// Connects a headless client to a real server over local UDP, then verifies that the
 /// server's world objects replicate, that the client's movement and look inputs reach the
-/// server, and that the client's predicted state agrees with the server's authoritative state.
+/// server, that the client's predicted state agrees with the server's authoritative state, and
+/// that the session can be left and rejoined.
 #[test]
 fn world_replicates_and_player_inputs_are_predicted() {
     platform::attach_logger();
@@ -175,4 +177,38 @@ fn world_replicates_and_player_inputs_are_predicted() {
         client_pos.distance(server_pos) < 0.01,
         "client prediction {client_pos} diverged from server {server_pos}"
     );
+
+    // leave the session the way the pause menu's Disconnect does and join again, a few times
+    // over: teardown must not panic or leave a client entity or prediction resource behind, and
+    // each new session must predict its new local player
+    for _ in 0..3 {
+        client
+            .world_mut()
+            .resource_mut::<NextState<ClientLifecycleState>>()
+            .set(ClientLifecycleState::MainMenu);
+        step_until(
+            &mut server,
+            &mut client,
+            Duration::from_secs(5),
+            "session torn down",
+            |_, client| {
+                let mut clients = client.world_mut().query_filtered::<(), With<Client>>();
+                clients.iter(client.world()).next().is_none()
+                    && !client.world().contains_resource::<PredictionManager>()
+                    && client_local_player(client).is_none()
+            },
+        );
+
+        client.world_mut().trigger(InitiateConnection {
+            connect_type: ConnectType::Multiplayer,
+            server_addr: DEFAULT_LOCAL_SERVER_ADDR.to_string(),
+        });
+        step_until(
+            &mut server,
+            &mut client,
+            Duration::from_secs(20),
+            "predicted local player after rejoining",
+            |_, client| client_local_player(client).is_some(),
+        );
+    }
 }

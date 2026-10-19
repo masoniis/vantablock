@@ -21,12 +21,6 @@ The gate passed on Metal (M1 Pro) and Vulkan (RTX 3080). The 64-tree, short priv
   the same adapter, so the trigger is likely a scene state its rays don't reach (a pose, the day
   cycle, or a camera ray). Found October 19, 2026, and reproduced on `d71582dc` with the
   hardware broad phase switched off, so it predates the UI overhaul.
-- **Leaving a session panics.** Both the pause menu's Disconnect and a dropped connection panic
-  on exit from `InGame`: a queued `remove_by_id` targets an entity that is already despawned
-  ("Entity despawned: The entity with ID ... is invalid"), during `end_session`'s command flush.
-  Flushing lightyear's disconnect handling before despawning the client entity did not fix it,
-  so the stale entity is likely another one torn down with the session (the predicted player or
-  the scene). This breaks the AGENTS.md smoke test loop. Also reproduced on `d71582dc`.
 - **No hardware broad phase on Metal.** naga's MSL backend (wgpu 29) lowers `rayQueryProceed` to a
   flag only `rayQueryTerminate` clears, over a single closest-hit `intersect`, so the broad
   phase's candidate loop never ends. `render::device::ray_query_supported` keeps Metal on the
