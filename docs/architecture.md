@@ -228,12 +228,17 @@ adapters. Then the spec's: footprint LOD (summaries are baked but unused) and SG
 summaries, then temporal filtering, which can now build on reconstructed motion. Register pressure
 (128 per thread on NVIDIA) is worth watching with `just shader-stats` as traversal grows.
 
-Later phases, in the spec's order:
+The roadmap, in the spec's order:
 
-- Phase 2: footprint LOD filtering, foliage filtering candidates, anti-aliasing, atmosphere, and an
-  occlusion term for sky light (caves are as bright as the open meadow).
+- Phase 2: wire the hardware broad phase into the renderer (per-frame TLAS in the render world,
+  `ray_query` variants of primary visibility and shadow rays, software BVH4 as the fallback), then
+  footprint LOD filtering, foliage filtering candidates, anti-aliasing, atmosphere, and an
+  occlusion term for sky light (caves are as bright as the open meadow). The reference GPU is the
+  RTX 3080 (Vulkan), with the M1 Pro (Metal) as the lower tier.
 - Phase 3: wind-driven deformation (Tier 2), tighter motion envelopes, thousands of articulated
-  groups, and animation LOD.
-- Phase 4: GI, temporal filtering, homogeneous media, transparent and refractive crystals.
+  groups (rerunning the organization comparison with the hardware broad phase, and TLAS rebuild
+  vs. refit), and animation LOD.
+- Phase 4: GI, temporal filtering, homogeneous media, transparent and refractive crystals;
+  secondary rays can share the TLAS on capable adapters.
 - Phases 5 to 7: simulation, copy-on-write editing, streaming, and a camera-relative world origin
   for very large worlds.

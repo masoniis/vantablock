@@ -1,8 +1,8 @@
 # Vantablock: Engine Architecture & Design Specification
 
 **Version 3.1 - Updated Phase 1 Implementation Baseline**  
-**Status:** Conceptual architecture frozen for Phase 1; numerical encodings and performance strategies remain benchmark-gated.
-**Date:** October 17, 2026
+**Status:** Phase 1 complete on Metal and Vulkan (see its outcome below); Phase 2 is next. Numerical encodings and performance strategies remain benchmark-gated.
+**Date:** October 18, 2026
 
 > **Primary objective:** Build breathtaking, dense, close-up microvoxel worlds with intricate vegetation and geometry. Optimize around visual richness, animation, and simulation rather than maximum view distance.
 
@@ -337,13 +337,15 @@ Provisional preference: **template-shared conservative outer/group mini-BVH + se
 
 **Additional Phase 2 test:** Bake both axis-coverage and SGGX-style directional LOD candidates from identical voxel sources; compare angular opacity, foliage silhouettes, shadows, and motion against offline supersampled reference images and measure LOD bytes, shader traffic, and frame time. Keep the axis proxy if it meets quality targets.
 
+**Carried from Phase 1:** Wire the hardware scene broad phase into the renderer as the default on adapters with ray queries, keeping the software BVH4 as the always-available fallback (Metal, and Vulkan adapters without ray queries). That means building the frame-box TLAS in the render world every frame, binding it in the scene group, and compiling `primary_visibility` and `direct_lighting`'s shadow rays in the `ray_query` variant. Keep it under the same conformance tests, and measure the per-frame TLAS build inside the frame budget rather than in isolation. The reference GPU for the target is the RTX 3080 (Vulkan), with the M1 Pro (Metal, software broad phase) as the lower-tier fallback. Check register pressure with `just shader-stats` as traversal grows (128 registers per thread on NVIDIA for the software path).
+
 **Gate:** The scene must be visually impressive _before_ adding ReSTIR GI or advanced simulation. Reject approaches that obtain frame rate by visibly deleting or blurring fine detail.
 
 ### Phase 3: Living Scene & Animation (Weeks 11-15)
 
 **Deliverable:** Full parent-relative articulated pose groups and object-internal mini-BVH versus flattened-group acceleration benchmarks; shared-input/per-domain-response wind; a _validated_ pre-hit deformation field or alternative local intersection; conservative bounds; deterministic procedural leaf variation; current/previous pose reprojection and stable identity/epoch tracking. Optional animation LOD prototype.
 
-**Tests:** Hundreds to thousands of articulated foliage groups, both correlated and opposing responses; gust extremes; static rocks interleaved with independently bending branches; overlapping rest/deformed domains; folded/noninvertible stress cases routed to the fallback; rapidly changing cameras. Compare **template-shared conservative mini-BVH plus per-instance tight bounds**, separately refitted per-instance mini-BVHs, and flattened group leaves; also compare on-demand, frame-updated, and hybrid bounds. Include group-slot remapping and animation outside a baked envelope, with an explicit safe fallback.
+**Tests:** Hundreds to thousands of articulated foliage groups, both correlated and opposing responses; gust extremes; static rocks interleaved with independently bending branches; overlapping rest/deformed domains; folded/noninvertible stress cases routed to the fallback; rapidly changing cameras. Compare **template-shared conservative mini-BVH plus per-instance tight bounds**, separately refitted per-instance mini-BVHs, and flattened group leaves; also compare on-demand, frame-updated, and hybrid bounds. Include group-slot remapping and animation outside a baked envelope, with an explicit safe fallback. Include the hardware broad phase in the organization comparison at thousands of groups, and compare rebuilding its TLAS each frame against refitting it.
 
 **Additional Phase 3 tests:** Compare hierarchical rigid transforms, whole-group affine shear, piecewise-rigid segments, and verified nonlinear deformation on thin branches, gusts, and changing silhouettes. Measure quality/seams, exact hit agreement against a reference, false-positive bounds, motion-vector validity, and total animation-plus-traversal cost.
 
@@ -351,7 +353,7 @@ Provisional preference: **template-shared conservative outer/group mini-BVH + se
 
 ### Phase 4: Lighting Refinement & Refractive Crystals (Weeks 16-20)
 
-**Deliverable:** Improve GI, temporal filtering, atmosphere, material transmission, and distinct crystal entry/exit handling. Compare coarse secondary-ray LOD, irradiance caching, and an optional ReSTIR-style solution.
+**Deliverable:** Improve GI, temporal filtering, atmosphere, material transmission, and distinct crystal entry/exit handling. Compare coarse secondary-ray LOD, irradiance caching, and an optional ReSTIR-style solution. Secondary rays can share the hardware broad phase's TLAS on capable adapters.
 
 **Additional Phase 4 test:** Validate baked homogeneous-medium certificates against canonical voxel occupancy and materials, then compare optical traversal with and without homogeneous interior skips. Match real interface locations, world-space path lengths, absorption, total internal reflection, and transmitted color, including edited/cracked crystals.
 
