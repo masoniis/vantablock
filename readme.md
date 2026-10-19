@@ -80,4 +80,4 @@ The renderer is an early, correctness-first baseline: GPU traversal is verified 
 - **Server-authoritative world**: the server places objects and owns the world clock; clients derive every pose deterministically from replicated animation parameters.
 - **GPU ray tracing**: one world ray per pixel through a scene broad phase (a software BVH4 over pose groups, or Vulkan ray queries over a TLAS of pose-frame boxes where the GPU has them) and group-local 64-tree DDA, writing a visibility buffer with exact integer voxel identity, then a lighting pass with shadow rays.
 
-See [`docs/architecture.md`](./docs/architecture.md) for how the code maps onto the engine design.
+See [`docs/design.md`](./docs/design.md) for the engine design, [`docs/architecture.md`](./docs/architecture.md) for how the code maps onto it, and [`docs/progress.md`](./docs/progress.md) for what is built and next.

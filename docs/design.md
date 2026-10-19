@@ -1,7 +1,7 @@
 # Vantablock: Engine Architecture & Design Specification
 
 **Version 3.1 - Updated Phase 1 Implementation Baseline**  
-**Status:** Phase 1 complete on Metal and Vulkan (see its outcome below); Phase 2 is next. Numerical encodings and performance strategies remain benchmark-gated.
+**Status:** see [`progress.md`](./progress.md) for what is built, measured, and next.
 **Date:** October 18, 2026
 
 > **Primary objective:** Build breathtaking, dense, close-up microvoxel worlds with intricate vegetation and geometry. Optimize around visual richness, animation, and simulation rather than maximum view distance.
@@ -326,8 +326,6 @@ Provisional preference: **template-shared conservative outer/group mini-BVH + se
 **Additional Phase 1 tests:** Validate the WGSL two-word occupancy/prefix function against CPU references for all 64 child indices and page-edge allocations. Profile the combined traversal shader's registers, spills, occupancy, stack depth, and repeated visits; compare a short private stack with at least one alternative only after the baseline is correct. Capture Vulkan and Metal differences and total GPU time, not only isolated inner-loop throughput.
 
 **Gate:** At least one hierarchical path produces convincing detail with acceptable performance and no missed geometry; a rotated pose group stays hittable, and visibility reconstructs **exact terminal-cell identity**, its world position, and motion correctly at boundaries and across deduplicated geometry. Template-shared mini-BVH traversal must be correct for all legal pose states; it is not required to win every benchmark. **Do not lock the 64-tree, internal BVH, visibility packing, paging layout, or TLAS simply because the proposal favors them.**
-
-**Outcome (October 2026):** The gate passed on Metal (M1 Pro) and Vulkan (RTX 3080). The 64-tree, short private traversal stack, slab-address residency, and visibility packing were kept on measured evidence on both backends; flattened pose groups replaced the template mini-BVH as the runtime default. The optional Vulkan hardware broad phase (ray queries over a TLAS of pose-frame boxes) matches the reference and is the fastest path measured, taking 25 to 42% less GPU time than the software BVH4; it is wired into the renderer as the default on adapters with ray queries (TLAS rebuilt every frame, primary visibility and shadow rays both using it, 34% less frame GPU time in game at 1280x720), with the software BVH4 as the always-available fallback. Driver register and spill statistics were captured on NVIDIA (128 registers per thread for the stack kernels, 80 stackless or with ray queries). Results and decisions are recorded in `docs/architecture.md`.
 
 ### Phase 2: Static Visual Masterpiece (Weeks 5-10)
 

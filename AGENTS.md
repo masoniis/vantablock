@@ -5,7 +5,7 @@ VantaBlock is a microvoxel engine built with Rust on Bevy, ray tracing dense, cl
 ## Project Overview
 
 - **Core Technology:** Rust, Bevy (ECS, RenderApp), WGPU, WESL (WebGPU Shading Language), lightyear (networking), leafwing-input-manager (input).
-- **Design:** Follows the engine design spec (v3.1). `docs/architecture.md` maps it onto the code and records what is built. Canonical geometry, assemblies, and animation state are the source of truth; hierarchies, bounds, LODs, and visibility records are derived and replaceable.
+- **Design:** Follows the engine design spec (v3.1). `docs/design.md` is the spec, `docs/architecture.md` maps it onto the code, and `docs/progress.md` records what is built, measured, and next, plus known issues. Canonical geometry, assemblies, and animation state are the source of truth; hierarchies, bounds, LODs, and visibility records are derived and replaceable.
 - **Architecture:** Multi-crate Cargo workspace grouped by layer. Dependencies only flow downward: `platform`, `engine/voxel` ← `engine/baker` ← `game/common` ← `game/server`/`game/client` ← `app`.
   - `crates/platform` (`vantablock-platform`): Host services with no game knowledge: logging, tracing, and persistent path management.
   - `crates/engine/` holds the Bevy-free libraries every peer and tool uses (never client-only or server-only):
@@ -65,12 +65,17 @@ The project uses `just` as a command runner. A Nix flake is provided to ensure a
 ### Geometry & Rendering
 
 - **Assets:** Recipes in `assets/shared/vanta/*.ron` are baked on demand by both peers (`common::world::assets`) and cached as `.vanta` files keyed by recipe text and `baker::BAKER_VERSION`. Bump the version whenever a generator's output changes, or running games keep loading the stale cached bake. Asset root frames are anchored at the base center with +Y up.
-- **Renderer:** `client::render` bakes every module as both local hierarchies (64-tree and octree) into one `GpuGeometryLibrary` during client launch, packs a `SceneSnapshot` into `GpuSceneData` every frame, and runs `PrimaryVisibility` (compute) then `DirectLighting` (fullscreen) in Bevy's `Core3d` graph for cameras marked `VoxelCamera`. On adapters with ray queries, flattened groups on single-slab geometry use the hardware broad phase: prepare writes a TLAS instance per pose frame (`render::gpu::broad_phase`) and a `SceneTlas` step builds it ahead of the passes. `RenderSettings` picks the hierarchy, pose-group organization, and broad phase at runtime; `docs/architecture.md` records why the defaults are what they are.
+- **Renderer:** `client::render` bakes every module as both local hierarchies (64-tree and octree) into one `GpuGeometryLibrary` during client launch, packs a `SceneSnapshot` into `GpuSceneData` every frame, and runs `PrimaryVisibility` (compute) then `DirectLighting` (fullscreen) in Bevy's `Core3d` graph for cameras marked `VoxelCamera`. On adapters with ray queries (not Metal, see `render::device::ray_query_supported`), flattened groups on single-slab geometry use the hardware broad phase: prepare writes a TLAS instance per pose frame (`render::gpu::broad_phase`) and a `SceneTlas` step builds it ahead of the passes. `RenderSettings` picks the hierarchy, pose-group organization, and broad phase at runtime; `docs/progress.md` records why the defaults are what they are.
 - **Shader Variants:** `build.rs` compiles each shader once per WESL feature set: `multi_slab` (geometry spread over several storage slabs; the renderer picks it from the uploaded library), `ray_query` (the hardware broad phase: Vulkan ray queries over a TLAS of pose-frame boxes, flattened groups and single slab only; the renderer's default where the adapter has ray queries), and, for conformance and benchmarks only, `stackless`. Anything that reads geometry must go through `topology_load`/`attribute_load` so both variants stay correct, and conformance must cover every variant.
 - **CPU/GPU Parity:** The WGSL in `assets/client/shader/voxel/lib` mirrors `crates/engine/voxel` (masks, the `dda` rules, `tree64`, `octree`, `scene`, `math`). Change both together, keep `crates/game/client/src/render/gpu/layout.rs` in sync with `lib/types.wesl`, and run `just test-gpu`: shader changes are not done until the conformance tests pass on a real adapter.
 - **Exact Identity:** Traversal reports integer voxel cells from traversal state. Never recover a cell or entry cell by flooring a reconstructed floating-point position; compare `t` against plane distances instead.
 - **WGSL Pitfalls:** `attribute` and `handle` are reserved words; mixing bitwise and arithmetic or comparison operators needs parentheses; avoid dynamically indexing vector components in hot loops (it forces them out of registers). Ray query artifacts get `enable wgpu_ray_query;` prepended by `build.rs`, since WESL can't declare it conditionally. `wgslfmt` (run by `just fmt`) mangles statement-level WESL `@if` into an `if` statement, so put conditional compilation on whole declarations (`@if(feature) fn ...` with an `@if(!feature)` twin), and rebuild after formatting.
 - **Optimization:** Prioritize data-oriented design and measure before replacing working algorithms. Judge GPU changes with `gpu_scene_throughput`, not the in-game FPS of a debug build.
+
+### UI
+
+- **Scenes:** Screens are `bsn!` scenes composed from `client::ui::theme` (palette, Recursive font faces, text) and `client::ui::widgets` (buttons, text fields, keycaps, spinner), built on Bevy's headless `ui_widgets`. Attach behavior with `on(|_: On<Activate>, ...| ...)` observers; widget styling systems only restyle from state. Values that aren't `Default` patches (enum tuple variants like `LetterSpacing::Px`, prebuilt components) go through `template_value(...)`, and scene functions taking `&str` return `impl Scene + use<>` after copying the string.
+- **Keybinds:** `input::input_maps::{PLAYER_KEYS, CLIENT_KEYS}` are the single source for both the input maps and the pause menu's controls list; add a row to the pause menu when adding an action.
 
 ### Testing
 
@@ -102,7 +107,7 @@ Unit and integration tests can't catch everything (UI flows, rendering, session 
 ## Workspace Structure
 
 - `assets/`: Split into `client/` (fonts, WESL shaders), `server/` (scene layouts), and `shared/` (asset recipes both peers bake).
-- `docs/`: `architecture.md` (the map from the engine design to the code) and `plan.md` (the engine design spec).
+- `docs/`: `design.md` (the engine design spec), `architecture.md` (the map from the design to the code), and `progress.md` (status, measured results and decisions, roadmap, known issues).
 - `crates/`:
   - `engine/voxel/src/`: Canonical data model, `hierarchy/` (`tree64.rs`, `octree.rs`, shared DDA rules), `bvh.rs`, `scene.rs`, `reference.rs`.
   - `engine/baker/src/generators/`: Procedural asset generators.
