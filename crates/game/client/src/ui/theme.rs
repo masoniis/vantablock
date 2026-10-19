@@ -13,6 +13,18 @@ use bevy::{
 
 pub const FONT: &str = "client/font/Recursive_variable.ttf";
 
+/// Keeps [`FONT`] loaded for the app's lifetime. Scenes load it by path, so without a strong
+/// handle it unloaded whenever no text was on screen (in game), and the next screen (the pause
+/// menu) laid out without text until the font loaded again, jumping a frame later.
+#[derive(Resource)]
+pub struct UiFont(pub Handle<Font>);
+
+impl FromWorld for UiFont {
+    fn from_world(world: &mut World) -> Self {
+        Self(world.resource::<AssetServer>().load(FONT))
+    }
+}
+
 pub mod palette {
     use bevy::color::Color;
 

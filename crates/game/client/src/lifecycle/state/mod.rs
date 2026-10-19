@@ -6,8 +6,8 @@ pub use enums::*;
 //         plugin definition
 // ---------------------------------
 
-use bevy::{prelude::*, state::app::AppExtStates, window::PrimaryWindow};
-use common::{FixedUpdateSet, lifecycle::state::AppState};
+use bevy::{prelude::*, state::app::AppExtStates};
+use common::FixedUpdateSet;
 
 pub struct ClientStatePlugin;
 
@@ -29,19 +29,6 @@ impl Plugin for ClientStatePlugin {
             FixedUpdate,
             (FixedUpdateSet::PreUpdate, FixedUpdateSet::MainLogic)
                 .run_if(in_state(ClientLifecycleState::InGame)),
-        );
-
-        // INFO: ---------------------------
-        //         state transitions
-        // ---------------------------------
-
-        app.add_systems(
-            OnExit(AppState::StartingUp),
-            |mut window: Query<&mut Window, With<PrimaryWindow>>| {
-                if let Ok(mut win) = window.single_mut() {
-                    win.visible = true;
-                }
-            },
         );
     }
 }
