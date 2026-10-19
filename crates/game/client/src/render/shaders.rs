@@ -18,7 +18,7 @@ pub const DIRECT_LIGHTING_MULTI_SLAB_SHADER: Handle<Shader> =
 
 use bevy::asset::uuid_handle;
 use bevy::prelude::*;
-use wesl::include_wesl;
+use wesl_core::include_wesl;
 
 /// A plugin that registers the WESL shaders (compiled to WGSL by `build.rs`), each in a
 /// single-slab and a multi-slab variant.

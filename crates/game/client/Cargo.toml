@@ -25,9 +25,10 @@ brp = [
 wesl = { workspace = true } # shader compliation from WESL to WGSL
 
 [dev-dependencies]
+wesl-core = { workspace = true }
 # the exact versions bevy uses, for headless shader validation and GPU conformance tests
-wgpu = "=27.0.1"
-naga = { version = "=27.0.3", features = ["wgsl-in"] }
+wgpu = "29"
+naga = { version = "29", features = ["wgsl-in"] }
 
 [dependencies]
 platform = { workspace = true }
@@ -46,7 +47,7 @@ tracing-tracy = { workspace = true, optional = true }
 #         graphics
 # ------------------------
 
-wesl = { workspace = true }     # preprocessor
+wesl-core = { workspace = true } # include_wesl! for the compiled shaders
 bytemuck = { workspace = true } # gpu friendly data
 
 # INFO: --------------------------

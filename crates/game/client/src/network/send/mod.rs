@@ -21,8 +21,8 @@ impl Plugin for NetworkSendPlugin {
                 .run_if(in_state(ClientLifecycleState::InGame))
                 .run_if(
                     action_just_pressed(ClientAction::TimeForward)
-                        .or(action_just_pressed(ClientAction::TimeBackward))
-                        .or(action_just_pressed(ClientAction::ToggleDayCycle)),
+                        .or_else(action_just_pressed(ClientAction::TimeBackward))
+                        .or_else(action_just_pressed(ClientAction::ToggleDayCycle)),
                 ),
         );
     }

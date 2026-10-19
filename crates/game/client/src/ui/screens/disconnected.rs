@@ -71,8 +71,8 @@ pub fn spawn_disconnected_ui(
                     parent.spawn((
                         Text::new("DISCONNECTED"),
                         TextFont {
-                            font: font.clone(),
-                            font_size: 48.0,
+                            font: FontSource::Handle(font.clone()),
+                            font_size: FontSize::Px(48.0),
                             ..Default::default()
                         },
                         TextColor(Color::srgb(1.0, 0.2, 0.2)),
@@ -81,8 +81,8 @@ pub fn spawn_disconnected_ui(
                     parent.spawn((
                         Text::new(reason_text.clone()),
                         TextFont {
-                            font: font.clone(),
-                            font_size: 18.0,
+                            font: FontSource::Handle(font.clone()),
+                            font_size: FontSize::Px(18.0),
                             ..Default::default()
                         },
                         TextColor(Color::WHITE),
@@ -112,8 +112,8 @@ pub fn spawn_disconnected_ui(
                             parent.spawn((
                                 Text::new("BACK TO MENU"),
                                 TextFont {
-                                    font: font.clone(),
-                                    font_size: 24.0,
+                                    font: FontSource::Handle(font.clone()),
+                                    font_size: FontSize::Px(24.0),
                                     ..Default::default()
                                 },
                                 TextColor(Color::WHITE),

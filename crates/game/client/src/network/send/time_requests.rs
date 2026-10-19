@@ -9,7 +9,7 @@ const TIME_JUMP_SECONDS: f32 = 20.0;
 
 /// Asks the server to change the world clock. The change arrives back through clock syncs.
 pub fn request_clock_changes_system(
-    actions: Res<ActionState<ClientAction>>,
+    actions: Single<&ActionState<ClientAction>>,
     mut sender_query: Query<&mut MessageSender<ClientMessage>, With<Client>>,
 ) {
     let Ok(mut sender) = sender_query.single_mut() else {

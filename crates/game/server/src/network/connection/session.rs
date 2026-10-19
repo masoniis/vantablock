@@ -9,7 +9,6 @@ use common::{
 };
 use leafwing_input_manager::prelude::ActionState;
 use lightyear::prelude::*;
-use std::time::Duration;
 use tracing::{error, info};
 
 /// Where new players appear: just above the meadow, looking into the showcase.
@@ -38,11 +37,7 @@ pub fn on_client_connect(
     // ensure client entity has MessageSender and ReplicationSender
     commands
         .entity(client_entity)
-        .insert(ReplicationSender::new(
-            Duration::from_millis(100),
-            SendUpdatesMode::SinceLastAck,
-            false,
-        ))
+        .insert(ReplicationSender)
         .insert(MessageSender::<ServerMessage>::default());
 
     let client_player_entity = commands

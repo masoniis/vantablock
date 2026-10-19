@@ -1,4 +1,4 @@
-use bevy::prelude::{StateSet, SubStates};
+use bevy::prelude::SubStates;
 use common::lifecycle::state::AppState;
 
 /// High-level client state.

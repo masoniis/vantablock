@@ -38,10 +38,7 @@ pub fn handle_disconnections(
         // if the entity still exists and now has the Disconnected component,
         // a genuine network failure or drop occurred.
         if let Ok(disconnected) = disconnected_query.get(entity) {
-            let reason_str = disconnected
-                .reason
-                .as_deref()
-                .unwrap_or("Graceful or Unknown");
+            let reason_str = disconnected.reason.to_string();
 
             info!(
                 "Client actively disconnected from server! Showing error screen. (Reason: {})",

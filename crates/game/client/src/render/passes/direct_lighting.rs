@@ -7,18 +7,16 @@ use crate::render::{
     shaders::{DIRECT_LIGHTING_MULTI_SLAB_SHADER, DIRECT_LIGHTING_SHADER},
 };
 use bevy::{
-    ecs::query::QueryItem,
     prelude::*,
     render::{
         diagnostic::RecordDiagnostics,
-        render_graph::{NodeRunError, RenderGraphContext, ViewNode},
         render_resource::{
             CachedPipelineState, CachedRenderPipelineId, ColorTargetState, ColorWrites,
             FragmentState, MultisampleState, PipelineCache, PrimitiveState, RenderPassDescriptor,
             RenderPipelineDescriptor, SpecializedRenderPipeline, SpecializedRenderPipelines,
             TextureFormat, VertexState,
         },
-        renderer::RenderContext,
+        renderer::{RenderContext, ViewQuery},
         view::{Msaa, ViewTarget},
     },
 };
@@ -46,7 +44,6 @@ impl SpecializedRenderPipeline for DirectLightingPipeline {
         RenderPipelineDescriptor {
             label: Some("voxel_direct_lighting".into()),
             layout: vec![geometry_layout(), scene_layout(), lighting_view_layout()],
-            push_constant_ranges: vec![],
             vertex: VertexState {
                 shader: shader.clone(),
                 shader_defs: vec![],
@@ -69,6 +66,7 @@ impl SpecializedRenderPipeline for DirectLightingPipeline {
                 count: key.samples,
                 ..default()
             },
+            immediate_size: 0,
             zero_initialize_workgroup_memory: false,
         }
     }
@@ -96,50 +94,38 @@ pub fn queue_direct_lighting_pipelines(
     }
 }
 
-/// Shades the visibility buffer into the view target.
-#[derive(Default)]
-pub struct DirectLightingNode;
+/// Shades the visibility buffer into the view target. Runs in the `Core3d` schedule of every
+/// view; views without voxel targets skip it.
+pub fn direct_lighting_pass(
+    view: ViewQuery<(&ViewTarget, &VoxelViewBindGroups, &DirectLightingPipelineId)>,
+    resources: Res<VoxelGpuResources>,
+    pipeline_cache: Res<PipelineCache>,
+    mut ctx: RenderContext,
+) {
+    let (target, bind_groups, pipeline_id) = view.into_inner();
+    let Some(pipeline) = pipeline_cache.get_render_pipeline(pipeline_id.0) else {
+        if let CachedPipelineState::Err(e) = pipeline_cache.get_render_pipeline_state(pipeline_id.0)
+        {
+            error_once!("Direct lighting pipeline failed: {e}");
+        }
+        return;
+    };
 
-impl ViewNode for DirectLightingNode {
-    type ViewQuery = (
-        &'static ViewTarget,
-        &'static VoxelViewBindGroups,
-        &'static DirectLightingPipelineId,
-    );
-
-    fn run(
-        &self,
-        _graph: &mut RenderGraphContext,
-        render_context: &mut RenderContext,
-        (target, bind_groups, pipeline_id): QueryItem<Self::ViewQuery>,
-        world: &World,
-    ) -> Result<(), NodeRunError> {
-        let pipeline_cache = world.resource::<PipelineCache>();
-        let Some(pipeline) = pipeline_cache.get_render_pipeline(pipeline_id.0) else {
-            if let CachedPipelineState::Err(e) =
-                pipeline_cache.get_render_pipeline_state(pipeline_id.0)
-            {
-                error_once!("Direct lighting pipeline failed: {e}");
-            }
-            return Ok(());
-        };
-        let resources = world.resource::<VoxelGpuResources>();
-
-        let diagnostics = render_context.diagnostic_recorder();
-        let mut pass = render_context.begin_tracked_render_pass(RenderPassDescriptor {
-            label: Some("voxel_direct_lighting"),
-            color_attachments: &[Some(target.get_color_attachment())],
-            depth_stencil_attachment: None,
-            timestamp_writes: None,
-            occlusion_query_set: None,
-        });
-        let span = diagnostics.pass_span(&mut pass, "voxel/direct_lighting");
-        pass.set_render_pipeline(pipeline);
-        pass.set_bind_group(0, resources.geometry_bind_group(), &[]);
-        pass.set_bind_group(1, resources.scene_bind_group(), &[]);
-        pass.set_bind_group(2, &bind_groups.lighting, &[]);
-        pass.draw(0..3, 0..1);
-        span.end(&mut pass);
-        Ok(())
-    }
+    let diagnostics = ctx.diagnostic_recorder();
+    let diagnostics = diagnostics.as_deref();
+    let mut pass = ctx.begin_tracked_render_pass(RenderPassDescriptor {
+        label: Some("voxel_direct_lighting"),
+        color_attachments: &[Some(target.get_color_attachment())],
+        depth_stencil_attachment: None,
+        timestamp_writes: None,
+        occlusion_query_set: None,
+        multiview_mask: None,
+    });
+    let span = diagnostics.pass_span(&mut pass, "voxel/direct_lighting");
+    pass.set_render_pipeline(pipeline);
+    pass.set_bind_group(0, resources.geometry_bind_group(), &[]);
+    pass.set_bind_group(1, resources.scene_bind_group(), &[]);
+    pass.set_bind_group(2, &bind_groups.lighting, &[]);
+    pass.draw(0..3, 0..1);
+    span.end(&mut pass);
 }

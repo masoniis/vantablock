@@ -1,50 +1,39 @@
-//! The voxel render graph stages, added to Bevy's 3D graph.
+//! The voxel render passes, added to each camera's `Core3d` schedule.
 //!
-//! | Node                | Role                                                                |
+//! | Pass                | Role                                                                |
 //! | ------------------- | ------------------------------------------------------------------- |
 //! | `PrimaryVisibility` | one world ray per pixel: frame identity, exact cell, depth, costs   |
 //! | `DirectLighting`    | materials, sun/sky light, shadow rays, atmosphere, debug views      |
 //!
 //! Scene preparation (geometry residency, pose frames, BVHs) happens in the render `Prepare`
-//! systems before the graph runs. Indirect lighting, refraction, and temporal filtering are later
-//! stages that slot in after `DirectLighting`.
+//! systems before the camera schedules run. Indirect lighting, refraction, and temporal filtering
+//! are later stages that slot in after `DirectLighting`.
 
 pub mod direct_lighting;
 pub mod primary_visibility;
 
 use bevy::{
-    core_pipeline::core_3d::graph::{Core3d, Node3d},
+    core_pipeline::{Core3d, Core3dSystems},
     prelude::*,
-    render::render_graph::{RenderGraphExt, RenderLabel, ViewNodeRunner},
 };
 
-#[derive(RenderLabel, Debug, Hash, PartialEq, Eq, Clone)]
-pub enum VoxelNode {
-    PrimaryVisibility,
-    DirectLighting,
-}
-
-/// Wires the voxel nodes into the 3D graph. Added to the render app.
+/// Wires the voxel passes into the 3D camera schedule, after Bevy's opaque pass and before its
+/// transparent pass, which share `Core3dSystems::MainPass`. Added to the render app.
 pub struct VoxelRenderGraphPlugin;
 
 impl Plugin for VoxelRenderGraphPlugin {
     fn build(&self, app: &mut App) {
-        app.add_render_graph_node::<ViewNodeRunner<primary_visibility::PrimaryVisibilityNode>>(
-            Core3d,
-            VoxelNode::PrimaryVisibility,
-        )
-        .add_render_graph_node::<ViewNodeRunner<direct_lighting::DirectLightingNode>>(
-            Core3d,
-            VoxelNode::DirectLighting,
-        )
-        .add_render_graph_edges(
+        use bevy::core_pipeline::core_3d::{main_opaque_pass_3d, main_transparent_pass_3d};
+        app.add_systems(
             Core3d,
             (
-                Node3d::MainOpaquePass,
-                VoxelNode::PrimaryVisibility,
-                VoxelNode::DirectLighting,
-                Node3d::MainTransparentPass,
-            ),
+                primary_visibility::primary_visibility_pass,
+                direct_lighting::direct_lighting_pass,
+            )
+                .chain()
+                .after(main_opaque_pass_3d)
+                .before(main_transparent_pass_3d)
+                .in_set(Core3dSystems::MainPass),
         );
     }
 }

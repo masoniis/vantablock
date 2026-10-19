@@ -13,20 +13,22 @@ pub struct NetComponentsPlugin;
 
 impl Plugin for NetComponentsPlugin {
     fn build(&self, app: &mut App) {
-        app.register_component::<NetworkPlayer>();
-        app.register_component::<PlayerOwner>();
+        app.component::<NetworkPlayer>().replicate();
+        app.component::<PlayerOwner>().replicate();
 
-        app.register_component::<PlayerLook>()
-            .add_prediction()
+        app.component::<PlayerLook>()
+            .replicate()
+            .predict()
             .add_linear_interpolation();
 
-        app.register_component::<LogicalPosition>()
-            .add_prediction()
+        app.component::<LogicalPosition>()
+            .replicate()
+            .predict()
             .add_linear_interpolation();
 
         // world objects are server-owned and only ever replicated as-is
-        app.register_component::<WorldObject>();
-        app.register_component::<ObjectPlacement>();
-        app.register_component::<ObjectAnimation>();
+        app.component::<WorldObject>().replicate();
+        app.component::<ObjectPlacement>().replicate();
+        app.component::<ObjectAnimation>().replicate();
     }
 }

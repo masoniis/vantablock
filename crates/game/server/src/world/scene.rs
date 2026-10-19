@@ -7,7 +7,7 @@ use common::{
     world::{ObjectAnimation, ObjectPlacement, VantaAssetLibrary, WorldObject},
 };
 use lightyear::prelude::*;
-use rand::{Rng, SeedableRng, rngs::StdRng};
+use rand::{RngExt, SeedableRng, rngs::StdRng};
 use serde::Deserialize;
 use std::f32::consts::TAU;
 

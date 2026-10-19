@@ -7,7 +7,7 @@ use tracing::instrument;
 /// via the shared movement system and visual smoothing.
 #[instrument(skip_all)]
 pub fn camera_movement_system(
-    actions: Res<ActionState<ClientAction>>,
+    actions: Single<&ActionState<ClientAction>>,
     mut camera_query: Query<&mut Projection, With<LocalPlayerCamera>>,
 ) {
     let zoom_delta = actions.value(&ClientAction::Zoom);

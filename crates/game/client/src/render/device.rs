@@ -51,7 +51,7 @@ impl GpuCapabilities {
             adapter_name: adapter.name.clone(),
             backend: format!("{:?}", adapter.backend),
             residency: ResidencyLimits {
-                max_storage_buffer_binding_size: limits.max_storage_buffer_binding_size as u64,
+                max_storage_buffer_binding_size: limits.max_storage_buffer_binding_size,
                 max_buffer_size: limits.max_buffer_size,
             },
             max_storage_buffers_per_stage: limits.max_storage_buffers_per_shader_stage,

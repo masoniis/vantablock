@@ -1,7 +1,7 @@
 # Vanta🅱️lock
 
 [![GitHub Repository](https://img.shields.io/badge/GitHub-Repository-blue?style=flat&logo=github)](https://github.com/masoniis/vantablock)
-![Rust Version](https://img.shields.io/badge/rustc-1.88.0%2B-orange.svg)
+![Rust Version](https://img.shields.io/badge/rustc-1.99.0%2B-orange.svg)
 
 A microvoxel engine built for dense, close-up worlds: intricate vegetation and geometry, articulated animation, and a client/server architecture. Worlds are made of canonical voxel assets that are ray traced on the GPU through a BVH4 scene hierarchy and per-group 64-trees.
 
@@ -32,10 +32,10 @@ Then simply use any scripts from the `.justfile` (run `just` to list them all):
 <details>
   <summary>Other users</summary>
 
-Compiling the project requires **Rust 1.88 or newer**.
+Compiling the project requires **Rust 1.99 or newer**.
 
 - A `rust-toolchain.toml` is provided to ensure this for any users using `rustup` will automatically run with this version.
-- Any other installation method will have to manually ensure the version 1.88 or newer.
+- Any other installation method will have to manually ensure the version 1.99 or newer.
 
 Assuming rust is properly setup, `cargo` can be used like any standard Rust project:
 

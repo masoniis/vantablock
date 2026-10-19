@@ -6,16 +6,14 @@ use crate::render::{
     shaders::{PRIMARY_VISIBILITY_MULTI_SLAB_SHADER, PRIMARY_VISIBILITY_SHADER},
 };
 use bevy::{
-    ecs::query::QueryItem,
     prelude::*,
     render::{
         diagnostic::RecordDiagnostics,
-        render_graph::{NodeRunError, RenderGraphContext, ViewNode},
         render_resource::{
             CachedComputePipelineId, CachedPipelineState, ComputePassDescriptor,
             ComputePipelineDescriptor, PipelineCache,
         },
-        renderer::RenderContext,
+        renderer::{RenderContext, ViewQuery},
     },
 };
 
@@ -35,10 +33,10 @@ impl FromWorld for PrimaryVisibilityPipeline {
             cache.queue_compute_pipeline(ComputePipelineDescriptor {
                 label: Some(label.into()),
                 layout: vec![geometry_layout(), scene_layout(), visibility_view_layout()],
-                push_constant_ranges: vec![],
                 shader,
                 shader_defs: vec![],
                 entry_point: Some("main".into()),
+                immediate_size: 0,
                 zero_initialize_workgroup_memory: false,
             })
         };
@@ -52,56 +50,46 @@ impl FromWorld for PrimaryVisibilityPipeline {
     }
 }
 
-/// Traces one unchanged world ray per pixel into the visibility buffer.
-#[derive(Default)]
-pub struct PrimaryVisibilityNode;
+/// Traces one unchanged world ray per pixel into the visibility buffer. Runs in the `Core3d`
+/// schedule of every view; views without voxel targets skip it.
+pub fn primary_visibility_pass(
+    view: ViewQuery<(&VisibilityTargets, &VoxelViewBindGroups)>,
+    resources: Res<VoxelGpuResources>,
+    pipelines: Res<PrimaryVisibilityPipeline>,
+    pipeline_cache: Res<PipelineCache>,
+    mut ctx: RenderContext,
+) {
+    let (targets, bind_groups) = view.into_inner();
+    let pipeline_id = if resources.multi_slab() {
+        pipelines.multi_slab
+    } else {
+        pipelines.single_slab
+    };
+    let Some(pipeline) = pipeline_cache.get_compute_pipeline(pipeline_id) else {
+        if let CachedPipelineState::Err(e) = pipeline_cache.get_compute_pipeline_state(pipeline_id)
+        {
+            error_once!("Primary visibility pipeline failed: {e}");
+        }
+        return;
+    };
 
-impl ViewNode for PrimaryVisibilityNode {
-    type ViewQuery = (&'static VisibilityTargets, &'static VoxelViewBindGroups);
-
-    fn run(
-        &self,
-        _graph: &mut RenderGraphContext,
-        render_context: &mut RenderContext,
-        (targets, bind_groups): QueryItem<Self::ViewQuery>,
-        world: &World,
-    ) -> Result<(), NodeRunError> {
-        let resources = world.resource::<VoxelGpuResources>();
-        let pipelines = world.resource::<PrimaryVisibilityPipeline>();
-        let pipeline_id = if resources.multi_slab() {
-            pipelines.multi_slab
-        } else {
-            pipelines.single_slab
-        };
-        let pipeline_cache = world.resource::<PipelineCache>();
-        let Some(pipeline) = pipeline_cache.get_compute_pipeline(pipeline_id) else {
-            if let CachedPipelineState::Err(e) =
-                pipeline_cache.get_compute_pipeline_state(pipeline_id)
-            {
-                error_once!("Primary visibility pipeline failed: {e}");
-            }
-            return Ok(());
-        };
-
-        let diagnostics = render_context.diagnostic_recorder();
-        let mut pass =
-            render_context
-                .command_encoder()
-                .begin_compute_pass(&ComputePassDescriptor {
-                    label: Some("voxel_primary_visibility"),
-                    timestamp_writes: None,
-                });
-        let span = diagnostics.pass_span(&mut pass, "voxel/primary_visibility");
-        pass.set_pipeline(pipeline);
-        pass.set_bind_group(0, resources.geometry_bind_group(), &[]);
-        pass.set_bind_group(1, resources.scene_bind_group(), &[]);
-        pass.set_bind_group(2, &bind_groups.visibility, &[]);
-        pass.dispatch_workgroups(
-            targets.size.x.div_ceil(WORKGROUP_SIZE),
-            targets.size.y.div_ceil(WORKGROUP_SIZE),
-            1,
-        );
-        span.end(&mut pass);
-        Ok(())
-    }
+    let diagnostics = ctx.diagnostic_recorder();
+    let diagnostics = diagnostics.as_deref();
+    let mut pass = ctx
+        .command_encoder()
+        .begin_compute_pass(&ComputePassDescriptor {
+            label: Some("voxel_primary_visibility"),
+            timestamp_writes: None,
+        });
+    let span = diagnostics.pass_span(&mut pass, "voxel/primary_visibility");
+    pass.set_pipeline(pipeline);
+    pass.set_bind_group(0, resources.geometry_bind_group(), &[]);
+    pass.set_bind_group(1, resources.scene_bind_group(), &[]);
+    pass.set_bind_group(2, &bind_groups.visibility, &[]);
+    pass.dispatch_workgroups(
+        targets.size.x.div_ceil(WORKGROUP_SIZE),
+        targets.size.y.div_ceil(WORKGROUP_SIZE),
+        1,
+    );
+    span.end(&mut pass);
 }

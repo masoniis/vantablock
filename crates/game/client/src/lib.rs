@@ -74,7 +74,9 @@ impl PluginGroup for DefaultClientPlugins {
                     })
                     // request the adapter's real limits and features, see `render::device`
                     .set(RenderPlugin {
-                        render_creation: RenderCreation::Automatic(render::device::wgpu_settings()),
+                        render_creation: RenderCreation::Automatic(Box::new(
+                            render::device::wgpu_settings(),
+                        )),
                         ..default()
                     })
                     .disable::<LogPlugin>(),

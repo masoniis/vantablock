@@ -23,7 +23,7 @@ use voxel::{
     reference::check_hit,
     residency::{ResidencyLimits, plan_slabs},
 };
-use wesl::include_wesl;
+use wesl_core::include_wesl;
 use wgpu::util::DeviceExt;
 
 const PRIMARY_VISIBILITY: &str = include_wesl!("primary_visibility");

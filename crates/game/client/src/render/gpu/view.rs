@@ -22,7 +22,7 @@ use bevy::{
         },
         renderer::RenderDevice,
         texture::{CachedTexture, TextureCache},
-        view::{ExtractedView, ViewTarget},
+        view::ExtractedView,
     },
 };
 
@@ -141,7 +141,7 @@ pub fn prepare_view_bind_groups(
     pipeline_cache: Res<PipelineCache>,
     settings: Option<Res<RenderSettings>>,
     environment: Option<Res<ExtractedEnvironment>>,
-    views: Query<(Entity, &ExtractedView, &ViewTarget, &VisibilityTargets), With<VoxelCamera>>,
+    views: Query<(Entity, &ExtractedView, &ExtractedCamera, &VisibilityTargets), With<VoxelCamera>>,
 ) {
     let debug_view = settings.map_or(0, |s| s.debug_view.index());
     let environment = environment.map(|e| e.0).unwrap_or_default();
@@ -149,7 +149,7 @@ pub fn prepare_view_bind_groups(
     let lighting_layout = pipeline_cache.get_bind_group_layout(&lighting_view_layout());
 
     let mut seen = HashMap::new();
-    for (entity, view, target, targets) in &views {
+    for (entity, view, camera, targets) in &views {
         let view_from_world = view.world_from_view.to_matrix().inverse();
         let clip_from_world = view.clip_from_view * view_from_world;
         let prev_clip_from_world = previous_clip_from_world
@@ -164,7 +164,8 @@ pub fn prepare_view_bind_groups(
             camera_position: view.world_from_view.translation().to_array(),
             debug_view,
             viewport: targets.size.as_vec2().to_array(),
-            flags: if target.is_hdr() {
+            // Bevy tonemaps HDR cameras itself
+            flags: if camera.hdr {
                 0
             } else {
                 VIEW_TONEMAP_IN_SHADER
