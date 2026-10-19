@@ -36,8 +36,10 @@ server: SceneLayout (assets/server/scenes/*.ron) -> replicated WorldObject + Obj
 client: GpuGeometryLibrary (bake every module as a 64-tree and an octree into shared arenas,
                             pack their pages into storage slabs sized to the device)
         every frame: objects + clock -> PoseDriver -> SceneSnapshot (frames, instances, BVHs) -> GpuSceneData
-        render: PrimaryVisibility (compute) -> DirectLighting (fullscreen) in Bevy's Core3d graph,
-                each in a single-slab or multi-slab shader variant
+                     (+ one box per pose frame where the hardware broad phase applies)
+        render: SceneTlas (ray query adapters) -> PrimaryVisibility (compute) -> DirectLighting
+                (fullscreen) in Bevy's Core3d graph, each in a single-slab, multi-slab, or
+                hardware broad phase shader variant
 ```
 
 ## Spec concepts in code
@@ -63,7 +65,7 @@ client: GpuGeometryLibrary (bake every module as a 64-tree and an octree into sh
 | Single-slab compiled fast path                  | the `multi_slab` WESL feature in `lib/geometry.wesl`                     |
 | Single-page root fast path                      | `VoxelRoot::single_page`, `node_address` in `lib/dda.wesl`               |
 | Traversal-state alternatives                    | the `stackless` WESL feature in `lib/tree64.wesl`                        |
-| Optional hardware broad phase (Vulkan TLAS)     | the `ray_query` WESL feature in `lib/scene.wesl`, `frame_boxes`          |
+| Optional hardware broad phase (Vulkan TLAS)     | `ray_query` in `lib/scene.wesl`, `frame_boxes`, `gpu::broad_phase`       |
 | Register, spill, and occupancy profiling        | `crates/game/client/tests/shader_statistics.rs` (`just shader-stats`)    |
 | 16-byte LOD payload                             | `voxel::lod`                                                             |
 | Exact integer terminal-cell identity            | `VoxelHit::cell`, the visibility buffer's cell target                    |
@@ -97,8 +99,10 @@ position; flooring misplaced near-parallel rays by an ulp and missed geometry.
 ## Phase 1 results
 
 Phase 1 is complete on Metal and Vulkan: every deliverable of the spec's renderer feasibility
-phase, including the optional hardware broad phase, is built and held to the reference, and each
-comparison it asks for has been measured on both backends.
+phase, including the optional hardware broad phase, is built and held to the reference, each
+comparison it asks for has been measured on both backends, and each decision is in the renderer:
+the 64-tree, flattened groups, and, on adapters with ray queries, the hardware broad phase are
+the runtime defaults.
 
 - **Metal:** an M1 Pro. GPU times are 1280x720 primary rays including readback.
 - **Vulkan:** an RTX 3080 (NVIDIA 616.92, wgpu 29). GPU times are the kernel alone, from
@@ -168,10 +172,27 @@ measured: it takes 42% less time than the software flattened path on the showcas
 the grove (25 to 27% less than refit). The TLAS of the grove's 1900 frames builds in 0.9 ms. Its kernel also needs
 80 registers per thread instead of 128 (below).
 
-**Decision:** keep it as an optional accelerator behind `GpuCapabilities::ray_query`, never a
-requirement (Metal has no ray queries in wgpu). It lives in the conformance and benchmark harness
-for now (`Variant::RayQuery`, the `ray_query` WESL feature); wiring it into the renderer as the
-default broad phase on capable adapters is the first Phase 2 performance lever.
+**Decision:** make it the renderer's default broad phase where `GpuCapabilities::ray_query` holds,
+never a requirement (Metal has no ray queries in wgpu). `RenderSettings::hardware_broad_phase`
+(on by default, `G`/`F7`) selects it for flattened groups on single-slab geometry; every other
+case, and every adapter without ray queries, traces the software BVH4.
+
+In the renderer, prepare writes one TLAS instance per pose frame from the snapshot's frame boxes
+(`client::render::gpu::broad_phase`), and a `voxel/scene_tlas` span builds the TLAS in the camera
+schedule ahead of the passes, so its cost is part of the measured frame. Primary visibility and
+direct lighting's shadow rays both compile in the `ray_query` variant. In game on the showcase
+(229 objects, 585 pose frames; 1280x720 on the RTX 3080; `VANTA_GPU_TIMINGS=1`):
+
+| Render scale     | Broad phase | TLAS build | Primary visibility | Direct lighting | Total   |
+| ---------------- | ----------- | ---------- | ------------------ | --------------- | ------- |
+| 1.0 (1280x720)   | software    |            | 4.85 ms            | 2.76 ms         | 7.61 ms |
+| 1.0 (1280x720)   | hardware    | 0.14 ms    | 2.99 ms            | 1.89 ms         | 5.02 ms |
+| 0.5 (default)    | software    |            | 1.79 ms            | 1.88 ms         | 3.67 ms |
+| 0.5 (default)    | hardware    | 0.14 ms    | 1.55 ms            | 1.28 ms         | 2.97 ms |
+
+The per-frame TLAS build stays a small fixed cost, and the hardware frame takes 34% less GPU time
+at full resolution (19% at the default half scale), consistent with the benchmark. Shadow rays
+gain as much as primary rays. The two paths render identically.
 
 ### Residency: single slab vs. multi-slab
 
@@ -222,19 +243,19 @@ narrower stack entries or splitting scene search from voxel traversal should be 
 ## What comes next
 
 Performance is the open problem for Phase 2: the showcase traces in about 110 ms at 1280x720 on
-an M1 Pro and 7.6 ms on an RTX 3080, and grass and foliage take about 170 DDA steps per pixel. The
-first lever is the measured one: the hardware broad phase as the renderer's default on capable
-adapters. Then the spec's: footprint LOD (summaries are baked but unused) and SGGX directional
-summaries, then temporal filtering, which can now build on reconstructed motion. Register pressure
-(128 per thread on NVIDIA) is worth watching with `just shader-stats` as traversal grows.
+an M1 Pro (software broad phase) and 4.4 ms on an RTX 3080 (hardware broad phase), and grass and
+foliage take about 170 DDA steps per pixel, which no broad phase removes. The levers are the
+spec's: footprint LOD (summaries are baked but unused) and SGGX directional summaries, then
+temporal filtering, which can now build on reconstructed motion. Register pressure (128 per thread
+on NVIDIA for the software path, 80 with ray queries) is worth watching with `just shader-stats`
+as traversal grows.
 
 The roadmap, in the spec's order:
 
-- Phase 2: wire the hardware broad phase into the renderer (per-frame TLAS in the render world,
-  `ray_query` variants of primary visibility and shadow rays, software BVH4 as the fallback), then
-  footprint LOD filtering, foliage filtering candidates, anti-aliasing, atmosphere, and an
-  occlusion term for sky light (caves are as bright as the open meadow). The reference GPU is the
-  RTX 3080 (Vulkan), with the M1 Pro (Metal) as the lower tier.
+- Phase 2: footprint LOD filtering, foliage filtering candidates, anti-aliasing, atmosphere, and
+  an occlusion term for sky light (caves are as bright as the open meadow). The reference GPU is
+  the RTX 3080 (Vulkan, hardware broad phase), with the M1 Pro (Metal, software broad phase) as
+  the lower tier.
 - Phase 3: wind-driven deformation (Tier 2), tighter motion envelopes, thousands of articulated
   groups (rerunning the organization comparison with the hardware broad phase, and TLAS rebuild
   vs. refit), and animation LOD.

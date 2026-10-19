@@ -1,9 +1,13 @@
 use crate::render::{
+    device::GpuCapabilities,
     gpu::{
-        buffers::{VoxelGpuResources, geometry_layout, scene_layout},
+        buffers::{VoxelGpuResources, geometry_layout, scene_layout, scene_ray_query_layout},
         view::{VisibilityTargets, VoxelViewBindGroups, visibility_view_layout},
     },
-    shaders::{PRIMARY_VISIBILITY_MULTI_SLAB_SHADER, PRIMARY_VISIBILITY_SHADER},
+    shaders::{
+        PRIMARY_VISIBILITY_MULTI_SLAB_SHADER, PRIMARY_VISIBILITY_RAY_QUERY_SHADER,
+        PRIMARY_VISIBILITY_SHADER,
+    },
 };
 use bevy::{
     prelude::*,
@@ -19,20 +23,23 @@ use bevy::{
 
 const WORKGROUP_SIZE: u32 = 8;
 
-/// The single-slab and multi-slab variants; the geometry's residency picks one.
+/// The single-slab and multi-slab variants, which the geometry's residency picks between, and
+/// the hardware broad phase variant where the adapter has ray queries.
 #[derive(Resource)]
 pub struct PrimaryVisibilityPipeline {
     pub single_slab: CachedComputePipelineId,
     pub multi_slab: CachedComputePipelineId,
+    pub ray_query: Option<CachedComputePipelineId>,
 }
 
 impl FromWorld for PrimaryVisibilityPipeline {
     fn from_world(world: &mut World) -> Self {
+        let ray_query = world.resource::<GpuCapabilities>().ray_query;
         let cache = world.resource::<PipelineCache>();
-        let queue = |label: &'static str, shader| {
+        let queue = |label: &'static str, scene, shader| {
             cache.queue_compute_pipeline(ComputePipelineDescriptor {
                 label: Some(label.into()),
-                layout: vec![geometry_layout(), scene_layout(), visibility_view_layout()],
+                layout: vec![geometry_layout(), scene, visibility_view_layout()],
                 shader,
                 shader_defs: vec![],
                 entry_point: Some("main".into()),
@@ -41,11 +48,23 @@ impl FromWorld for PrimaryVisibilityPipeline {
             })
         };
         Self {
-            single_slab: queue("voxel_primary_visibility", PRIMARY_VISIBILITY_SHADER),
+            single_slab: queue(
+                "voxel_primary_visibility",
+                scene_layout(),
+                PRIMARY_VISIBILITY_SHADER,
+            ),
             multi_slab: queue(
                 "voxel_primary_visibility_multi_slab",
+                scene_layout(),
                 PRIMARY_VISIBILITY_MULTI_SLAB_SHADER,
             ),
+            ray_query: ray_query.then(|| {
+                queue(
+                    "voxel_primary_visibility_ray_query",
+                    scene_ray_query_layout(),
+                    PRIMARY_VISIBILITY_RAY_QUERY_SHADER,
+                )
+            }),
         }
     }
 }
@@ -60,10 +79,10 @@ pub fn primary_visibility_pass(
     mut ctx: RenderContext,
 ) {
     let (targets, bind_groups) = view.into_inner();
-    let pipeline_id = if resources.multi_slab() {
-        pipelines.multi_slab
-    } else {
-        pipelines.single_slab
+    let pipeline_id = match pipelines.ray_query {
+        Some(ray_query) if resources.hardware_broad_phase() => ray_query,
+        _ if resources.multi_slab() => pipelines.multi_slab,
+        _ => pipelines.single_slab,
     };
     let Some(pipeline) = pipeline_cache.get_compute_pipeline(pipeline_id) else {
         if let CachedPipelineState::Err(e) = pipeline_cache.get_compute_pipeline_state(pipeline_id)

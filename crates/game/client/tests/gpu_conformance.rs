@@ -34,6 +34,7 @@ const DIRECT_LIGHTING_MULTI_SLAB: &str = include_wesl!("direct_lighting_multi_sl
 const CONFORMANCE_MULTI_SLAB: &str = include_wesl!("voxel_conformance_multi_slab");
 const CONFORMANCE_STACKLESS: &str = include_wesl!("voxel_conformance_stackless");
 const PRIMARY_VISIBILITY_RAY_QUERY: &str = include_wesl!("primary_visibility_ray_query");
+const DIRECT_LIGHTING_RAY_QUERY: &str = include_wesl!("direct_lighting_ray_query");
 const CONFORMANCE_RAY_QUERY: &str = include_wesl!("voxel_conformance_ray_query");
 
 // INFO: -----------------------------
@@ -54,6 +55,7 @@ fn shaders_validate() {
         ("voxel_conformance_multi_slab", CONFORMANCE_MULTI_SLAB),
         ("voxel_conformance_stackless", CONFORMANCE_STACKLESS),
         ("primary_visibility_ray_query", PRIMARY_VISIBILITY_RAY_QUERY),
+        ("direct_lighting_ray_query", DIRECT_LIGHTING_RAY_QUERY),
         ("voxel_conformance_ray_query", CONFORMANCE_RAY_QUERY),
     ] {
         let module = naga::front::wgsl::parse_str(source)

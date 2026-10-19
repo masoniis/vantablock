@@ -4,19 +4,29 @@
 //!
 //! Every buffer is created up front with placeholder contents, so bind groups always exist and
 //! the passes can run (drawing just sky) before any world arrives.
+//!
+//! On adapters with ray queries, the scene group also comes in a hardware broad phase layout that
+//! adds the scene TLAS ([`HardwareBroadPhase`]); snapshots packed for it are bound with that one.
 
 use crate::render::{
+    device::GpuCapabilities,
     geometry::{GeometryLibraryHandle, GpuGeometryLibrary},
-    gpu::layout::{GpuGeometryMeta, GpuSceneUniform},
+    gpu::{
+        broad_phase::HardwareBroadPhase,
+        layout::{GpuGeometryMeta, GpuSceneUniform},
+    },
     scene::{ExtractedScene, GpuSceneData},
 };
 use bevy::{
     prelude::*,
     render::{
         render_resource::{
-            BindGroup, BindGroupEntries, BindGroupLayoutDescriptor, BindGroupLayoutEntries, Buffer,
-            BufferDescriptor, BufferInitDescriptor, BufferUsages, PipelineCache, ShaderStages,
-            binding_types::{storage_buffer_read_only_sized, uniform_buffer_sized},
+            BindGroup, BindGroupEntries, BindGroupLayoutDescriptor, BindGroupLayoutEntries,
+            BindingResource, Buffer, BufferDescriptor, BufferInitDescriptor, BufferUsages,
+            PipelineCache, ShaderStages,
+            binding_types::{
+                acceleration_structure, storage_buffer_read_only_sized, uniform_buffer_sized,
+            },
         },
         renderer::{RenderDevice, RenderQueue},
     },
@@ -62,6 +72,24 @@ pub fn scene_layout() -> BindGroupLayoutDescriptor {
                 storage_buffer_read_only_sized(false, None), // pose frames
                 storage_buffer_read_only_sized(false, None), // instances
                 storage_buffer_read_only_sized(false, None), // slot -> frame
+            ),
+        ),
+    )
+}
+
+/// [`scene_layout`] plus the scene TLAS, for the hardware broad phase shader variants.
+pub fn scene_ray_query_layout() -> BindGroupLayoutDescriptor {
+    BindGroupLayoutDescriptor::new(
+        "voxel_scene_ray_query_layout",
+        &BindGroupLayoutEntries::sequential(
+            VOXEL_STAGES,
+            (
+                uniform_buffer_sized(false, None),           // scene uniform
+                storage_buffer_read_only_sized(false, None), // scene BVH
+                storage_buffer_read_only_sized(false, None), // pose frames
+                storage_buffer_read_only_sized(false, None), // instances
+                storage_buffer_read_only_sized(false, None), // slot -> frame
+                acceleration_structure(),                    // pose-frame boxes
             ),
         ),
     )
@@ -137,6 +165,8 @@ struct SceneBuffers {
     slot_frames: GrowableBuffer,
     uploaded: Option<Arc<GpuSceneData>>,
     bind_group: BindGroup,
+    /// The same buffers plus the scene TLAS, on adapters with ray queries.
+    hardware_bind_group: Option<BindGroup>,
 }
 
 /// The voxel renderer's shared GPU state in the render world.
@@ -144,8 +174,11 @@ struct SceneBuffers {
 pub struct VoxelGpuResources {
     pub geometry_layout: BindGroupLayoutDescriptor,
     pub scene_layout: BindGroupLayoutDescriptor,
+    pub scene_ray_query_layout: BindGroupLayoutDescriptor,
     geometry: GeometryBuffers,
     scene: SceneBuffers,
+    /// Present only where the adapter has ray queries.
+    broad_phase: Option<HardwareBroadPhase>,
 }
 
 impl VoxelGpuResources {
@@ -153,8 +186,12 @@ impl VoxelGpuResources {
         &self.geometry.bind_group
     }
 
+    /// The scene group for whichever broad phase the uploaded snapshot was packed for.
     pub fn scene_bind_group(&self) -> &BindGroup {
-        &self.scene.bind_group
+        match &self.scene.hardware_bind_group {
+            Some(bind_group) if self.hardware_broad_phase() => bind_group,
+            _ => &self.scene.bind_group,
+        }
     }
 
     /// Whether the uploaded geometry spans several slabs, so passes need their multi-slab
@@ -163,16 +200,41 @@ impl VoxelGpuResources {
         self.geometry
             .library
             .as_ref()
-            .is_some_and(|l| l.topology.len() > 1 || l.attributes.len() > 1)
+            .is_some_and(|l| l.multi_slab())
+    }
+
+    /// Whether the uploaded snapshot is traced with the hardware broad phase, so passes need
+    /// their ray query shader variants (which are single slab).
+    pub fn hardware_broad_phase(&self) -> bool {
+        self.scene
+            .uploaded
+            .as_ref()
+            .is_some_and(|scene| self.traces_with_hardware(scene))
+    }
+
+    /// Whether `scene` is traced with the hardware broad phase once uploaded. `Queue` runs before
+    /// `Prepare`, so pipeline specialization asks this of the extracted snapshot.
+    pub fn traces_with_hardware(&self, scene: &GpuSceneData) -> bool {
+        scene.hardware_broad_phase && self.broad_phase.is_some() && !self.multi_slab()
+    }
+
+    pub fn broad_phase(&self) -> Option<&HardwareBroadPhase> {
+        self.broad_phase.as_ref()
     }
 }
 
 impl FromWorld for VoxelGpuResources {
     fn from_world(world: &mut World) -> Self {
         let device = world.resource::<RenderDevice>().clone();
+        let queue = world.resource::<RenderQueue>();
         let pipeline_cache = world.resource::<PipelineCache>();
         let geometry_layout = geometry_layout();
         let scene_layout = scene_layout();
+        let scene_ray_query_layout = scene_ray_query_layout();
+        let broad_phase = world
+            .resource::<GpuCapabilities>()
+            .ray_query
+            .then(|| HardwareBroadPhase::new(&device, queue));
 
         let geometry = GeometryBuffers {
             library: None,
@@ -196,10 +258,21 @@ impl FromWorld for VoxelGpuResources {
             &uniform,
             [&bvh, &frames, &instances, &slot_frames],
         );
+        let hardware_bind_group = broad_phase.as_ref().map(|broad_phase| {
+            create_scene_ray_query_bind_group(
+                &device,
+                pipeline_cache,
+                &scene_ray_query_layout,
+                &uniform,
+                [&bvh, &frames, &instances, &slot_frames],
+                broad_phase,
+            )
+        });
 
         Self {
             geometry_layout,
             scene_layout,
+            scene_ray_query_layout,
             geometry,
             scene: SceneBuffers {
                 uniform,
@@ -209,7 +282,9 @@ impl FromWorld for VoxelGpuResources {
                 slot_frames,
                 uploaded: None,
                 bind_group,
+                hardware_bind_group,
             },
+            broad_phase,
         }
     }
 }
@@ -321,6 +396,28 @@ fn create_scene_bind_group(
     )
 }
 
+fn create_scene_ray_query_bind_group(
+    device: &RenderDevice,
+    pipeline_cache: &PipelineCache,
+    layout: &BindGroupLayoutDescriptor,
+    uniform: &Buffer,
+    [bvh, frames, instances, slot_frames]: [&GrowableBuffer; 4],
+    broad_phase: &HardwareBroadPhase,
+) -> BindGroup {
+    device.create_bind_group(
+        "voxel_scene_ray_query_bind_group",
+        &pipeline_cache.get_bind_group_layout(layout),
+        &BindGroupEntries::sequential((
+            uniform.as_entire_binding(),
+            bvh.buffer().as_entire_binding(),
+            frames.buffer().as_entire_binding(),
+            instances.buffer().as_entire_binding(),
+            slot_frames.buffer().as_entire_binding(),
+            BindingResource::AccelerationStructure(broad_phase.tlas()),
+        )),
+    )
+}
+
 /// Uploads a newly baked geometry library.
 pub fn prepare_geometry_buffers(
     device: Res<RenderDevice>,
@@ -393,19 +490,34 @@ pub fn prepare_scene_buffers(
     reallocated |= buffers
         .slot_frames
         .write(&device, &queue, &data.slot_frames);
+    let scene_buffers = [
+        &buffers.bvh,
+        &buffers.frames,
+        &buffers.instances,
+        &buffers.slot_frames,
+    ];
     if reallocated {
         buffers.bind_group = create_scene_bind_group(
             &device,
             &pipeline_cache,
             &resources.scene_layout,
             &buffers.uniform,
-            [
-                &buffers.bvh,
-                &buffers.frames,
-                &buffers.instances,
-                &buffers.slot_frames,
-            ],
+            scene_buffers,
         );
+    }
+    if let Some(broad_phase) = &mut resources.broad_phase {
+        // only snapshots packed for the hardware path carry frame boxes
+        let tlas_reallocated = data.hardware_broad_phase && broad_phase.write(&device, data);
+        if reallocated || tlas_reallocated {
+            buffers.hardware_bind_group = Some(create_scene_ray_query_bind_group(
+                &device,
+                &pipeline_cache,
+                &resources.scene_ray_query_layout,
+                &buffers.uniform,
+                scene_buffers,
+                broad_phase,
+            ));
+        }
     }
     buffers.uploaded = Some(scene.0.clone());
 }

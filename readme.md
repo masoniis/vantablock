@@ -63,6 +63,7 @@ Assets are baked from the procedural recipes in `assets/shared/vanta` on first l
 | `F4` or `B`      | Cycle pose-group organization (flattened / refit / template) |
 | `F5`             | Cycle render scale                                           |
 | `F6` or `H`      | Toggle the local hierarchy (64-tree / octree)                |
+| `F7` or `G`      | Toggle the hardware broad phase (where the GPU has it)       |
 | `←` / `→`        | Rewind / advance the time of day                             |
 | `P`              | Pause or resume the day cycle                                |
 
@@ -77,6 +78,6 @@ The renderer is an early, correctness-first baseline: GPU traversal is verified 
 - **Canonical assets** (`crates/engine/voxel`, `crates/engine/baker`): procedural recipes bake into sparse voxel modules plus an articulated assembly of pose groups, stored in `.vanta` files.
 - **Derived geometry**: each module bakes into a deduplicated 64-way sparse tree in paged arenas, with LOD summaries; assets get template-shared mini-BVHs over their pose groups' motion envelopes.
 - **Server-authoritative world**: the server places objects and owns the world clock; clients derive every pose deterministically from replicated animation parameters.
-- **GPU ray tracing**: one world ray per pixel through a scene BVH4, template mini-BVHs, and group-local 64-tree DDA, writing a visibility buffer with exact integer voxel identity, then a lighting pass with shadow rays.
+- **GPU ray tracing**: one world ray per pixel through a scene broad phase (a software BVH4 over pose groups, or Vulkan ray queries over a TLAS of pose-frame boxes where the GPU has them) and group-local 64-tree DDA, writing a visibility buffer with exact integer voxel identity, then a lighting pass with shadow rays.
 
 See [`docs/architecture.md`](./docs/architecture.md) for how the code maps onto the engine design.

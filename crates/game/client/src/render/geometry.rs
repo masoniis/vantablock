@@ -74,6 +74,12 @@ pub struct GpuGeometryLibrary {
 }
 
 impl GpuGeometryLibrary {
+    /// Whether the geometry spans several storage slabs, so passes need their multi-slab shader
+    /// variants.
+    pub fn multi_slab(&self) -> bool {
+        self.topology.len() > 1 || self.attributes.len() > 1
+    }
+
     pub fn build(library: &VantaAssetLibrary, limits: &ResidencyLimits) -> Result<Self, String> {
         Self::build_with_page_words(library, limits, MAX_PAGE_WORDS)
     }

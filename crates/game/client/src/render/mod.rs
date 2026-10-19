@@ -5,9 +5,11 @@
 //! 1. **Main world** ([`geometry`], [`scene`]): bake the canonical asset library into a GPU geometry
 //!    library once, then resolve replicated world objects into pose frames, instance records, and a
 //!    scene BVH every frame.
-//! 2. **Prepare** ([`gpu`]): upload geometry (single-slab residency), scene buffers, view uniforms,
-//!    and the per-view visibility buffer.
-//! 3. **Graph** ([`passes`]): primary visibility, then direct lighting.
+//! 2. **Prepare** ([`gpu`]): upload geometry (slab residency), scene buffers, view uniforms, and
+//!    the per-view visibility buffer; on adapters with ray queries, write the scene TLAS's
+//!    pose-frame boxes.
+//! 3. **Graph** ([`passes`]): build the scene TLAS (hardware broad phase only), primary
+//!    visibility, then direct lighting.
 //!
 //! The traversal shaders mirror the CPU reference in the `voxel` crate, and the GPU conformance
 //! tests hold them to it.

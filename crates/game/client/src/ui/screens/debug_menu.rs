@@ -18,7 +18,11 @@ use leafwing_input_manager::common_conditions::action_just_pressed;
 use std::fmt::Write;
 
 /// Render passes whose timings are shown, by diagnostic span name.
-const PASS_SPANS: [&str; 2] = ["voxel/primary_visibility", "voxel/direct_lighting"];
+const PASS_SPANS: [&str; 3] = [
+    "voxel/scene_tlas",
+    "voxel/primary_visibility",
+    "voxel/direct_lighting",
+];
 
 #[derive(Component)]
 pub struct DebugMenuRoot;
@@ -144,8 +148,16 @@ fn update_debug_menu_system(
     let s = scene.stats;
     let _ = writeln!(
         text,
-        "\nView: {:?}  Acceleration: {:?}  Hierarchy: {:?}  Render scale: {}",
-        settings.debug_view, settings.acceleration, settings.hierarchy, settings.render_scale
+        "\nView: {:?}  Acceleration: {:?}  Broad phase: {}  Hierarchy: {:?}  Render scale: {}",
+        settings.debug_view,
+        settings.acceleration,
+        if s.hardware_broad_phase {
+            "hardware"
+        } else {
+            "software"
+        },
+        settings.hierarchy,
+        settings.render_scale
     );
     let _ = writeln!(
         text,

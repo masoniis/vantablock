@@ -2,14 +2,19 @@
 //!
 //! Poses come from each object's animation parameters and the shared world clock, so nothing
 //! per-group is streamed. Canonical voxels never move; only the pose frame table does.
+//!
+//! Where the hardware broad phase applies, the snapshot also carries one box per pose frame,
+//! which the render world builds into a TLAS (see [`crate::render::gpu::broad_phase`]).
 
 use crate::{
     lifecycle::{ClientLifecycleState, RenderPrepSet},
     render::{
+        device::GpuCapabilities,
         geometry::{GeometryLibraryHandle, GpuGeometryLibrary},
         gpu::layout::{
-            GpuInstance, GpuPoseFrame, GpuSceneUniform, INSTANCE_OWN_BVH, INSTANCE_USES_TEMPLATE,
-            MODE_FLATTENED_GROUPS, MODE_INSTANCE_REFIT, MODE_TEMPLATE_MINI_BVH, affine_rows,
+            AffineRows, GpuInstance, GpuPoseFrame, GpuSceneUniform, INSTANCE_OWN_BVH,
+            INSTANCE_USES_TEMPLATE, MODE_FLATTENED_GROUPS, MODE_INSTANCE_REFIT,
+            MODE_TEMPLATE_MINI_BVH, affine_rows,
         },
         settings::RenderSettings,
     },
@@ -34,6 +39,11 @@ pub struct GpuSceneData {
     pub frames: Vec<GpuPoseFrame>,
     pub instances: Vec<GpuInstance>,
     pub slot_frames: Vec<u32>,
+    /// Trace this snapshot with the hardware broad phase: one TLAS instance per entry of
+    /// `frame_boxes`, which maps the unit box onto that frame's padded group-local bounds (`None`
+    /// for a group with no geometry). Empty when the software BVH4 is used.
+    pub hardware_broad_phase: bool,
+    pub frame_boxes: Vec<Option<AffineRows>>,
 }
 
 impl GpuSceneData {
@@ -105,7 +115,23 @@ impl GpuSceneData {
             frames,
             instances,
             slot_frames: snapshot.slot_frames.clone(),
+            hardware_broad_phase: false,
+            frame_boxes: Vec::new(),
         }
+    }
+
+    /// Switches this snapshot to the hardware broad phase, packing its frame boxes.
+    pub fn with_frame_boxes(
+        mut self,
+        snapshot: &SceneSnapshot,
+        templates: &[AssetTemplate],
+    ) -> Self {
+        self.hardware_broad_phase = true;
+        self.frame_boxes = snapshot
+            .frame_boxes(templates)
+            .map(|frame_box| frame_box.as_ref().map(affine_rows))
+            .collect();
+        self
     }
 }
 
@@ -135,6 +161,8 @@ pub struct SceneStats {
     pub refit_nodes: usize,
     pub overflowed_frames: usize,
     pub out_of_envelope: usize,
+    /// Whether the hardware broad phase traces this snapshot.
+    pub hardware_broad_phase: bool,
     pub build_millis: f32,
 }
 
@@ -179,6 +207,7 @@ fn build_scene_system(
     geometry: Res<GeometryLibraryHandle>,
     clock: Res<WorldClockResource>,
     settings: Res<RenderSettings>,
+    capabilities: Option<Res<GpuCapabilities>>,
     mut scene: ResMut<ClientScene>,
     mut extracted: ResMut<ExtractedScene>,
 ) {
@@ -211,7 +240,16 @@ fn build_scene_system(
     let snapshot =
         SceneSnapshot::build(&scene.templates, &instances, mode, scene.previous.as_ref());
 
-    let data = GpuSceneData::pack(&snapshot, &library, &geometry.0, settings.hierarchy.into());
+    // the hardware broad phase replaces the flattened scene BVH4, and its shader variant only
+    // reads geometry from one slab
+    let hardware = settings.hardware_broad_phase
+        && mode == SceneAcceleration::FlattenedGroups
+        && !geometry.0.multi_slab()
+        && capabilities.is_some_and(|c| c.ray_query);
+    let mut data = GpuSceneData::pack(&snapshot, &library, &geometry.0, settings.hierarchy.into());
+    if hardware {
+        data = data.with_frame_boxes(&snapshot, &scene.templates);
+    }
 
     scene.stats = SceneStats {
         objects: objects.iter().len(),
@@ -226,6 +264,7 @@ fn build_scene_system(
             .iter()
             .filter(|i| !i.uses_template && scene.templates[i.asset as usize].mini_bvh.is_some())
             .count(),
+        hardware_broad_phase: hardware,
         build_millis: start.elapsed().as_secs_f32() * 1000.0,
     };
     scene.previous = Some(snapshot);

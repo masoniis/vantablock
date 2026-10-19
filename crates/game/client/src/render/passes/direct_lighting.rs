@@ -1,10 +1,13 @@
 use crate::render::{
     VoxelCamera,
     gpu::{
-        buffers::{VoxelGpuResources, geometry_layout, scene_layout},
+        buffers::{VoxelGpuResources, geometry_layout, scene_layout, scene_ray_query_layout},
         view::{VoxelViewBindGroups, lighting_view_layout},
     },
-    shaders::{DIRECT_LIGHTING_MULTI_SLAB_SHADER, DIRECT_LIGHTING_SHADER},
+    scene::ExtractedScene,
+    shaders::{
+        DIRECT_LIGHTING_MULTI_SLAB_SHADER, DIRECT_LIGHTING_RAY_QUERY_SHADER, DIRECT_LIGHTING_SHADER,
+    },
 };
 use bevy::{
     prelude::*,
@@ -27,6 +30,8 @@ pub struct DirectLightingKey {
     pub samples: u32,
     /// Whether the geometry spans several storage slabs.
     pub multi_slab: bool,
+    /// Whether shadow rays use the hardware broad phase (single slab only).
+    pub ray_query: bool,
 }
 
 #[derive(Resource, Default)]
@@ -36,14 +41,16 @@ impl SpecializedRenderPipeline for DirectLightingPipeline {
     type Key = DirectLightingKey;
 
     fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
-        let shader = if key.multi_slab {
-            DIRECT_LIGHTING_MULTI_SLAB_SHADER
+        let (shader, scene) = if key.ray_query {
+            (DIRECT_LIGHTING_RAY_QUERY_SHADER, scene_ray_query_layout())
+        } else if key.multi_slab {
+            (DIRECT_LIGHTING_MULTI_SLAB_SHADER, scene_layout())
         } else {
-            DIRECT_LIGHTING_SHADER
+            (DIRECT_LIGHTING_SHADER, scene_layout())
         };
         RenderPipelineDescriptor {
             label: Some("voxel_direct_lighting".into()),
-            layout: vec![geometry_layout(), scene_layout(), lighting_view_layout()],
+            layout: vec![geometry_layout(), scene, lighting_view_layout()],
             vertex: VertexState {
                 shader: shader.clone(),
                 shader_defs: vec![],
@@ -80,6 +87,7 @@ pub fn queue_direct_lighting_pipelines(
     pipeline_cache: Res<PipelineCache>,
     pipeline: Res<DirectLightingPipeline>,
     resources: Res<VoxelGpuResources>,
+    scene: Res<ExtractedScene>,
     mut pipelines: ResMut<SpecializedRenderPipelines<DirectLightingPipeline>>,
     views: Query<(Entity, &ViewTarget, Option<&Msaa>), With<VoxelCamera>>,
 ) {
@@ -88,6 +96,7 @@ pub fn queue_direct_lighting_pipelines(
             format: target.main_texture_format(),
             samples: msaa.map_or(1, |m| m.samples()),
             multi_slab: resources.multi_slab(),
+            ray_query: resources.traces_with_hardware(&scene.0),
         };
         let id = pipelines.specialize(&pipeline_cache, &pipeline, key);
         commands.entity(entity).insert(DirectLightingPipelineId(id));

@@ -2,6 +2,7 @@
 //!
 //! | Pass                | Role                                                                |
 //! | ------------------- | ------------------------------------------------------------------- |
+//! | `SceneTlas`         | builds the hardware broad phase's TLAS (adapters with ray queries)  |
 //! | `PrimaryVisibility` | one world ray per pixel: frame identity, exact cell, depth, costs   |
 //! | `DirectLighting`    | materials, sun/sky light, shadow rays, atmosphere, debug views      |
 //!
@@ -12,6 +13,7 @@
 pub mod direct_lighting;
 pub mod primary_visibility;
 
+use crate::render::gpu::broad_phase;
 use bevy::{
     core_pipeline::{Core3d, Core3dSystems},
     prelude::*,
@@ -27,6 +29,7 @@ impl Plugin for VoxelRenderGraphPlugin {
         app.add_systems(
             Core3d,
             (
+                broad_phase::build_scene_tlas,
                 primary_visibility::primary_visibility_pass,
                 direct_lighting::direct_lighting_pass,
             )

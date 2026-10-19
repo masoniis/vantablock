@@ -39,6 +39,8 @@ pub fn get_default_client_action_input_map() -> InputMap<ClientAction> {
     input_map.insert(ClientAction::CycleRenderScale, KeyCode::F5);
     input_map.insert(ClientAction::ToggleLocalHierarchy, KeyCode::F6);
     input_map.insert(ClientAction::ToggleLocalHierarchy, KeyCode::KeyH);
+    input_map.insert(ClientAction::ToggleHardwareBroadPhase, KeyCode::F7);
+    input_map.insert(ClientAction::ToggleHardwareBroadPhase, KeyCode::KeyG);
 
     // world clock
     input_map.insert(ClientAction::TimeForward, KeyCode::ArrowRight);

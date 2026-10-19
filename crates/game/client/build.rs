@@ -63,12 +63,17 @@ fn main() {
         ],
     );
 
-    // the optional hardware scene broad phase (ray queries over flattened pose groups), held to
-    // the same conformance tests and benchmarked against the software BVH4
+    // the optional hardware scene broad phase (ray queries over flattened pose groups): the
+    // renderer's default on capable adapters, held to the same conformance tests and benchmarked
+    // against the software BVH4
     for (module, artifact) in [
         (
             "package::voxel::primary_visibility",
             "primary_visibility_ray_query",
+        ),
+        (
+            "package::voxel::direct_lighting",
+            "direct_lighting_ray_query",
         ),
         (
             "package::voxel::tests::conformance",

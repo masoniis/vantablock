@@ -19,6 +19,7 @@ pub enum ClientAction {
     CycleDebugView,
     ToggleSceneAcceleration,
     ToggleLocalHierarchy,
+    ToggleHardwareBroadPhase,
     CycleRenderScale,
 
     // world clock requests (sent to the server)
