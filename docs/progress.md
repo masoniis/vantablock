@@ -16,7 +16,11 @@ Phase 2 is under way. Footprint LOD filtering is closed out as an opt-in path
 measured coverage, since the spec's `L1` axis proxy overestimates it everywhere. Opaque filtered
 hits save up to 39% of primary visibility time but leave filtered pixels worse than exact in most
 views; transmission meets that target with a two-pixel cone at half scale but costs more than
-exact traversal, so both stay off by default. Anti-aliasing is next.
+exact traversal, so both stay off by default. Temporal anti-aliasing (`RenderSettings::temporal_aa`)
+is on by default: jittered primary rays and a reprojecting, neighborhood-clipped resolve leave 30
+to 55% of the one-ray frame's error against supersampled references in still views and cut it by
+19 to 56% in a slow pan, for 0.06 ms at 1280x720. Its second slice (history validity, temporal
+upsampling) is next.
 
 ## Known issues
 
@@ -415,15 +419,109 @@ and 16-byte LOD records after dedup:
 - **Untuned cone rule** (cell edge vs. cone diameter), and the 4x4 reference is itself limited:
   the exact one-ray frame is 2 to 5% from it, mostly grass and foliage aliasing.
 
+### Anti-aliasing
+
+**First slice done, on by default.** `RenderSettings::temporal_aa` (on, `F9`/`T`, pause menu and
+debug overlay) jitters every primary ray within its pixel and blends each frame with the
+reprojected history (the spec's `TemporalFilterNode`); the one-ray frame stays one setting away.
+
+#### Design
+
+- **Why temporal, not spatial:** a filter over a one-ray visibility buffer can only blur; it
+  can't recover subpixel coverage. The 3x3 rows of `gpu_footprint_lod_quality` bound what one
+  does, and the temporal resolve beats them (below). Jittered frames that converge to the pixel's
+  box average are what the 4x4 reference computes.
+- **Jitter:** `gpu::temporal::jitter` is the Halton (2, 3) sequence over 16 frames in
+  `[-0.5, 0.5)` traced pixels, in `ViewUniform::jitter` (zero with the resolve off). Primary
+  visibility traces `pixel + 0.5 + jitter` (the footprint cone and stochastic hash follow it), and
+  lighting shades the same ray (`pixel_ray`). The projection matrices stay unjittered.
+- **Reprojection:** with the resolve on, lighting renders the traced grid itself (`fs_temporal`:
+  `Rgba16Float` color, tonemapped as before, and an `Rg16Float` offset) instead of the view target.
+  `history_offset` maps the front record's hit through its pose frame's previous transform
+  (`previous_world_position`) and `prev_clip_from_world` (a miss as a direction, `w = 0`), less this
+  frame's jitter, since history holds unjittered pixel centers; points behind last frame's camera
+  get an offset no history holds.
+- **Resolve (`temporal_resolve.wesl`, compute):** samples the history at the offset through a
+  five-tap Catmull-Rom filter (bilinear resampling blurred a pan's history frame after frame: 2.17%
+  vs. 1.72% on the street at 1280x720), clips it toward the current 3x3 neighborhood's box (mean
+  +- `CLIP_GAMMA` `1.5` standard deviations in YCoCg), and blends. The history's alpha counts its
+  frames, so a pixel converges as a running mean until the current frame's weight reaches
+  `temporal_blend` (`0.1`). Off-grid offsets, debug views, and the first frame after a toggle or
+  resize (`VIEW_HISTORY_VALID` unset) take the current frame alone.
+- **Present (`temporal_present.wesl`):** each view target pixel shows the resolved traced pixel it
+  falls in, as lighting did without the resolve.
+- **State:** `prepare_temporal_targets` keeps two `Rgba16Float` history images per view (alternating
+  each frame) in a `Local`, dropped when the setting is off, the grid resizes, or the view goes;
+  lighting's two targets come from the texture cache. The lighting pipeline key and present
+  pipeline follow the setting itself, because `Queue` runs before `Prepare`; the resolve and present
+  passes run only once lighting's temporal pipeline has compiled.
+- **Benchmark:** `gpu_temporal_aa_quality` (ignored, `just test-gpu gpu_temporal_aa_quality
+  --ignored --release`, 25 s) runs 32 frames of the production passes in the four benchmark views
+  at both grids, still and panning 0.25 degrees of yaw per frame (about 2 and 4 px per frame), and
+  compares the last frame with the 4x4 reference at the final pose; PNGs go under the temp
+  directory's `vanta-temporal-aa`. It also times the resolve kernel.
+
+#### Measurements
+
+Display-space color error against the 4x4 reference, per pixel (3x3 filtered in parentheses), in
+percent; the one-ray column is the exact frame of `gpu_footprint_lod_quality`. Flicker is the mean
+change between the last two still frames.
+
+| View, grid         | One ray     | Still, 32 frames | Still after 1 / 4 / 8 / 16 | Flicker | Pan: one ray | Pan, 32 frames |
+| ------------------ | ----------- | ---------------- | -------------------------- | ------- | ------------ | -------------- |
+| street, 640x360    | 3.70 (1.61) | 1.18 (0.63)      | 3.78 / 1.82 / 1.21 / 1.16  | 0.53    | 3.60 (1.53)  | 2.39 (0.82)    |
+| street, 1280x720   | 2.32 (1.18) | 0.77 (0.47)      | 2.39 / 1.16 / 0.78 / 0.75  | 0.35    | 2.25 (1.11)  | 1.72 (0.65)    |
+| grass, 640x360     | 2.13 (1.12) | 0.75 (0.48)      | 2.18 / 1.08 / 0.74 / 0.73  | 0.32    | 2.19 (1.13)  | 1.63 (0.69)    |
+| grass, 1280x720    | 1.27 (0.73) | 0.49 (0.33)      | 1.31 / 0.65 / 0.45 / 0.46  | 0.20    | 1.34 (0.76)  | 1.08 (0.49)    |
+| overview, 640x360  | 4.87 (1.69) | 1.48 (0.65)      | 4.92 / 2.23 / 1.54 / 1.42  | 0.60    | 4.86 (1.68)  | 2.13 (0.69)    |
+| overview, 1280x720 | 3.70 (1.34) | 1.49 (0.69)      | 3.77 / 1.76 / 1.29 / 1.38  | 0.51    | 3.67 (1.31)  | 1.97 (0.59)    |
+| grove, 640x360     | 3.08 (1.33) | 1.18 (0.63)      | 3.16 / 1.57 / 1.08 / 1.11  | 0.45    | 3.09 (1.32)  | 2.00 (0.70)    |
+| grove, 1280x720    | 2.00 (0.97) | 1.11 (0.66)      | 2.07 / 1.05 / 0.83 / 1.00  | 0.33    | 1.99 (0.96)  | 1.48 (0.56)    |
+
+The resolve kernel takes 0.018 ms at 640x360 and 0.055 ms at 1280x720. Tuning, all from this
+benchmark: `CLIP_GAMMA` 1.0 / 1.25 / 1.5 / 2.0 gave still errors of 0.97 / 0.83 / 0.77 / 0.72 on the
+street at 1280x720 and identical pan errors; 1.5 keeps most of the gain with a tighter box against
+ghosting. `temporal_blend` `0.0625` was worse than `0.1` in every row (overview 1280x720 still 1.74,
+pan 2.09).
+
+In game (BRP, RTX 3080, default half scale and full scale): spinning rotors close up, walking, and
+turning show no visible trails, and toggling the setting, debug views, and render scale changes
+(history reset) render correctly.
+
+#### Decisions
+
+- **Temporal, on by default:** it beats the one-ray frame in every view, grid, and motion measured,
+  for a negligible cost.
+- **Resolve at the traced resolution:** at the default half scale each traced pixel still covers 2x2
+  target pixels; temporal upsampling is the second slice.
+
+#### Open issues
+
+- **History validity:** only neighborhood clipping rejects history; the spec asks for pose-frame
+  identity (plus generation) or depth checks, which matter where clipping can't tell (similar
+  colors across a disocclusion, thin features in motion). Animated objects are untested in the
+  benchmark, whose scenes are static snapshots.
+- **Still views settle above their 8-frame error** in the grove and overview at 1280x720 (0.83 at 8
+  frames, 1.11 at 32), where clipping against one-ray neighborhoods trims thin foliage history;
+  coverage-aware or wider clipping where the history agrees with the current frame is a lever.
+- **Footprint LOD with the resolve** is unmeasured (jitter and cones interact: a resolve averages
+  subpixel coverage, which may make the opaque filter's dilation matter less).
+- One BRP launch exited silently (no log) shortly after the resolve was enabled while the scene
+  loaded; it did not recur across the later sessions' toggles, launches with it on by default, or
+  movement, and the cause is unknown.
+
 ## Next steps, one per session
 
-1. **Anti-aliasing:** the exact one-ray frame is 2 to 5% per pixel from the 4x4 supersampled
-   reference (`gpu_footprint_lod_quality`'s `exact` rows, mostly grass and foliage aliasing), so
-   that benchmark is the yardstick. First slice: decide between jittered primary rays with a
-   temporal resolve (reconstructed motion exists: the `Motion` debug view) and a spatial filter
-   over the visibility buffer, measure the chosen one against the reference at both grids, and
-   keep it behind a `RenderSettings` flag until it beats the one-ray frame. Check it in game with
-   BRP screenshots (moving camera and animated rotors, so ghosting shows).
+1. **Anti-aliasing, second slice:** history validity and temporal upsampling (see
+   [Anti-aliasing](#anti-aliasing)). Add an animated case to `gpu_temporal_aa_quality` (a
+   showcase rotor spinning between frames: build each frame's snapshot at its pose time with the
+   previous frame's transforms, as the renderer does) and a disocclusion case, then reject
+   history by pose-frame identity or depth (the spec's history rule; lighting can write the hit's
+   frame ID or depth alongside the offset) and measure. Then resolve to the view target's
+   resolution instead of the traced grid (jitter in target pixels, accumulate each traced sample
+   into the target pixels it lands near), so the default half scale stops showing 2x2 blocks;
+   compare against references at target resolution, and keep it behind a setting until it beats
+   point upsampling. BRP screenshots as before.
 2. **Atmosphere.** Today the sky is a horizon/zenith gradient with `pow()` sun and moon lobes
    (`lib/view.wesl` `sky_color`, colors hand-tuned in `render/environment.rs`), fog is a flat mix,
    and night is nearly black (a weak moon, `NIGHT_AMBIENT`, no exposure control). Each step is
@@ -450,13 +548,14 @@ Performance is the open problem for Phase 2: the showcase traces in about 110 ms
 an M1 Pro (software broad phase) and 4.4 ms on an RTX 3080 (hardware broad phase), and grass and
 foliage take about 170 DDA steps per pixel, which no broad phase removes. The levers are the
 spec's: footprint LOD (closed out, opt-in: it saves time only where it costs quality), then
-temporal filtering, which can build on reconstructed motion. Register pressure (128 per thread on NVIDIA for the
+temporal filtering (the temporal anti-aliasing resolve is in; temporal upsampling would let the
+traced grid stay below target resolution without its blocks). Register pressure (128 per thread on NVIDIA for the
 software path, 80 with ray queries) is worth watching with `just shader-stats` as traversal grows.
 
 The roadmap, in the spec's order:
 
 - Phase 2: footprint LOD filtering with fitted SGGX summaries and partial transmission (done,
-  opt-in), anti-aliasing, a physically based atmosphere (scattering LUTs, sun disk, aerial perspective,
+  opt-in), anti-aliasing (temporal resolve done and on; history validity and upsampling next), a physically based atmosphere (scattering LUTs, sun disk, aerial perspective,
   night sky and moonlight, exposure), and an occlusion term for sky light. The reference GPU is
   the RTX 3080 (Vulkan, hardware broad phase), with the M1 Pro (Metal, software broad phase) as
   the lower tier.

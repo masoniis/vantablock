@@ -43,7 +43,9 @@ client: GpuGeometryLibrary (bake every module as a 64-tree and an octree into sh
                 (fullscreen) in Bevy's Core3d graph, each in a single-slab, multi-slab, or
                 hardware broad phase shader variant; primary visibility also has footprint LOD
                 and footprint transmission forms of all three (`RenderSettings::footprint_lod`,
-                `footprint_transmission`)
+                `footprint_transmission`); with `RenderSettings::temporal_aa` (on by default)
+                primary rays are jittered, lighting shades the traced grid, and TemporalResolve
+                (compute) -> TemporalPresent (fullscreen) blend it with reprojected history
 ```
 
 ## Spec concepts in code
@@ -75,6 +77,7 @@ client: GpuGeometryLibrary (bake every module as a 64-tree and an octree into sh
 | Directional LOD candidates (axis, SGGX) study   | `voxel::angular`, `crates/engine/baker/tests/directional_lod.rs`         |
 | Footprint LOD filtering (primary rays, opt-in)  | `tree64::trace_filtered`, `VoxelRoot::trace_filtered`, `trace_scene_filtered`, the `footprint_lod` WESL feature, `pixel_footprint` in `primary_visibility.wesl` |
 | Partial transmission of filtered hits (opt-in)  | the `transmission` WESL feature (`trace_pixel`, `continuation` in `primary_visibility.wesl`), the blend in `direct_lighting.wesl` `shade` |
+| Temporal anti-aliasing (`TemporalFilterNode`)   | `gpu::temporal` (jitter, history), `passes::temporal`, `fs_temporal`/`history_offset` in `direct_lighting.wesl`, `temporal_resolve.wesl`, `temporal_present.wesl` |
 | Exact integer terminal-cell identity            | `VoxelHit::cell`, the visibility buffer's cell target                    |
 | Visibility buffer (front + behind records: `Rgba32Uint`, `Rgba32Float`, `Rg32Uint`) | `client::render::gpu::view`, `primary_visibility.wesl`                   |
 | `.vanta` files                                  | `voxel::format`                                                          |

@@ -130,6 +130,16 @@ pub struct RenderSettings {
     /// With `footprint_transmission`, the opacity from which a filtered hit counts as opaque, so
     /// nothing is traced behind it.
     pub transmission_opaque: f32,
+    /// Temporal anti-aliasing: jitter every primary ray within its pixel and blend each frame
+    /// with the reprojected, neighborhood-clipped history of the earlier ones
+    /// (`temporal_resolve.wesl`). On: after 32 frames it leaves 30 to 55% of the one-ray frame's
+    /// error against 4x4 supersampled references when still, and cuts it by 19 to 56% in a slow
+    /// pan, for about 0.06 ms at 1280x720 (`gpu_temporal_aa_quality`).
+    pub temporal_aa: bool,
+    /// With `temporal_aa`, the least weight the current frame gets against the history (a running
+    /// mean converges until its weight falls to this). Lower is smoother and slower to follow
+    /// changes.
+    pub temporal_blend: f32,
 }
 
 impl Default for RenderSettings {
@@ -146,6 +156,8 @@ impl Default for RenderSettings {
             footprint_scale: 1.0,
             footprint_transmission: false,
             transmission_opaque: 0.9,
+            temporal_aa: true,
+            temporal_blend: 0.1,
         }
     }
 }
@@ -171,6 +183,8 @@ impl Plugin for RenderSettingsPlugin {
                         .run_if(action_just_pressed(ClientAction::ToggleHardwareBroadPhase)),
                     toggle_footprint_lod_system
                         .run_if(action_just_pressed(ClientAction::ToggleFootprintLod)),
+                    toggle_temporal_aa_system
+                        .run_if(action_just_pressed(ClientAction::ToggleTemporalAa)),
                 )
                     // in game only, so typing in a menu text field doesn't flip settings
                     .run_if(in_state(ClientLifecycleState::InGame)),
@@ -218,6 +232,14 @@ fn toggle_hardware_broad_phase_system(mut settings: ResMut<RenderSettings>) {
         } else {
             "off"
         }
+    );
+}
+
+fn toggle_temporal_aa_system(mut settings: ResMut<RenderSettings>) {
+    settings.temporal_aa = !settings.temporal_aa;
+    info!(
+        "Temporal anti-aliasing: {}",
+        if settings.temporal_aa { "on" } else { "off" }
     );
 }
 

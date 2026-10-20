@@ -163,7 +163,8 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
         return;
     }
     let pixel = vec2<i32>(id.xy);
-    let center = vec2<f32>(id.xy) + 0.5;
+    // the temporal resolve jitters every ray within its pixel (zero without it)
+    let center = vec2<f32>(id.xy) + 0.5 + view.jitter;
     let layers = trace_pixel(camera_ray_direction(view, center), center);
     let front = layers.front;
     let behind = layers.behind;

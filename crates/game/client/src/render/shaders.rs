@@ -32,6 +32,11 @@ pub const PRIMARY_VISIBILITY_FOOTPRINT_TRANSMISSION_MULTI_SLAB_SHADER: Handle<Sh
     uuid_handle!("a6f20b93-4e5c-47d1-8b0a-1c39e7d4f685");
 pub const PRIMARY_VISIBILITY_FOOTPRINT_TRANSMISSION_RAY_QUERY_SHADER: Handle<Shader> =
     uuid_handle!("f17e4a08-9d3b-4c62-a5e8-62b0c9d31e74");
+/// The temporal resolve (compute) and the pass presenting its image in the view target.
+pub const TEMPORAL_RESOLVE_SHADER: Handle<Shader> =
+    uuid_handle!("6b2e9d14-0f7a-4c38-b1e5-8d4a3c27f960");
+pub const TEMPORAL_PRESENT_SHADER: Handle<Shader> =
+    uuid_handle!("c93a5e70-2b18-4d6f-9a04-e17b5d8c3f21");
 
 // INFO: ---------------------------
 //         plugin definition
@@ -43,7 +48,7 @@ use wesl_core::include_wesl;
 
 /// A plugin that registers the WESL shaders (compiled to WGSL by `build.rs`), each in a
 /// single-slab, a multi-slab, and a hardware broad phase variant, plus the footprint LOD and
-/// footprint transmission forms of primary visibility.
+/// footprint transmission forms of primary visibility, and the temporal resolve's two passes.
 pub struct VantablockShaderPlugin;
 
 impl Plugin for VantablockShaderPlugin {
@@ -132,6 +137,20 @@ impl Plugin for VantablockShaderPlugin {
             Shader::from_wgsl(
                 include_wesl!("primary_visibility_footprint_transmission_ray_query"),
                 "voxel/primary_visibility.wesl (footprint transmission, ray query)",
+            ),
+        );
+        let _ = shaders.insert(
+            &TEMPORAL_RESOLVE_SHADER,
+            Shader::from_wgsl(
+                include_wesl!("temporal_resolve"),
+                "voxel/temporal_resolve.wesl",
+            ),
+        );
+        let _ = shaders.insert(
+            &TEMPORAL_PRESENT_SHADER,
+            Shader::from_wgsl(
+                include_wesl!("temporal_present"),
+                "voxel/temporal_present.wesl",
             ),
         );
     }

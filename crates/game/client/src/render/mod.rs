@@ -9,7 +9,8 @@
 //!    the per-view visibility buffer; on adapters with ray queries, write the scene TLAS's
 //!    pose-frame boxes.
 //! 3. **Graph** ([`passes`]): build the scene TLAS (hardware broad phase only), primary
-//!    visibility, then direct lighting.
+//!    visibility, then direct lighting, and with `RenderSettings::temporal_aa` the temporal
+//!    resolve and its present pass.
 //!
 //! The traversal shaders mirror the CPU reference in the `voxel` crate, and the GPU conformance
 //! tests hold them to it.
@@ -29,10 +30,13 @@ use crate::render::{
     device::GpuCapabilities,
     environment::ExtractedEnvironment,
     geometry::GeometryLibraryHandle,
-    gpu::{buffers, view},
+    gpu::{buffers, temporal, view},
     passes::{
         direct_lighting::{DirectLightingPipeline, queue_direct_lighting_pipelines},
         primary_visibility::PrimaryVisibilityPipeline,
+        temporal::{
+            TemporalPresentPipeline, TemporalResolvePipeline, queue_temporal_present_pipelines,
+        },
     },
     scene::ExtractedScene,
 };
@@ -76,17 +80,27 @@ impl Plugin for VantablockRenderPlugin {
         render_app
             .add_plugins(passes::VoxelRenderGraphPlugin)
             .init_resource::<SpecializedRenderPipelines<DirectLightingPipeline>>()
+            .init_resource::<TemporalPresentPipeline>()
+            .init_resource::<SpecializedRenderPipelines<TemporalPresentPipeline>>()
             .add_systems(
                 Render,
                 (
                     (
                         buffers::prepare_geometry_buffers,
                         buffers::prepare_scene_buffers,
-                        view::prepare_visibility_targets,
+                        (
+                            view::prepare_visibility_targets,
+                            temporal::prepare_temporal_targets,
+                        )
+                            .chain(),
                     )
                         .in_set(RenderSystems::PrepareResources),
                     view::prepare_view_bind_groups.in_set(RenderSystems::PrepareBindGroups),
-                    queue_direct_lighting_pipelines.in_set(RenderSystems::Queue),
+                    (
+                        queue_direct_lighting_pipelines,
+                        queue_temporal_present_pipelines,
+                    )
+                        .in_set(RenderSystems::Queue),
                 ),
             );
     }
@@ -105,7 +119,8 @@ impl Plugin for VantablockRenderPlugin {
             .insert_resource(capabilities.clone())
             .init_resource::<buffers::VoxelGpuResources>()
             .init_resource::<PrimaryVisibilityPipeline>()
-            .init_resource::<DirectLightingPipeline>();
+            .init_resource::<DirectLightingPipeline>()
+            .init_resource::<TemporalResolvePipeline>();
         app.insert_resource(capabilities);
     }
 }

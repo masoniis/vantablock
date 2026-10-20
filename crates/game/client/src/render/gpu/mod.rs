@@ -3,4 +3,5 @@
 pub mod broad_phase;
 pub mod buffers;
 pub mod layout;
+pub mod temporal;
 pub mod view;

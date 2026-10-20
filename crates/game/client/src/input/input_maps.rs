@@ -39,6 +39,10 @@ pub const CLIENT_KEYS: &[(ClientAction, &[KeyCode])] = &[
         ClientAction::ToggleFootprintLod,
         &[KeyCode::F8, KeyCode::KeyL],
     ),
+    (
+        ClientAction::ToggleTemporalAa,
+        &[KeyCode::F9, KeyCode::KeyT],
+    ),
     // world clock
     (ClientAction::TimeForward, &[KeyCode::ArrowRight]),
     (ClientAction::TimeBackward, &[KeyCode::ArrowLeft]),

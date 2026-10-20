@@ -136,6 +136,10 @@ fn controls() -> Vec<Box<dyn Scene>> {
             bindings(&client(&[C::ToggleHardwareBroadPhase])),
         ),
         row("Footprint LOD", bindings(&client(&[C::ToggleFootprintLod]))),
+        row(
+            "Temporal anti-aliasing",
+            bindings(&client(&[C::ToggleTemporalAa])),
+        ),
         row("Render scale", bindings(&client(&[C::CycleRenderScale]))),
     ]
 }

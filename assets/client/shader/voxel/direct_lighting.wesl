@@ -223,14 +223,61 @@ fn shade_record(record: Record, stats: u32, dir: vec3<f32>) -> vec3<f32> {
     return color;
 }
 
-@fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    // the visibility buffer may be traced below target resolution; shade with the exact ray
-    // that produced the sampled visibility texel so depth and identity stay consistent
-    let pixel = vec2<i32>(floor(in.position.xy * view.target_to_grid));
-    var color = shade(pixel, camera_ray_direction(view, vec2<f32>(pixel) + 0.5));
+// The shaded color of a traced pixel, seen along `dir`.
+fn pixel_color(pixel: vec2<i32>, dir: vec3<f32>) -> vec3<f32> {
+    var color = shade(pixel, dir);
     if (view.flags & VIEW_TONEMAP_IN_SHADER) != 0u && view.debug_view == DEBUG_SHADED {
         color = tonemap(color);
     }
-    return vec4<f32>(color, 1.0);
+    return color;
+}
+
+// The ray through a traced pixel: its center plus this frame's jitter (zero without the temporal
+// resolve), the ray primary visibility traced, so depth and identity stay consistent.
+fn pixel_ray(pixel: vec2<i32>) -> vec3<f32> {
+    return camera_ray_direction(view, vec2<f32>(pixel) + 0.5 + view.jitter);
+}
+
+@fragment
+fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    // the visibility buffer may be traced below target resolution; each target pixel shows the
+    // traced pixel it falls in
+    let pixel = vec2<i32>(floor(in.position.xy * view.target_to_grid));
+    return vec4<f32>(pixel_color(pixel, pixel_ray(pixel)), 1.0);
+}
+
+// Where the surface a pixel's ray saw sat on last frame's ray grid, as an offset from the pixel's
+// center in traced pixels: the hit point through its pose frame's and the camera's history (a miss
+// through the camera's rotation alone), less this frame's jitter, since the history holds
+// unjittered pixel centers. Points behind last frame's camera get an offset no history holds.
+fn history_offset(pixel: vec2<i32>, dir: vec3<f32>) -> vec2<f32> {
+    let vis = textureLoad(vis_tex, pixel, 0).x;
+    var then_clip = view.prev_clip_from_world * vec4<f32>(dir, 0.0);
+    if vis != VISIBILITY_MISS {
+        let position = view.camera_position + dir * textureLoad(depth_tex, pixel, 0).x;
+        then_clip = view.prev_clip_from_world * vec4<f32>(previous_world_position(vis >> 12u, position), 1.0);
+    }
+    if then_clip.w <= 0.0 {
+        return vec2<f32>(HISTORY_NONE);
+    }
+    let ndc = then_clip.xy / then_clip.w;
+    let then = vec2<f32>(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5) * view.viewport - view.jitter;
+    return clamp(then - (vec2<f32>(pixel) + 0.5), vec2<f32>(-HISTORY_NONE), vec2<f32>(HISTORY_NONE));
+}
+
+// An offset beyond any ray grid, which f16 still holds.
+const HISTORY_NONE: f32 = 60000.0;
+
+struct TemporalOutput {
+    @location(0) color: vec4<f32>,
+    @location(1) history: vec2<f32>,
+};
+
+// With the temporal resolve (temporal_resolve.wesl), lighting shades the traced grid itself and
+// adds where each pixel's surface was last frame (`history_offset`).
+@fragment
+fn fs_temporal(in: VertexOutput) -> TemporalOutput {
+    let pixel = vec2<i32>(floor(in.position.xy));
+    let dir = pixel_ray(pixel);
+    return TemporalOutput(vec4<f32>(pixel_color(pixel, dir), 1.0), history_offset(pixel, dir));
 }

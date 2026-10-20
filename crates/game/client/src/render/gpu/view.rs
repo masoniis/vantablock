@@ -9,7 +9,14 @@
 //! front record's coverage (see `primary_visibility.wesl`).
 
 use crate::render::{
-    VoxelCamera, environment::ExtractedEnvironment, gpu::layout::*, settings::RenderSettings,
+    VoxelCamera,
+    environment::ExtractedEnvironment,
+    gpu::{
+        layout::*,
+        temporal::{TemporalTargets, present_layout, resolve_layout},
+    },
+    passes::temporal::TemporalResolvePipeline,
+    settings::RenderSettings,
 };
 use bevy::{
     platform::collections::HashMap,
@@ -87,6 +94,13 @@ pub struct VoxelViewBindGroups {
     pub lighting: BindGroup,
 }
 
+/// The bind groups of a view's temporal resolve and present passes (with [`TemporalTargets`]).
+#[derive(Component)]
+pub struct TemporalBindGroups {
+    pub resolve: BindGroup,
+    pub present: BindGroup,
+}
+
 /// Allocates visibility targets for every voxel camera view.
 pub fn prepare_visibility_targets(
     mut commands: Commands,
@@ -144,7 +158,17 @@ pub fn prepare_view_bind_groups(
     pipeline_cache: Res<PipelineCache>,
     settings: Option<Res<RenderSettings>>,
     environment: Option<Res<ExtractedEnvironment>>,
-    views: Query<(Entity, &ExtractedView, &ExtractedCamera, &VisibilityTargets), With<VoxelCamera>>,
+    temporal_pipeline: Res<TemporalResolvePipeline>,
+    views: Query<
+        (
+            Entity,
+            &ExtractedView,
+            &ExtractedCamera,
+            &VisibilityTargets,
+            Option<&TemporalTargets>,
+        ),
+        With<VoxelCamera>,
+    >,
 ) {
     let debug_view = settings.as_ref().map_or(0, |s| s.debug_view.index());
     let (footprint_threshold, footprint_scale, transmission_opaque) =
@@ -163,9 +187,10 @@ pub fn prepare_view_bind_groups(
     let environment = environment.map(|e| e.0).unwrap_or_default();
     let visibility_layout = pipeline_cache.get_bind_group_layout(&visibility_view_layout());
     let lighting_layout = pipeline_cache.get_bind_group_layout(&lighting_view_layout());
+    let temporal_blend = settings.as_ref().map_or(0.1, |s| s.temporal_blend);
 
     let mut seen = HashMap::new();
-    for (entity, view, camera, targets) in &views {
+    for (entity, view, camera, targets, temporal) in &views {
         let view_from_world = view.world_from_view.to_matrix().inverse();
         let clip_from_world = view.clip_from_view * view_from_world;
         let prev_clip_from_world = previous_clip_from_world
@@ -186,12 +211,19 @@ pub fn prepare_view_bind_groups(
                     0
                 } else {
                     VIEW_TONEMAP_IN_SHADER
+                }
+                | if temporal.is_some_and(|t| t.history_valid) {
+                    VIEW_HISTORY_VALID
+                } else {
+                    0
                 },
             target_to_grid: targets.size.x as f32 / targets.target.x as f32,
             footprint_threshold,
             footprint_scale,
             transmission_opaque,
-            _pad: 0,
+            temporal_blend,
+            jitter: temporal.map_or([0.0; 2], |t| t.jitter.to_array()),
+            _pad: [0; 2],
         };
         let view_buffer = device.create_buffer_with_data(&BufferInitDescriptor {
             label: Some("voxel_view_uniform"),
@@ -231,6 +263,36 @@ pub fn prepare_view_bind_groups(
             visibility,
             lighting,
         });
+        match temporal {
+            Some(temporal) => {
+                let resolve = device.create_bind_group(
+                    "voxel_temporal_resolve_bind_group",
+                    &pipeline_cache.get_bind_group_layout(&resolve_layout()),
+                    &BindGroupEntries::sequential((
+                        view_buffer.as_entire_binding(),
+                        &temporal.current.default_view,
+                        &temporal.offsets.default_view,
+                        &temporal.history,
+                        &temporal_pipeline.sampler,
+                        &temporal.resolved,
+                    )),
+                );
+                let present = device.create_bind_group(
+                    "voxel_temporal_present_bind_group",
+                    &pipeline_cache.get_bind_group_layout(&present_layout()),
+                    &BindGroupEntries::sequential((
+                        view_buffer.as_entire_binding(),
+                        &temporal.resolved,
+                    )),
+                );
+                commands
+                    .entity(entity)
+                    .insert(TemporalBindGroups { resolve, present });
+            }
+            None => {
+                commands.entity(entity).remove::<TemporalBindGroups>();
+            }
+        }
     }
     // views that disappeared are forgotten, so a reused entity starts without stale history
     *previous_clip_from_world = seen;

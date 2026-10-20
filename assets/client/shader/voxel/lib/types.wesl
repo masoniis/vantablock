@@ -70,7 +70,11 @@ struct ViewUniform {
     // `transmission` builds: the opacity from which a filtered hit is treated as opaque (nothing
     // is traced behind it)
     transmission_opaque: f32,
-    pad0: u32,
+    // the temporal resolve: the least weight the current frame gets against the history
+    temporal_blend: f32,
+    // this frame's subpixel offset of every primary ray from its pixel center, in traced pixels
+    jitter: vec2<f32>,
+    pad0: vec2<u32>,
 };
 
 struct Environment {
@@ -101,3 +105,4 @@ const MODE_FLATTENED_GROUPS: u32 = 1u;
 const MODE_INSTANCE_REFIT: u32 = 2u;
 const VIEW_TONEMAP_IN_SHADER: u32 = 1u;
 const VIEW_STOCHASTIC_FOOTPRINT: u32 = 2u;
+const VIEW_HISTORY_VALID: u32 = 4u;

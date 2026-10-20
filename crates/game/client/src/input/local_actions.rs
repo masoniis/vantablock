@@ -21,6 +21,7 @@ pub enum ClientAction {
     ToggleLocalHierarchy,
     ToggleHardwareBroadPhase,
     ToggleFootprintLod,
+    ToggleTemporalAa,
     CycleRenderScale,
 
     // world clock requests (sent to the server)

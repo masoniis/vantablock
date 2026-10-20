@@ -51,6 +51,8 @@ const PRIMARY_VISIBILITY_FOOTPRINT_TRANSMISSION_MULTI_SLAB: &str =
 const PRIMARY_VISIBILITY_FOOTPRINT_TRANSMISSION_RAY_QUERY: &str =
     include_wesl!("primary_visibility_footprint_transmission_ray_query");
 const CONFORMANCE_FOOTPRINT_LOD: &str = include_wesl!("voxel_conformance_footprint_lod");
+const TEMPORAL_RESOLVE: &str = include_wesl!("temporal_resolve");
+const TEMPORAL_PRESENT: &str = include_wesl!("temporal_present");
 const CONFORMANCE_FOOTPRINT_LOD_MULTI_SLAB: &str =
     include_wesl!("voxel_conformance_footprint_lod_multi_slab");
 const CONFORMANCE_FOOTPRINT_LOD_RAY_QUERY: &str =
@@ -114,6 +116,8 @@ fn shaders_validate() {
             "voxel_conformance_footprint_lod_ray_query",
             CONFORMANCE_FOOTPRINT_LOD_RAY_QUERY,
         ),
+        ("temporal_resolve", TEMPORAL_RESOLVE),
+        ("temporal_present", TEMPORAL_PRESENT),
     ] {
         let module = naga::front::wgsl::parse_str(source)
             .unwrap_or_else(|e| panic!("{name} failed to parse:\n{}", e.emit_to_string(source)));
@@ -3070,6 +3074,482 @@ fn gpu_footprint_lod_quality() {
                     exact_error / filtered.max(1.0) * 100.0,
                 );
             }
+        }
+    }
+    eprintln!("  frames written to {}", out_dir.display());
+}
+
+/// How the temporal resolve (`RenderSettings::temporal_aa`) compares with the one-ray frame,
+/// against the same 4x4 supersampled references as `gpu_footprint_lod_quality`: each benchmark
+/// view runs `TEMPORAL_FRAMES` frames of the production passes (exact primary visibility with the
+/// renderer's jitter sequence, lighting's `fs_temporal`, `temporal_resolve`, and
+/// `temporal_present`) with the camera still and with a slow pan (`PAN_DEGREES` of yaw per frame),
+/// and compares the last frame with the reference at the final camera pose. Reports display-space
+/// color error per pixel and after a 3x3 box filter, the still view's convergence after 1, 4, 8,
+/// and 16 frames, its flicker (the mean change between the last two frames), and the resolve
+/// kernel's time. Writes the final frames as PNGs under the temp directory's `vanta-temporal-aa`.
+/// Not a correctness test; run with `just test-gpu gpu_temporal_aa_quality --ignored --release`.
+#[test]
+#[ignore]
+fn gpu_temporal_aa_quality() {
+    use bevy::math::{Mat4, Quat, Vec2};
+    use client::render::{
+        environment::environment_at,
+        gpu::{
+            layout::{GpuViewUniform, VIEW_HISTORY_VALID, VIEW_TONEMAP_IN_SHADER},
+            temporal::jitter,
+        },
+        scene::GpuSceneData,
+    };
+
+    const SUPERSAMPLE: u32 = 4;
+    const TEMPORAL_FRAMES: u32 = 32;
+    const PAN_DEGREES: f32 = 0.25;
+    const TEMPORAL_BLEND: f32 = 0.1;
+    let Some(gpu) = gpu() else { return };
+    let (library, geometry, templates) = single_slab_library();
+    let (showcase, grove) = primary_scenes(&library, &templates);
+    let out_dir = std::env::temp_dir().join("vanta-temporal-aa");
+    std::fs::create_dir_all(&out_dir).unwrap();
+
+    let hardware = gpu.ray_query;
+    let (visibility_source, lighting_source) = if hardware {
+        (PRIMARY_VISIBILITY_RAY_QUERY, DIRECT_LIGHTING_RAY_QUERY)
+    } else {
+        (PRIMARY_VISIBILITY, DIRECT_LIGHTING)
+    };
+    let module = |source: &str| {
+        gpu.device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: None,
+                source: wgpu::ShaderSource::Wgsl(source.into()),
+            })
+    };
+    let compute = |source: &str| {
+        gpu.device
+            .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: None,
+                layout: None,
+                module: &module(source),
+                entry_point: Some("main"),
+                compilation_options: Default::default(),
+                cache: None,
+            })
+    };
+    let render_pipeline =
+        |module: &wgpu::ShaderModule, entry: &str, formats: &[wgpu::TextureFormat]| {
+            let targets: Vec<Option<wgpu::ColorTargetState>> =
+                formats.iter().map(|&f| Some(f.into())).collect();
+            gpu.device
+                .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                    label: None,
+                    layout: None,
+                    vertex: wgpu::VertexState {
+                        module,
+                        entry_point: Some("vs_main"),
+                        compilation_options: Default::default(),
+                        buffers: &[],
+                    },
+                    primitive: Default::default(),
+                    depth_stencil: None,
+                    multisample: Default::default(),
+                    fragment: Some(wgpu::FragmentState {
+                        module,
+                        entry_point: Some(entry),
+                        compilation_options: Default::default(),
+                        targets: &targets,
+                    }),
+                    multiview_mask: None,
+                    cache: None,
+                })
+        };
+    let display_format = wgpu::TextureFormat::Rgba8UnormSrgb;
+    let color_format = wgpu::TextureFormat::Rgba16Float;
+    let offset_format = wgpu::TextureFormat::Rg16Float;
+    let visibility_pipeline = compute(visibility_source);
+    let resolve_pipeline = compute(TEMPORAL_RESOLVE);
+    let lighting_module = module(lighting_source);
+    let lighting_pipeline = render_pipeline(&lighting_module, "fs_main", &[display_format]);
+    let temporal_lighting_pipeline = render_pipeline(
+        &lighting_module,
+        "fs_temporal",
+        &[color_format, offset_format],
+    );
+    let present_pipeline = render_pipeline(&module(TEMPORAL_PRESENT), "fs_main", &[display_format]);
+    let sampler = gpu.device.create_sampler(&wgpu::SamplerDescriptor {
+        mag_filter: wgpu::FilterMode::Linear,
+        min_filter: wgpu::FilterMode::Linear,
+        ..Default::default()
+    });
+
+    let topology: Vec<wgpu::Buffer> = geometry.topology.iter().map(|s| gpu.storage(s)).collect();
+    let attributes = gpu.storage(&geometry.attributes[0]);
+    let materials = gpu.storage(&geometry.materials);
+    let template_bvh = gpu.storage(&geometry.template_bvh);
+    let lod = gpu.storage(&geometry.lod);
+    let meta = gpu.uniform(&GpuGeometryMeta::new(
+        &geometry.topology_page_entries,
+        &geometry.attribute_page_entries,
+    ));
+    let environment = gpu.uniform(&environment_at(0.4, 0.0));
+    let unused = gpu.output(16);
+    let texture = |width: u32, height: u32, format: wgpu::TextureFormat| {
+        gpu.device.create_texture(&wgpu::TextureDescriptor {
+            label: None,
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                | wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_SRC
+                | if format == offset_format || format.is_srgb() {
+                    wgpu::TextureUsages::empty()
+                } else {
+                    wgpu::TextureUsages::STORAGE_BINDING
+                },
+            view_formats: &[],
+        })
+    };
+    fn attachment(view: &wgpu::TextureView) -> Option<wgpu::RenderPassColorAttachment<'_>> {
+        Some(wgpu::RenderPassColorAttachment {
+            view,
+            depth_slice: None,
+            resolve_target: None,
+            ops: wgpu::Operations {
+                load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                store: wgpu::StoreOp::Store,
+            },
+        })
+    }
+    let mean_error = |a: &[[f32; 3]], b: &[[f32; 3]]| -> f64 {
+        a.iter()
+            .zip(b)
+            .map(|(a, b)| (0..3).map(|i| (a[i] - b[i]).abs() as f64).sum::<f64>() / 3.0)
+            .sum::<f64>()
+            / a.len() as f64
+    };
+
+    for (scene_name, view_name, snapshot, eye, target) in primary_views(&showcase, &grove) {
+        let scene = GpuSceneData::pack(snapshot, &library, &geometry, HierarchyKind::Tree64);
+        let uniform = gpu.uniform(&scene.uniform);
+        let bvh = gpu.storage(&scene.bvh);
+        let frames = gpu.storage(&scene.frames);
+        let instance_buffer = gpu.storage(&scene.instances);
+        let slot_frames = gpu.storage(&scene.slot_frames);
+        let tlas = hardware.then(|| scene_tlas(&gpu, snapshot, &templates));
+        let groups = || {
+            scene_groups(
+                &topology,
+                &template_bvh,
+                &meta,
+                [&uniform, &bvh, &frames, &instance_buffer, &slot_frames],
+                tlas.as_ref(),
+                &unused,
+                &unused,
+            )
+        };
+        // the camera panned by `yaw` radians about the vertical through the eye
+        let clip_from_world = |width: u32, height: u32, yaw: f32| {
+            let forward = Quat::from_rotation_y(yaw) * (target - eye);
+            Mat4::perspective_infinite_reverse_rh(
+                60f32.to_radians(),
+                width as f32 / height as f32,
+                0.05,
+            ) * Mat4::look_at_rh(eye, eye + forward, Vec3::Y)
+        };
+
+        // One frame of the production passes, displayed: exact, or with `temporal` `(history,
+        // resolved image, view flags)` through the resolve and its present pass.
+        let render = |width: u32,
+                      height: u32,
+                      clip: Mat4,
+                      prev_clip: Mat4,
+                      jitter: Vec2,
+                      temporal: Option<(&wgpu::TextureView, &wgpu::TextureView, u32)>|
+         -> ShadedFrame {
+            let vis = gpu.texture_2d(width, height, wgpu::TextureFormat::Rgba32Uint);
+            let depth = gpu.texture_2d(width, height, wgpu::TextureFormat::Rgba32Float);
+            let cell = gpu.texture_2d(width, height, wgpu::TextureFormat::Rg32Uint);
+            let stats = gpu.texture_2d(width, height, wgpu::TextureFormat::R32Uint);
+            let display = texture(width, height, display_format);
+            let current = texture(width, height, color_format);
+            let offsets = texture(width, height, offset_format);
+            let [
+                vis_view,
+                depth_view,
+                cell_view,
+                stats_view,
+                display_view,
+                current_view,
+                offsets_view,
+            ] = [&vis, &depth, &cell, &stats, &display, &current, &offsets]
+                .map(|t| t.create_view(&Default::default()));
+            let view = gpu.uniform(&GpuViewUniform {
+                world_from_clip: clip.inverse().to_cols_array(),
+                clip_from_world: clip.to_cols_array(),
+                prev_clip_from_world: prev_clip.to_cols_array(),
+                camera_position: eye.to_array(),
+                viewport: [width as f32, height as f32],
+                flags: VIEW_TONEMAP_IN_SHADER | temporal.map_or(0, |t| t.2),
+                target_to_grid: 1.0,
+                footprint_threshold: 0.5,
+                footprint_scale: 1.0,
+                transmission_opaque: 1.0,
+                temporal_blend: TEMPORAL_BLEND,
+                jitter: jitter.to_array(),
+                ..Default::default()
+            });
+
+            let mut visibility_groups = groups();
+            visibility_groups[2].1 = vec![
+                (0, view.as_entire_binding()),
+                (1, wgpu::BindingResource::TextureView(&vis_view)),
+                (2, wgpu::BindingResource::TextureView(&depth_view)),
+                (3, wgpu::BindingResource::TextureView(&cell_view)),
+                (4, wgpu::BindingResource::TextureView(&stats_view)),
+            ];
+            let visibility_bind_groups = gpu.bind_groups(
+                |i| visibility_pipeline.get_bind_group_layout(i),
+                &visibility_groups,
+            );
+            let lighting = if temporal.is_some() {
+                &temporal_lighting_pipeline
+            } else {
+                &lighting_pipeline
+            };
+            let mut lighting_groups = groups();
+            lighting_groups[0].1.extend([
+                (1, attributes.as_entire_binding()),
+                (2, materials.as_entire_binding()),
+                (11, lod.as_entire_binding()),
+            ]);
+            lighting_groups[2].1 = vec![
+                (0, view.as_entire_binding()),
+                (1, environment.as_entire_binding()),
+                (2, wgpu::BindingResource::TextureView(&vis_view)),
+                (3, wgpu::BindingResource::TextureView(&depth_view)),
+                (4, wgpu::BindingResource::TextureView(&cell_view)),
+                (5, wgpu::BindingResource::TextureView(&stats_view)),
+            ];
+            let lighting_bind_groups =
+                gpu.bind_groups(|i| lighting.get_bind_group_layout(i), &lighting_groups);
+
+            let mut encoder = gpu.device.create_command_encoder(&Default::default());
+            {
+                let mut pass = encoder.begin_compute_pass(&Default::default());
+                pass.set_pipeline(&visibility_pipeline);
+                for (index, group) in &visibility_bind_groups {
+                    pass.set_bind_group(*index, group, &[]);
+                }
+                pass.dispatch_workgroups(width.div_ceil(8), height.div_ceil(8), 1);
+            }
+            {
+                let color_attachments = if temporal.is_some() {
+                    vec![attachment(&current_view), attachment(&offsets_view)]
+                } else {
+                    vec![attachment(&display_view)]
+                };
+                let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: None,
+                    color_attachments: &color_attachments,
+                    ..Default::default()
+                });
+                pass.set_pipeline(lighting);
+                for (index, group) in &lighting_bind_groups {
+                    pass.set_bind_group(*index, group, &[]);
+                }
+                pass.draw(0..3, 0..1);
+            }
+            if let Some((history, resolved, _)) = temporal {
+                let resolve_groups = gpu.bind_groups(
+                    |i| resolve_pipeline.get_bind_group_layout(i),
+                    &[(
+                        0,
+                        vec![
+                            (0, view.as_entire_binding()),
+                            (1, wgpu::BindingResource::TextureView(&current_view)),
+                            (2, wgpu::BindingResource::TextureView(&offsets_view)),
+                            (3, wgpu::BindingResource::TextureView(history)),
+                            (4, wgpu::BindingResource::Sampler(&sampler)),
+                            (5, wgpu::BindingResource::TextureView(resolved)),
+                        ],
+                    )],
+                );
+                let present_groups = gpu.bind_groups(
+                    |i| present_pipeline.get_bind_group_layout(i),
+                    &[(
+                        0,
+                        vec![
+                            (0, view.as_entire_binding()),
+                            (1, wgpu::BindingResource::TextureView(resolved)),
+                        ],
+                    )],
+                );
+                {
+                    let mut pass = encoder.begin_compute_pass(&Default::default());
+                    pass.set_pipeline(&resolve_pipeline);
+                    pass.set_bind_group(0, &resolve_groups[0].1, &[]);
+                    pass.dispatch_workgroups(width.div_ceil(8), height.div_ceil(8), 1);
+                }
+                let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: None,
+                    color_attachments: &[attachment(&display_view)],
+                    ..Default::default()
+                });
+                pass.set_pipeline(&present_pipeline);
+                pass.set_bind_group(0, &present_groups[0].1, &[]);
+                pass.draw(0..3, 0..1);
+            }
+            gpu.queue.submit([encoder.finish()]);
+
+            let texels: Vec<[u8; 4]> = gpu.read_texture(&display);
+            ShadedFrame {
+                width,
+                height,
+                color: texels
+                    .iter()
+                    .map(|c| [0, 1, 2].map(|i| srgb_to_linear(c[i] as f32 / 255.0)))
+                    .collect(),
+                hit: vec![0.0; texels.len()],
+                filtered: vec![false; texels.len()],
+            }
+        };
+
+        eprintln!("  {scene_name}, {view_name} view");
+        for (width, height) in [(640u32, 360u32), (1280, 720)] {
+            let stem = format!("{}_{width}x{height}", view_name.replace(' ', "_"));
+            for (motion, pan) in [("still", 0.0f32), ("pan", PAN_DEGREES.to_radians())] {
+                let last = TEMPORAL_FRAMES - 1;
+                let final_clip = clip_from_world(width, height, pan * last as f32);
+                let reference = render(
+                    width * SUPERSAMPLE,
+                    height * SUPERSAMPLE,
+                    clip_from_world(width * SUPERSAMPLE, height * SUPERSAMPLE, pan * last as f32),
+                    final_clip,
+                    Vec2::ZERO,
+                    None,
+                )
+                .downsample(SUPERSAMPLE);
+                let reference_display = reference.display();
+                let reference_blurred = reference.blurred_display();
+                let one_ray = render(width, height, final_clip, final_clip, Vec2::ZERO, None);
+                let errors = |frame: &ShadedFrame| {
+                    (
+                        mean_error(&frame.display(), &reference_display) * 100.0,
+                        mean_error(&frame.blurred_display(), &reference_blurred) * 100.0,
+                    )
+                };
+                let (one_error, one_blurred) = errors(&one_ray);
+
+                let histories = [0, 1]
+                    .map(|_| texture(width, height, color_format).create_view(&Default::default()));
+                let mut convergence = Vec::new();
+                let mut previous: Option<ShadedFrame> = None;
+                let mut flicker = 0.0;
+                let mut resolved = None;
+                for frame in 0..TEMPORAL_FRAMES {
+                    let clip = clip_from_world(width, height, pan * frame as f32);
+                    let prev_clip =
+                        clip_from_world(width, height, pan * frame.saturating_sub(1) as f32);
+                    let write = (frame % 2) as usize;
+                    let shaded = render(
+                        width,
+                        height,
+                        clip,
+                        prev_clip,
+                        jitter(frame),
+                        Some((
+                            &histories[1 - write],
+                            &histories[write],
+                            if frame > 0 { VIEW_HISTORY_VALID } else { 0 },
+                        )),
+                    );
+                    if pan == 0.0 && [0, 3, 7, 15].contains(&frame) {
+                        convergence.push(format!("{:.2}", errors(&shaded).0));
+                    }
+                    if frame == last {
+                        if let Some(previous) = &previous {
+                            flicker = mean_error(&shaded.display(), &previous.display()) * 100.0;
+                        }
+                        resolved = Some(shaded);
+                    } else {
+                        previous = Some(shaded);
+                    }
+                }
+                let resolved = resolved.unwrap();
+                let (error, blurred) = errors(&resolved);
+                write_png(
+                    &out_dir.join(format!("{stem}_{motion}_temporal.png")),
+                    width,
+                    height,
+                    &resolved.display_bytes(),
+                );
+                write_png(
+                    &out_dir.join(format!("{stem}_{motion}_one_ray.png")),
+                    width,
+                    height,
+                    &one_ray.display_bytes(),
+                );
+                write_png(
+                    &out_dir.join(format!("{stem}_{motion}_reference.png")),
+                    width,
+                    height,
+                    &reference.display_bytes(),
+                );
+                eprintln!(
+                    "    {width}x{height}, {motion}: one ray {one_error:.2}% (3x3 {one_blurred:.2}%), temporal after {TEMPORAL_FRAMES} frames {error:.2}% (3x3 {blurred:.2}%){}",
+                    // a panning frame changes with the camera, so only a still one flickers
+                    if pan == 0.0 {
+                        format!(
+                            ", flicker {flicker:.2}%, after 1/4/8/16 frames {}",
+                            convergence.join(" / ")
+                        )
+                    } else {
+                        String::new()
+                    }
+                );
+            }
+        }
+    }
+
+    // the resolve kernel's own cost, on the last view's history
+    if gpu.timestamps {
+        for (width, height) in [(640u32, 360u32), (1280, 720)] {
+            let [current, offsets, history, resolved] =
+                [color_format, offset_format, color_format, color_format]
+                    .map(|f| texture(width, height, f).create_view(&Default::default()));
+            let view = gpu.uniform(&GpuViewUniform {
+                viewport: [width as f32, height as f32],
+                flags: VIEW_HISTORY_VALID,
+                temporal_blend: TEMPORAL_BLEND,
+                ..Default::default()
+            });
+            let groups = gpu.bind_groups(
+                |i| resolve_pipeline.get_bind_group_layout(i),
+                &[(
+                    0,
+                    vec![
+                        (0, view.as_entire_binding()),
+                        (1, wgpu::BindingResource::TextureView(&current)),
+                        (2, wgpu::BindingResource::TextureView(&offsets)),
+                        (3, wgpu::BindingResource::TextureView(&history)),
+                        (4, wgpu::BindingResource::Sampler(&sampler)),
+                        (5, wgpu::BindingResource::TextureView(&resolved)),
+                    ],
+                )],
+            );
+            let workgroups = [width.div_ceil(8), height.div_ceil(8), 1];
+            gpu.time_dispatch(&resolve_pipeline, &groups, workgroups, 5);
+            let ms = gpu
+                .time_dispatch(&resolve_pipeline, &groups, workgroups, 50)
+                .unwrap();
+            eprintln!("  temporal resolve, {width}x{height}: {ms:.3} ms GPU");
         }
     }
     eprintln!("  frames written to {}", out_dir.display());

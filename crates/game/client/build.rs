@@ -115,6 +115,24 @@ fn main() {
         );
     }
 
+    // the temporal resolve and its present pass read only the view's targets, so one build each
+    for (module, artifact) in [
+        ("package::voxel::temporal_resolve", "temporal_resolve"),
+        ("package::voxel::temporal_present", "temporal_present"),
+    ] {
+        build(
+            module,
+            artifact,
+            &[
+                ("multi_slab", false),
+                ("stackless", false),
+                ("ray_query", false),
+                ("footprint_lod", false),
+                ("transmission", false),
+            ],
+        );
+    }
+
     // the optional hardware scene broad phase (ray queries over flattened pose groups): the
     // renderer's default on capable adapters, held to the same conformance tests and benchmarked
     // against the software BVH4

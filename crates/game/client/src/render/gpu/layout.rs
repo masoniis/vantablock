@@ -30,6 +30,9 @@ pub const VIEW_TONEMAP_IN_SHADER: u32 = 1;
 /// `ViewUniform::flags`: footprint LOD filtering draws each traced pixel's opacity threshold from
 /// a stable per-pixel hash (stochastic transmission) instead of `footprint_threshold`.
 pub const VIEW_STOCHASTIC_FOOTPRINT: u32 = 2;
+/// `ViewUniform::flags`: the temporal resolve's history holds last frame's resolved image, so it
+/// may be reprojected (unset on a view's first temporal frame and after a resize).
+pub const VIEW_HISTORY_VALID: u32 = 4;
 
 /// An affine transform as three rows of `[x, y, z, translation]`.
 pub type AffineRows = [[f32; 4]; 3];
@@ -202,9 +205,15 @@ pub struct GpuViewUniform {
     /// The footprint transmission variants (`RenderSettings::footprint_transmission`): the opacity
     /// from which a filtered hit counts as opaque and nothing is traced behind it.
     pub transmission_opaque: f32,
-    pub _pad: u32,
+    /// The temporal resolve (`RenderSettings::temporal_aa`): the least weight the current frame
+    /// gets against the reprojected history.
+    pub temporal_blend: f32,
+    /// This frame's subpixel offset of every primary ray from its pixel center, in traced pixels
+    /// (zero without the temporal resolve).
+    pub jitter: [f32; 2],
+    pub _pad: [u32; 2],
 }
-const _: () = assert!(std::mem::size_of::<GpuViewUniform>() == 240);
+const _: () = assert!(std::mem::size_of::<GpuViewUniform>() == 256);
 
 /// Sun, sky, and atmosphere parameters.
 #[repr(C)]

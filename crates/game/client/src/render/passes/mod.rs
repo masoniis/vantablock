@@ -5,13 +5,17 @@
 //! | `SceneTlas`         | builds the hardware broad phase's TLAS (adapters with ray queries)  |
 //! | `PrimaryVisibility` | one world ray per pixel: frame identity, exact cell, depth, costs   |
 //! | `DirectLighting`    | materials, sun/sky light, shadow rays, atmosphere, debug views      |
+//! | `TemporalResolve`   | jittered frames blended with reprojected history (`temporal_aa`)    |
+//! | `TemporalPresent`   | the resolved image into the view target (`temporal_aa`)             |
 //!
 //! Scene preparation (geometry residency, pose frames, BVHs) happens in the render `Prepare`
-//! systems before the camera schedules run. Indirect lighting, refraction, and temporal filtering
-//! are later stages that slot in after `DirectLighting`.
+//! systems before the camera schedules run. Without the temporal resolve, `DirectLighting` writes
+//! the view target itself. Indirect lighting and refraction are later stages that slot in after
+//! `DirectLighting`.
 
 pub mod direct_lighting;
 pub mod primary_visibility;
+pub mod temporal;
 
 use crate::render::gpu::broad_phase;
 use bevy::{
@@ -32,6 +36,8 @@ impl Plugin for VoxelRenderGraphPlugin {
                 broad_phase::build_scene_tlas,
                 primary_visibility::primary_visibility_pass,
                 direct_lighting::direct_lighting_pass,
+                temporal::temporal_resolve_pass,
+                temporal::temporal_present_pass,
             )
                 .chain()
                 .after(main_opaque_pass_3d)

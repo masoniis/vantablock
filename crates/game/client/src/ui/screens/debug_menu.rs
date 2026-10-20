@@ -279,7 +279,10 @@ fn update_debug_menu_system(
                 }
             } else {
                 "off".to_string()
-            }),
+            })
+            .gap()
+            .label("TAA")
+            .mode(if settings.temporal_aa { "on" } else { "off" }),
     );
     right.push(
         Line::default()

@@ -2,9 +2,11 @@ use crate::render::{
     VoxelCamera,
     gpu::{
         buffers::{VoxelGpuResources, geometry_layout, scene_layout, scene_ray_query_layout},
+        temporal::{self, TemporalTargets},
         view::{VoxelViewBindGroups, lighting_view_layout},
     },
     scene::ExtractedScene,
+    settings::RenderSettings,
     shaders::{
         DIRECT_LIGHTING_MULTI_SLAB_SHADER, DIRECT_LIGHTING_RAY_QUERY_SHADER, DIRECT_LIGHTING_SHADER,
     },
@@ -15,9 +17,10 @@ use bevy::{
         diagnostic::RecordDiagnostics,
         render_resource::{
             CachedPipelineState, CachedRenderPipelineId, ColorTargetState, ColorWrites,
-            FragmentState, MultisampleState, PipelineCache, PrimitiveState, RenderPassDescriptor,
-            RenderPipelineDescriptor, SpecializedRenderPipeline, SpecializedRenderPipelines,
-            TextureFormat, VertexState,
+            FragmentState, LoadOp, MultisampleState, Operations, PipelineCache, PrimitiveState,
+            RenderPassColorAttachment, RenderPassDescriptor, RenderPipelineDescriptor,
+            SpecializedRenderPipeline, SpecializedRenderPipelines, StoreOp, TextureFormat,
+            VertexState,
         },
         renderer::{RenderContext, ViewQuery},
         view::{Msaa, ViewTarget},
@@ -32,6 +35,9 @@ pub struct DirectLightingKey {
     pub multi_slab: bool,
     /// Whether shadow rays use the hardware broad phase (single slab only).
     pub ray_query: bool,
+    /// Whether the view has the temporal resolve: lighting then shades the traced grid into the
+    /// view's `TemporalTargets` (`fs_temporal`) instead of the view target.
+    pub temporal: bool,
 }
 
 #[derive(Resource, Default)]
@@ -60,17 +66,30 @@ impl SpecializedRenderPipeline for DirectLightingPipeline {
             fragment: Some(FragmentState {
                 shader,
                 shader_defs: vec![],
-                entry_point: Some("fs_main".into()),
-                targets: vec![Some(ColorTargetState {
-                    format: key.format,
-                    blend: None,
-                    write_mask: ColorWrites::ALL,
-                })],
+                entry_point: Some(
+                    if key.temporal {
+                        "fs_temporal"
+                    } else {
+                        "fs_main"
+                    }
+                    .into(),
+                ),
+                targets: if key.temporal {
+                    [temporal::COLOR_FORMAT, temporal::OFFSET_FORMAT]
+                        .map(|format| Some(format.into()))
+                        .to_vec()
+                } else {
+                    vec![Some(ColorTargetState {
+                        format: key.format,
+                        blend: None,
+                        write_mask: ColorWrites::ALL,
+                    })]
+                },
             }),
             primitive: PrimitiveState::default(),
             depth_stencil: None,
             multisample: MultisampleState {
-                count: key.samples,
+                count: if key.temporal { 1 } else { key.samples },
                 ..default()
             },
             immediate_size: 0,
@@ -80,7 +99,11 @@ impl SpecializedRenderPipeline for DirectLightingPipeline {
 }
 
 #[derive(Component)]
-pub struct DirectLightingPipelineId(pub CachedRenderPipelineId);
+pub struct DirectLightingPipelineId {
+    pub id: CachedRenderPipelineId,
+    /// Whether it is the temporal build (`DirectLightingKey::temporal`).
+    pub temporal: bool,
+}
 
 pub fn queue_direct_lighting_pipelines(
     mut commands: Commands,
@@ -88,32 +111,45 @@ pub fn queue_direct_lighting_pipelines(
     pipeline: Res<DirectLightingPipeline>,
     resources: Res<VoxelGpuResources>,
     scene: Res<ExtractedScene>,
+    settings: Option<Res<RenderSettings>>,
     mut pipelines: ResMut<SpecializedRenderPipelines<DirectLightingPipeline>>,
     views: Query<(Entity, &ViewTarget, Option<&Msaa>), With<VoxelCamera>>,
 ) {
+    // queued before `prepare_temporal_targets` runs, so from the setting it follows
+    let temporal = settings.is_some_and(|s| s.temporal_aa);
     for (entity, target, msaa) in &views {
         let key = DirectLightingKey {
             format: target.main_texture_format(),
             samples: msaa.map_or(1, |m| m.samples()),
             multi_slab: resources.multi_slab(),
             ray_query: resources.traces_with_hardware(&scene.0),
+            temporal,
         };
         let id = pipelines.specialize(&pipeline_cache, &pipeline, key);
-        commands.entity(entity).insert(DirectLightingPipelineId(id));
+        commands
+            .entity(entity)
+            .insert(DirectLightingPipelineId { id, temporal });
     }
 }
 
-/// Shades the visibility buffer into the view target. Runs in the `Core3d` schedule of every
-/// view; views without voxel targets skip it.
+/// Shades the visibility buffer into the view target, or with the temporal resolve into the
+/// view's `TemporalTargets`. Runs in the `Core3d` schedule of every view; views without voxel
+/// targets skip it.
 pub fn direct_lighting_pass(
-    view: ViewQuery<(&ViewTarget, &VoxelViewBindGroups, &DirectLightingPipelineId)>,
+    view: ViewQuery<(
+        &ViewTarget,
+        &VoxelViewBindGroups,
+        &DirectLightingPipelineId,
+        Option<&TemporalTargets>,
+    )>,
     resources: Res<VoxelGpuResources>,
     pipeline_cache: Res<PipelineCache>,
     mut ctx: RenderContext,
 ) {
-    let (target, bind_groups, pipeline_id) = view.into_inner();
-    let Some(pipeline) = pipeline_cache.get_render_pipeline(pipeline_id.0) else {
-        if let CachedPipelineState::Err(e) = pipeline_cache.get_render_pipeline_state(pipeline_id.0)
+    let (target, bind_groups, pipeline_id, temporal) = view.into_inner();
+    let Some(pipeline) = pipeline_cache.get_render_pipeline(pipeline_id.id) else {
+        if let CachedPipelineState::Err(e) =
+            pipeline_cache.get_render_pipeline_state(pipeline_id.id)
         {
             error_once!("Direct lighting pipeline failed: {e}");
         }
@@ -122,9 +158,30 @@ pub fn direct_lighting_pass(
 
     let diagnostics = ctx.diagnostic_recorder();
     let diagnostics = diagnostics.as_deref();
+    // the targets follow the same setting as the pipeline, but guard against a mismatch
+    let temporal = temporal.filter(|_| pipeline_id.temporal);
+    if pipeline_id.temporal && temporal.is_none() {
+        return;
+    }
+    let color_attachments = match temporal {
+        Some(temporal) => [&temporal.current, &temporal.offsets]
+            .map(|texture| {
+                Some(RenderPassColorAttachment {
+                    view: &texture.default_view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: Operations {
+                        load: LoadOp::Clear(default()),
+                        store: StoreOp::Store,
+                    },
+                })
+            })
+            .to_vec(),
+        None => vec![Some(target.get_color_attachment())],
+    };
     let mut pass = ctx.begin_tracked_render_pass(RenderPassDescriptor {
         label: Some("voxel_direct_lighting"),
-        color_attachments: &[Some(target.get_color_attachment())],
+        color_attachments: &color_attachments,
         depth_stencil_attachment: None,
         timestamp_writes: None,
         occlusion_query_set: None,
