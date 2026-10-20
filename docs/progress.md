@@ -24,12 +24,6 @@ The gate passed on Metal (M1 Pro) and Vulkan (RTX 3080). The 64-tree, short priv
   the same adapter, so the trigger is likely a scene state its rays don't reach (a pose, the day
   cycle, or a camera ray). Found October 19, 2026, and reproduced on `d71582dc` with the
   hardware broad phase switched off, so it predates the UI overhaul.
-- **Windows: a directly launched binary exits silently.** Dynamically linked builds import
-  `bevy_dylib-<hash>.dll`, which only `target/<profile>/deps` holds; the unhashed
-  `bevy_dylib.dll` cargo leaves beside the executable can be a different feature build (here the
-  `brp` build's hash was `be6dfb3b…` while the stale copy was `85d76526…`). `cargo run` puts
-  `deps` on `PATH`; a direct launch (as for BRP) must too. Found October 20, 2026; a lasting fix
-  (copying the hashed dylib next to the binaries, or a launcher setting `PATH`) is open.
 - **No hardware broad phase on Metal.** naga's MSL backend (wgpu 29) lowers `rayQueryProceed` to a
   flag only `rayQueryTerminate` clears, over a single closest-hit `intersect`, so the broad
   phase's candidate loop never ends. `render::device::ray_query_supported` keeps Metal on the

@@ -54,9 +54,21 @@ brp *args:
     cargo run -p {{app}} --bin vantablock --features brp {{args}}
 
 # builds the BRP-enabled client so the bevy_brp_mcp server can launch it
+[unix]
 [group("core")]
 brp-build *args:
     cargo build -p {{app}} --bin vantablock --features brp {{args}}
+
+# builds the BRP-enabled client so the bevy_brp_mcp server can launch it, copying the hashed bevy
+# dylib it imports next to it (cargo only puts it on PATH for cargo run)
+[windows]
+[group("core")]
+brp-build *args:
+    cargo build -p {{app}} --bin vantablock --features brp {{args}}; if (-not $?) { exit 1 }
+    $dir = "target\{{ if args =~ '--release' { 'release' } else { 'debug' } }}"; \
+    $exe = [IO.File]::ReadAllText("$dir\vantablock.exe", [Text.Encoding]::ASCII); \
+    $dll = [regex]::Match($exe, 'bevy_dylib-[0-9a-f]+\.dll').Value; \
+    Copy-Item "$dir\deps\$dll" $dir
 
 alias run := client
 alias run-fast := release
