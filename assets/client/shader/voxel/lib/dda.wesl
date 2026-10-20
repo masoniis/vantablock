@@ -16,6 +16,10 @@ struct VoxelRoot {
     // slab base of the root's page, valid when single_page
     page_base: u32,
     single_page: bool,
+    // occupied bounds in module voxels (max exclusive); only footprint-filtered 64-tree traversal
+    // reads them, to clip LOD hits
+    bounds_min: vec3<i32>,
+    bounds_max: vec3<i32>,
 };
 
 struct VoxelHit {
@@ -57,12 +61,12 @@ fn nearest_axis(t: vec3<f32>) -> vec3<i32> {
     return vec3<i32>(0, 0, 1);
 }
 
-fn entry_face(lo: vec3<i32>, size: i32, o: vec3<f32>, inv: vec3<f32>, step: vec3<i32>, te: f32, t_start: f32) -> u32 {
+fn entry_face(lo: vec3<i32>, hi: vec3<i32>, o: vec3<f32>, inv: vec3<f32>, step: vec3<i32>, te: f32, t_start: f32) -> u32 {
     if te < t_start {
         return FACE_INSIDE;
     }
     let t0 = (vec3<f32>(lo) - o) * inv;
-    let t1 = (vec3<f32>(lo + vec3<i32>(size)) - o) * inv;
+    let t1 = (vec3<f32>(hi) - o) * inv;
     let near = min(t0, t1);
     // stepping up enters through the min face, whose outward normal points down the axis
     let down = step < vec3<i32>(0);

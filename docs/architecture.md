@@ -70,7 +70,7 @@ client: GpuGeometryLibrary (bake every module as a 64-tree and an octree into sh
 | Optional hardware broad phase (Vulkan TLAS)     | `ray_query` in `lib/scene.wesl`, `frame_boxes`, `gpu::broad_phase`       |
 | Register, spill, and occupancy profiling        | `crates/game/client/tests/shader_statistics.rs` (`just shader-stats`)    |
 | 16-byte LOD payload                             | `voxel::lod`                                                             |
-| Footprint LOD filtering (no pass uses it yet)   | `tree64::trace_filtered`, the `footprint_lod` WESL feature               |
+| Footprint LOD filtering (no pass uses it yet)   | `tree64::trace_filtered`, `VoxelRoot::trace_filtered`, `trace_scene_filtered`, the `footprint_lod` WESL feature |
 | Exact integer terminal-cell identity            | `VoxelHit::cell`, the visibility buffer's cell target                    |
 | Visibility buffer (`R32G32Uint` + `R32Float`)   | `client::render::gpu::view`, `primary_visibility.wesl`                   |
 | `.vanta` files                                  | `voxel::format`                                                          |
@@ -93,7 +93,8 @@ client: GpuGeometryLibrary (bake every module as a 64-tree and an octree into sh
   bit-for-bit; both hierarchies by the reference rules on the single-page, multi-page, and
   four-slab paths; the stackless experiment bit-identical to the stack; 64-tree footprint LOD
   filtering on the real assets taking the CPU reference's exact path (hit, level, material, and
-  step count) in both residency layouts; whole-scene traversal on
+  step count) in both residency layouts, and whole-scene filtered traversal finding the CPU's
+  nearest filtered hits for every organization, including the hardware broad phase; whole-scene traversal on
   the real assets for every organization, hierarchy, and a library split over several slabs; the
   hardware broad phase where the adapter has ray queries; and motion reconstruction across a pose
   change. `WGPU_BACKEND` and `WGPU_ADAPTER_NAME` pick the adapter.

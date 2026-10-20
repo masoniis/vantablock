@@ -9,7 +9,7 @@ import super::super::lib::tree64::{trace_tree64, trace_tree64_filtered};
 import super::super::lib::lod::{FootprintFilter, lod_material};
 import super::super::lib::geometry::{lod_record_load, voxel_material};
 import super::super::lib::octree::trace_octree;
-import super::super::lib::scene::{trace_scene, previous_world_position};
+import super::super::lib::scene::{trace_scene, trace_scene_filtered, previous_world_position};
 
 struct MaskCase {
     mask: vec2<u32>,
@@ -37,6 +37,11 @@ struct RootParams {
     page_base: u32,
     // bit 0: single page, bit 1: octree
     flags: u32,
+    // occupied bounds in module voxels
+    bounds_min: vec3<u32>,
+    pad0: u32,
+    bounds_max: vec3<u32>,
+    pad1: u32,
 };
 
 @group(2) @binding(0) var<storage, read> mask_cases: array<MaskCase>;
@@ -61,7 +66,9 @@ struct FilteredRayResult {
     lod: u32,
     material: u32,
     steps: u32,
-    pad: vec2<u32>,
+    // the hit frame, for whole-scene queries
+    frame: u32,
+    pad: u32,
 };
 
 @group(2) @binding(6) var<uniform> filter_params: FilterParams;
@@ -148,6 +155,8 @@ fn filtered_rays(@builtin(global_invocation_id) id: vec3<u32>) {
     root.levels = root_params.levels;
     root.page_base = root_params.page_base;
     root.single_page = (root_params.flags & 1u) != 0u;
+    root.bounds_min = vec3<i32>(root_params.bounds_min);
+    root.bounds_max = vec3<i32>(root_params.bounds_max);
     let cone = FootprintFilter(filter_params.radius, filter_params.spread, filter_params.threshold);
     let hit = trace_tree64_filtered(root, c.origin, sanitize_direction(c.dir), c.t_min, c.t_max, cone);
     var result: FilteredRayResult;
@@ -162,6 +171,29 @@ fn filtered_rays(@builtin(global_invocation_id) id: vec3<u32>) {
         } else {
             result.material = lod_material(lod_record_load(hit.attribute_handle));
         }
+    }
+    filtered_results[id.x] = result;
+}
+
+// Whole-scene queries with footprint LOD filtering (`trace_scene_filtered`), reporting the hit
+// frame, cell, and level. The world-space cone reaches every frame's 64-tree; octree frames stay
+// exact.
+@ if(footprint_lod)
+@compute @workgroup_size(64, 1, 1)
+fn filtered_scene_rays(@builtin(global_invocation_id) id: vec3<u32>) {
+    if id.x >= arrayLength(&ray_cases) {
+        return;
+    }
+    let c = ray_cases[id.x];
+    let cone = FootprintFilter(filter_params.radius, filter_params.spread, filter_params.threshold);
+    let hit = trace_scene_filtered(c.origin, c.dir, c.t_min, c.t_max, cone);
+    var result: FilteredRayResult;
+    result.hit = select(0u, 1u, hit.hit);
+    if hit.hit {
+        result.t = hit.t;
+        result.cell = hit.voxel.cell.x | (hit.voxel.cell.y << 10u) | (hit.voxel.cell.z << 20u);
+        result.lod = hit.voxel.lod;
+        result.frame = hit.frame;
     }
     filtered_results[id.x] = result;
 }

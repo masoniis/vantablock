@@ -380,8 +380,10 @@ pub fn trace_counted(
 /// [`trace_counted`] with footprint LOD filtering: an occupied node whose cell fits inside the
 /// ray cone's footprint is resolved from its LOD summary instead of being descended (see
 /// [`FootprintFilter`]). A filtered hit reports the node's aligned corner as `cell`, its index in
-/// the parent as `terminal_index`, its level as `lod`, and the summary's material. Nodes without a
-/// summary are always descended, and the root is never filtered.
+/// the parent as `terminal_index`, its level as `lod`, and the summary's material. The hit is
+/// where the ray enters the node's box clipped to the root's occupied `bounds` (the bounds scene
+/// search culls frames with), and a ray that misses the clipped box passes through. Nodes without
+/// a summary are always descended, and the root is never filtered.
 pub fn trace_filtered(
     geometry: &impl GeometrySource,
     root: &Tree64Root,
@@ -476,7 +478,7 @@ fn trace_impl(
                         t: te.max(t_start),
                         cell: lo.as_uvec3(),
                         terminal_index: k,
-                        face: entry_face(lo, size, ray, step, te, t_start),
+                        face: entry_face(lo, lo + IVec3::splat(size), ray, step, te, t_start),
                         attribute,
                         material: (word & ATTRIBUTE_MATERIAL_MASK) as MaterialId,
                         lod: 0,
@@ -494,18 +496,23 @@ fn trace_impl(
                     && let Some(index) = child.lod_index()
                     && filter.covers(size as f32, te.max(t_start), voxels_per_unit)
                 {
-                    // the summary stands in for the whole subtree: hit it or pass through it
+                    // the summary stands in for the whole subtree: hit it or pass through it.
+                    // Its box is clipped to the module's occupied bounds, which scene search culls
+                    // with, so a filtered surface never sticks out of its frame's bounds.
                     let summary = LodSummary::unpack(geometry.lod_record(index));
-                    if te <= tx
-                        && tx >= t_start
-                        && te <= t_end
+                    let clip_lo = lo.max(root.bounds.min.as_ivec3());
+                    let clip_hi = (lo + IVec3::splat(size)).min(root.bounds.max.as_ivec3());
+                    let (ce, cx) = slab(clip_lo.as_vec3(), clip_hi.as_vec3(), ray);
+                    if ce <= cx
+                        && cx >= t_start
+                        && ce <= t_end
                         && filter.threshold < summary.opacity(ray.dir)
                     {
                         let hit = VoxelHit {
-                            t: te.max(t_start),
+                            t: ce.max(t_start),
                             cell: lo.as_uvec3(),
                             terminal_index: k,
-                            face: entry_face(lo, size, ray, step, te, t_start),
+                            face: entry_face(clip_lo, clip_hi, ray, step, ce, t_start),
                             attribute: ArenaHandle::INVALID,
                             material: summary.material,
                             lod: (levels - 1 - depth) as u32,
@@ -727,6 +734,39 @@ mod tests {
         );
         let hit = trace(&arenas, &root, &ray, 0.0, f32::MAX).unwrap();
         assert_eq!((hit.cell, hit.lod), (UVec3::new(5, 1, 1), 0));
+    }
+
+    #[test]
+    fn filtered_boxes_are_clipped_to_the_occupied_bounds() {
+        // the brick at (4, 0, 0) is occupied only for x in 6..8 and y in 0..2
+        let mut module = VoxelModule::new(2);
+        for x in 6..8 {
+            for y in 0..2 {
+                for z in 0..4 {
+                    module.set(UVec3::new(x, y, z), 3);
+                }
+            }
+        }
+        let mut arenas = GeometryArenas::default();
+        let (root, _) = arenas.bake_tree64(&module).unwrap();
+        let wide = filter(2.0, 0.25);
+
+        // the summary is entered at the bounds' face, not the brick's
+        let ray = Ray::new(Vec3::new(-10.0, 1.5, 1.5), Vec3::X);
+        let hit = trace_filtered(&arenas, &root, &ray, 0.0, f32::MAX, &wide)
+            .0
+            .unwrap();
+        assert_eq!(
+            (hit.cell, hit.lod, hit.face),
+            (UVec3::new(4, 0, 0), 1, HitFace::NegX)
+        );
+        assert!((hit.t - 16.0).abs() < 1e-4, "t = {}", hit.t);
+        // through the brick but outside the bounds: no surface
+        let above = Ray::new(Vec3::new(-10.0, 3.0, 1.5), Vec3::X);
+        assert_eq!(
+            trace_filtered(&arenas, &root, &above, 0.0, f32::MAX, &wide).0,
+            None
+        );
     }
 
     #[test]

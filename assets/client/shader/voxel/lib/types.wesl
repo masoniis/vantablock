@@ -24,6 +24,11 @@ struct PoseFrame {
     flags: u32,
     palette_base: u32,
     instance: u32,
+    // the root's occupied bounds in group-local voxels, which clip footprint-filtered hits
+    local_bounds_min: vec3<u32>,
+    pad0: u32,
+    local_bounds_max: vec3<u32>,
+    pad1: u32,
 };
 
 struct InstanceRecord {

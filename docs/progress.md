@@ -8,7 +8,8 @@ maps the code itself; this file is the one that changes as work lands.
 
 Phase 1 (renderer feasibility and memory contracts) is complete on Metal and Vulkan; Phase 2 is
 under way, starting with footprint LOD filtering, which has a CPU reference and a matching
-shader variant but isn't used by any pass yet (see [Phase 2 progress](#phase-2-progress)).
+shader variant for single modules and whole scenes but isn't used by any pass yet (see
+[Phase 2 progress](#phase-2-progress)).
 
 The gate passed on Metal (M1 Pro) and Vulkan (RTX 3080). The 64-tree, short private traversal stack, slab-address residency, and visibility packing were kept on measured evidence on both backends; flattened pose groups replaced the template mini-BVH as the runtime default. The optional Vulkan hardware broad phase (ray queries over a TLAS of pose-frame boxes) matches the reference and is the fastest path measured, taking 25 to 42% less GPU time than the software BVH4; it is wired into the renderer as the default on adapters with ray queries (TLAS rebuilt every frame, primary visibility and shadow rays both using it, 34% less frame GPU time in game at 1280x720), with the software BVH4 as the always-available fallback. Driver register and spill statistics were captured on NVIDIA (128 registers per thread for the stack kernels, 80 stackless or with ray queries).
 
@@ -215,30 +216,68 @@ fit a cell are ties `length(d)` can round either way: a radius of exactly `2` di
 ray at `t = 0`, so the test avoids exact fits. Driver statistics: the bare 64-tree `rays` kernel
 (exact, which also contains the octree) uses 64 registers, `filtered_rays` 80.
 
+**Done (October 20, 2026): filtered scene traversal.** One world-space cone now reaches every
+frame: `trace_scene_filtered` in `lib/scene.wesl` threads a `FootprintFilter` through
+`trace_frame`, `try_frame`, `try_bounded_frame`, and `intersect_instance` in both broad phases
+(`trace_scene` is the filtered trace with `exact_footprint()`, so the passes are unchanged). Local
+rays are never renormalized, so a frame's direction length is its voxels per world unit and the
+cone needs no rescaling, on the GPU as on the CPU. The CPU mirror is
+`VoxelRoot::trace_filtered` (`tree64::trace_filtered` for 64-tree roots, exact for octrees) as
+the frame trace of `SceneSnapshot::intersect`. `build.rs` adds
+`voxel_conformance_footprint_lod_ray_query`.
+
+The scene test found a real bug: a filtered node's aligned box can stick out of its module's
+occupied bounds, which every broad phase culls frames with (scene BVH leaves, mini-BVH envelopes,
+per-frame bounds, and TLAS boxes), so a ray grazing the protruding part hit the summary in an
+exhaustive search but not through the BVHs (the CPU's `InstanceRefit` disagreed with brute force).
+Filtered hits are now where the ray enters the node's box clipped to the root's occupied bounds,
+and a ray that misses the clipped box passes through. That needed the bounds on the GPU:
+`PoseFrame` grew `local_bounds_min`/`local_bounds_max` (192 to 224 bytes, `layout::root_bounds`),
+`VoxelRoot` in `dda.wesl` carries them, and `entry_face` takes a box's two corners on both sides.
+
+Tests: `filtered_scene_traces_match_exhaustive_search_in_world_units` (voxel: every organization
+and hierarchy matches an exhaustive filtered search, a zero cone equals `intersect`, the octree is
+never filtered, and each filtered cell's world edge fits the cone's world diameter),
+`filtered_boxes_are_clipped_to_the_occupied_bounds` (tree64 unit), and
+`gpu_filtered_scene_traversal_matches_cpu`: 4,304 showcase rays per cone for four world-space
+cones (zero, a 1280x720 pixel's `spread = 0.0008`, `0.02 + 0.004 t` at `0.1`, and
+`0.01 + 0.002 t` at `0.37`) for every organization and hierarchy, both residency layouts, and
+the ray query variant, requiring the CPU's frame, cell, level, and `t` (to `1e-3`). All agree on
+the RTX 3080 with zero disagreements (filtered hits per cone: 0, 1, 2,898, 414; the pixel cone
+filters almost nothing within the showcase's 26 m). The module-level filtered counts moved
+slightly with clipping (7,510, 13,142, 9,511).
+
+Measured (`gpu_scene_throughput --release`, RTX 3080, two runs, `filtered_scene_rays` vs.
+`scene_rays`; the filtered kernel also writes 32-byte results instead of 16): with the hardware
+broad phase the zero-cone variant is within noise (showcase 4.50 to 4.69 ms vs. 4.69 to 4.67 ms;
+grove 5.43 to 5.68 ms vs. 5.51 to 5.55 ms); on the software BVH4 it costs 0 to 11% (showcase
+flattened 7.66 to 7.73 ms vs. 7.94 to 8.07 ms; grove refit 6.84 to 6.95 ms vs. 7.59 to 7.62 ms).
+The pixel cone costs the same as the zero cone. `just shader-stats`: production kernels unchanged
+(128 registers software, 80 ray query); `filtered_scene_rays` uses the same (128 and 80).
+
 **Open decisions:** a fixed `0.5` threshold makes sparse foliage disappear at distance (the
 reference test needs `0.1` to see many filtered hits), so the threshold should probably become a
 stable per-pixel random value (stochastic transmission). The octree has no summaries and is never
-filtered, and the footprint rule (cell edge vs. cone diameter) is untuned.
+filtered, and the footprint rule (cell edge vs. cone diameter) is untuned. At one pixel's cone the
+showcase barely filters at all, so filtering's payoff is at distance or at reduced render scale
+(the cone should use the traced grid's pixel size, not the target's).
 
-Whether filtering should be a compile-time variant (as now, mirroring `stackless`) or a runtime
-uniform in every variant is open; step 1 below should measure the variant's cost with a zero cone
-before deciding, since each extra feature doubles the renderer's shader artifacts.
+Compile-time variant or runtime uniform: on the default (ray query) path the variant costs nothing
+measurable with a zero cone, and 0 to 11% on the software fallback, with no register change. That
+argues for a runtime toggle that switches between the exact and `footprint_lod` pipelines (the
+variant compiled for every production kernel) rather than a uniform in the exact kernels; step 1
+decides it when wiring the passes.
 
 **Next steps, one per session:**
 
-1. Thread a cone through the scene traversal: give `trace_scene`/`trace_frame` in
-   `lib/scene.wesl` a `FootprintFilter` (world-space cone, so `voxels_per_unit` comes from the
-   frame's direction scale, as on the CPU), mirror it in `voxel::scene` (a filtered scene trace
-   built on `tree64::trace_filtered`; the octree stays exact), and add a filtered `scene_rays`
-   conformance case on the showcase scene for every organization, including the ray query
-   variant (so `footprint_lod` needs building with `ray_query` too). Measure the zero-cone cost
-   with `gpu_scene_throughput --release` against the exact kernels.
-2. Derive the cone per pixel in `primary_visibility.wesl` (camera pixel spread from the view
-   uniform), build `primary_visibility`/`direct_lighting` `footprint_lod` variants, write the LOD
-   level into `vis.x` (currently hardwired to `0`), and shade filtered hits from the summary's
-   normal and material (`attribute_handle` holds the LOD record index when `lod > 0`). Add a
-   `RenderSettings` toggle and measure with `gpu_scene_throughput` and in game.
-3. Compare against supersampled reference frames, and decide between deterministic and
+1. Derive the cone per pixel in `primary_visibility.wesl` (camera pixel spread from the view
+   uniform, using the traced grid's pixel size so reduced render scales filter more), build
+   `primary_visibility`/`direct_lighting` `footprint_lod` variants (single slab, multi slab, ray
+   query), call `trace_scene_filtered`, write the LOD level into `vis.x` (currently hardwired to
+   `0`), and shade filtered hits from the summary's normal and material (`attribute_handle` holds
+   the LOD record index when `lod > 0`). Shadow rays can stay exact for now. Add a
+   `RenderSettings` toggle, check it with BRP screenshots, and measure in game.
+2. Compare against supersampled reference frames, and decide between deterministic and
    stochastic thresholds before moving on to SGGX candidates.
 
 ## What comes next

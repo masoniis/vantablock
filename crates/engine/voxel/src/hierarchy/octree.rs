@@ -360,7 +360,7 @@ pub fn trace_counted(
                         t: te.max(t_start),
                         cell: lo.as_uvec3(),
                         terminal_index: cell_index(local.x, local.y, local.z),
-                        face: entry_face(lo, 1, ray, step, te, t_start),
+                        face: entry_face(lo, lo + IVec3::ONE, ray, step, te, t_start),
                         attribute,
                         material: (word & ATTRIBUTE_MATERIAL_MASK) as MaterialId,
                         lod: 0,

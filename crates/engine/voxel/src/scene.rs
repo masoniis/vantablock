@@ -301,7 +301,11 @@ impl SceneSnapshot {
     /// Finds the nearest hit along a world ray.
     ///
     /// `trace_frame(frame, local_ray, t_min, t_max)` intersects one frame's local hierarchy with
-    /// the ray already in group-local space; `t` stays a world distance throughout.
+    /// the ray already in group-local space; `t` stays a world distance throughout. The local ray
+    /// keeps its unnormalized direction, whose length is the frame's voxels per world unit, so a
+    /// filtered scene trace passes one world-space [`FootprintFilter`](crate::lod::FootprintFilter)
+    /// to every frame through [`VoxelRoot::trace_filtered`](crate::VoxelRoot::trace_filtered) (the
+    /// GPU's `trace_scene_filtered`).
     pub fn intersect(
         &self,
         templates: &[AssetTemplate],

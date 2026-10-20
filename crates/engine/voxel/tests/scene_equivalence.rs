@@ -537,3 +537,102 @@ fn hits_reconstruct_position_and_motion() {
     assert!(hits > 500, "the rays should hit the scene");
     assert!(moving > 50, "some hits should be on animated groups");
 }
+
+/// Footprint LOD filtering through the scene: a world-space cone reaches every frame's 64-tree
+/// scaled by that frame's voxels per world unit, every organization finds the exhaustive search's
+/// nearest filtered hit, a zero cone is exact, and the octree is never filtered.
+#[test]
+fn filtered_scene_traces_match_exhaustive_search_in_world_units() {
+    use voxel::lod::FootprintFilter;
+    let exact = FootprintFilter {
+        radius: 0.0,
+        spread: 0.0,
+        threshold: 0.5,
+    };
+    // a few voxels wide at these scales (32 voxels per unit, instances scaled 0.7 to 1.4)
+    let cone = FootprintFilter {
+        radius: 0.05,
+        spread: 0.004,
+        threshold: 0.1,
+    };
+    for kind in HierarchyKind::ALL {
+        let mut rng = Rng(17);
+        let world = World::with_hierarchy(vec![bough_asset(&mut rng), rotor_asset()], kind);
+        let instances = scatter_instances(&world, &mut rng, 160, 0.9);
+        let snapshots = SceneAcceleration::ALL
+            .map(|mode| SceneSnapshot::build(&world.templates, &instances, mode, None));
+        let trace = |snapshot: &SceneSnapshot, ray: &Ray, filter: &FootprintFilter| {
+            snapshot
+                .intersect(
+                    &world.templates,
+                    ray,
+                    0.0,
+                    f32::MAX,
+                    |frame, local, t0, t1| {
+                        world
+                            .root(frame.asset, frame.group)
+                            .trace_filtered(&world.geometry, local, t0, t1, filter)
+                            .0
+                    },
+                )
+                .0
+        };
+        let naive = |snapshot: &SceneSnapshot, ray: &Ray| {
+            let mut best: Option<SceneHit> = None;
+            for (id, frame) in snapshot.frames.iter().enumerate() {
+                let local = ray.transformed(&frame.world_to_group);
+                if let (Some(voxel), _) = world.root(frame.asset, frame.group).trace_filtered(
+                    &world.geometry,
+                    &local,
+                    0.0,
+                    f32::MAX,
+                    &cone,
+                ) && best.is_none_or(|b| voxel.t < b.voxel.t)
+                {
+                    best = Some(SceneHit {
+                        frame: id as u32,
+                        voxel,
+                    });
+                }
+            }
+            best
+        };
+
+        let mut filtered = 0;
+        for _ in 0..1500 {
+            let ray = random_ray(&mut rng);
+            let expected = naive(&snapshots[0], &ray);
+            for snapshot in &snapshots {
+                assert_eq!(
+                    key(trace(snapshot, &ray, &exact)),
+                    key(world.intersect(snapshot, &ray)),
+                    "a zero cone is exact ({:?} {kind:?})",
+                    snapshot.mode
+                );
+                let hit = trace(snapshot, &ray, &cone);
+                assert_eq!(
+                    hit.map(|h| (key(Some(h)), h.voxel.lod)),
+                    expected.map(|h| (key(Some(h)), h.voxel.lod)),
+                    "{:?} {kind:?}",
+                    snapshot.mode
+                );
+            }
+            let Some(hit) = expected.filter(|h| h.voxel.lod > 0) else {
+                continue;
+            };
+            assert_eq!(kind, HierarchyKind::Tree64, "the octree is never filtered");
+            filtered += 1;
+            // the filtered cell's world edge fits the cone's world footprint where it was entered
+            let frame = &snapshots[0].frames[hit.frame as usize];
+            let world_edge = 4f32.powi(hit.voxel.lod as i32) * frame.group_to_world.x_axis.length();
+            let diameter = 2.0 * (cone.radius + cone.spread * hit.voxel.t);
+            assert!(
+                world_edge <= diameter * 1.001,
+                "a {world_edge} edge in a {diameter} footprint"
+            );
+        }
+        if kind == HierarchyKind::Tree64 {
+            assert!(filtered > 50, "the cone should filter ({filtered} hits)");
+        }
+    }
+}

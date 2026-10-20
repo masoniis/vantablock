@@ -20,6 +20,7 @@ pub mod tree64;
 use crate::{
     geometry::GeometrySource,
     handle::ArenaHandle,
+    lod::FootprintFilter,
     math::{Aabb, Ray},
     module::{MaterialId, VoxelModule},
 };
@@ -112,6 +113,26 @@ impl VoxelRoot {
         t_max: f32,
     ) -> Option<VoxelHit> {
         self.trace_counted(geometry, ray, t_min, t_max).0
+    }
+
+    /// [`trace_counted`](Self::trace_counted) with footprint LOD filtering: 64-tree roots use
+    /// [`tree64::trace_filtered`], and octree roots (which bake no summaries) trace exactly. The
+    /// footprint is measured in the ray's own units, so a world-space `filter` applies unchanged to
+    /// a ray transformed into module voxels without renormalizing (as
+    /// [`SceneSnapshot::intersect`](crate::scene::SceneSnapshot::intersect) passes them): the
+    /// direction's length is the frame's voxels per world unit.
+    pub fn trace_filtered(
+        &self,
+        geometry: &impl GeometrySource,
+        ray: &Ray,
+        t_min: f32,
+        t_max: f32,
+        filter: &FootprintFilter,
+    ) -> (Option<VoxelHit>, u32) {
+        match self {
+            Self::Tree64(r) => tree64::trace_filtered(geometry, r, ray, t_min, t_max, filter),
+            Self::Octree(r) => octree::trace_counted(geometry, r, ray, t_min, t_max),
+        }
     }
 }
 
@@ -281,7 +302,7 @@ pub(crate) fn nearest_axis(t: Vec3) -> usize {
 /// The face a ray entered the cell `[lo, lo + size)` through.
 pub(crate) fn entry_face(
     lo: IVec3,
-    size: i32,
+    hi: IVec3,
     ray: &Ray,
     step: IVec3,
     te: f32,
@@ -291,7 +312,7 @@ pub(crate) fn entry_face(
         return HitFace::Inside;
     }
     let t0 = (lo.as_vec3() - ray.origin) * ray.inv_dir;
-    let t1 = ((lo + IVec3::splat(size)).as_vec3() - ray.origin) * ray.inv_dir;
+    let t1 = (hi.as_vec3() - ray.origin) * ray.inv_dir;
     let near = t0.min(t1);
     let axis = if near.x >= near.y && near.x >= near.z {
         0

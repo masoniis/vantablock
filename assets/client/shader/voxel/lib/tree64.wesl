@@ -108,7 +108,8 @@ fn trace_tree64(root: VoxelRoot, o: vec3<f32>, d: vec3<f32>, t_min: f32, t_max: 
 // `trace_tree64` with footprint LOD filtering (`footprint_lod` builds only; elsewhere it is
 // exact): an occupied node whose cell fits inside the `cone`'s footprint is resolved from its LOD
 // summary instead of being descended. A filtered hit reports the node's aligned corner as `cell`,
-// its level as `lod`, and its LOD record index as `attribute_handle`.
+// its level as `lod`, and its LOD record index as `attribute_handle`; it lies where the ray enters
+// the node's box clipped to `root.bounds_min..bounds_max`.
 //
 // The current level lives in registers. The cell taken at every level is packed six bits per
 // level into `path`, a parent's header comes back from `parent_node`, and its origin and boundary
@@ -186,7 +187,7 @@ fn trace_tree64_filtered(root: VoxelRoot, o: vec3<f32>, d: vec3<f32>, t_min: f32
                     result.t = max(tt.x, t_start);
                     result.cell = vec3<u32>(lo);
                     result.terminal_index = k;
-                    result.face = entry_face(lo, size, o, inv, step, tt.x, t_start);
+                    result.face = entry_face(lo, lo + vec3<i32>(size), o, inv, step, tt.x, t_start);
                     // offsets stay within the block's page, so this is still a valid handle
                     result.attribute_handle = child_ref + prefix_count(mask, k);
                     result.steps = steps;
@@ -207,13 +208,17 @@ fn trace_tree64_filtered(root: VoxelRoot, o: vec3<f32>, d: vec3<f32>, t_min: f32
                     t_next = next_boundary(origin, cell, size, far, o, inv);
                     continue;
                 }
-                // the summary stands in for the whole subtree: hit it or pass through it
-                if footprint.x == FOOTPRINT_OPAQUE && tt.x <= tt.y && tt.y >= t_start && tt.x <= t_end {
+                // the summary stands in for the whole subtree: hit it or pass through it. Its box
+                // is clipped to the root's occupied bounds, which scene search culls with.
+                let clip_lo = max(lo, root.bounds_min);
+                let clip_hi = min(lo + vec3<i32>(size), root.bounds_max);
+                let ct = slab(vec3<f32>(clip_lo), vec3<f32>(clip_hi), o, inv);
+                if footprint.x == FOOTPRINT_OPAQUE && ct.x <= ct.y && ct.y >= t_start && ct.x <= t_end {
                     result.hit = true;
-                    result.t = max(tt.x, t_start);
+                    result.t = max(ct.x, t_start);
                     result.cell = vec3<u32>(lo);
                     result.terminal_index = k;
-                    result.face = entry_face(lo, size, o, inv, step, tt.x, t_start);
+                    result.face = entry_face(clip_lo, clip_hi, o, inv, step, ct.x, t_start);
                     result.attribute_handle = footprint.y;
                     result.steps = steps;
                     result.lod = last_level - depth;

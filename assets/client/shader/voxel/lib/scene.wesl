@@ -1,6 +1,8 @@
 // Bind group 1 and scene-level search. Mirrors `SceneSnapshot::intersect` in
 // crates/engine/voxel/src/scene.rs: scene BVH -> (template or refit mini-BVH | flattened frames) -> pose frame ->
-// group-local hierarchy (64-tree or octree), keeping the nearest world-distance hit.
+// group-local hierarchy (64-tree or octree), keeping the nearest world-distance hit. The filtered
+// traversal threads one world-space `FootprintFilter` down to every frame's 64-tree; local rays are
+// never renormalized, so each frame's direction length is its voxels per world unit, as on the CPU.
 
 import super::types::{
     Bvh4Node, PoseFrame, InstanceRecord, SceneUniform,
@@ -8,7 +10,8 @@ import super::types::{
 };
 import super::geometry::template_bvh;
 import super::dda::{VoxelRoot, VoxelHit};
-import super::tree64::trace_tree64;
+import super::tree64::trace_tree64_filtered;
+import super::lod::{FootprintFilter, exact_footprint};
 import super::octree::trace_octree;
 import super::ray::{slab, sanitize_direction, transform_point, transform_vector};
 
@@ -85,25 +88,28 @@ fn sort_pair(entries: array<vec2<u32>, 4>, a: u32, b: u32) -> array<vec2<u32>, 4
 }
 
 // Traces one frame's local hierarchy, whichever kind its root was baked as. The world ray is
-// transformed without renormalizing, so the local t is still a world distance.
-fn trace_frame(frame_id: u32, o: vec3<f32>, d: vec3<f32>, t_min: f32, t_max: f32) -> VoxelHit {
+// transformed without renormalizing, so the local t is still a world distance and the world-space
+// `cone` needs no rescaling. The octree has no summaries and always traces exactly.
+fn trace_frame(frame_id: u32, o: vec3<f32>, d: vec3<f32>, t_min: f32, t_max: f32, cone: FootprintFilter) -> VoxelHit {
     let f = frames[frame_id];
     var root: VoxelRoot;
     root.node = f.root_node;
     root.levels = f.levels;
     root.page_base = f.root_page_base;
     root.single_page = (f.flags & FRAME_SINGLE_PAGE) != 0u;
+    root.bounds_min = vec3<i32>(f.local_bounds_min);
+    root.bounds_max = vec3<i32>(f.local_bounds_max);
     let local_o = transform_point(f.world_to_local, o);
     let local_d = sanitize_direction(transform_vector(f.world_to_local, d));
     if (f.flags & FRAME_OCTREE) != 0u {
         return trace_octree(root, local_o, local_d, t_min, t_max);
     }
-    return trace_tree64(root, local_o, local_d, t_min, t_max);
+    return trace_tree64_filtered(root, local_o, local_d, t_min, t_max, cone);
 }
 
-fn try_frame(frame_id: u32, o: vec3<f32>, d: vec3<f32>, t_min: f32, best: ptr<function, SceneHit>) {
+fn try_frame(frame_id: u32, o: vec3<f32>, d: vec3<f32>, t_min: f32, cone: FootprintFilter, best: ptr<function, SceneHit>) {
     (*best).group_candidates += 1u;
-    let hit = trace_frame(frame_id, o, d, t_min, (*best).t);
+    let hit = trace_frame(frame_id, o, d, t_min, (*best).t, cone);
     if hit.hit && (!(*best).hit || hit.t < (*best).t) {
         (*best).hit = true;
         (*best).t = hit.t;
@@ -113,7 +119,7 @@ fn try_frame(frame_id: u32, o: vec3<f32>, d: vec3<f32>, t_min: f32, best: ptr<fu
 }
 
 // Per-instance refinement: test the frame's tight current bound before tracing it.
-fn try_bounded_frame(frame_id: u32, o: vec3<f32>, d: vec3<f32>, inv: vec3<f32>, t_min: f32, best: ptr<function, SceneHit>) {
+fn try_bounded_frame(frame_id: u32, o: vec3<f32>, d: vec3<f32>, inv: vec3<f32>, t_min: f32, cone: FootprintFilter, best: ptr<function, SceneHit>) {
     if frame_id == INVALID_FRAME {
         return;
     }
@@ -122,7 +128,7 @@ fn try_bounded_frame(frame_id: u32, o: vec3<f32>, d: vec3<f32>, inv: vec3<f32>, 
     if max(tt.x, t_min) > min(tt.y, (*best).t) {
         return;
     }
-    try_frame(frame_id, o, d, t_min, best);
+    try_frame(frame_id, o, d, t_min, cone, best);
 }
 
 // Refit mini-BVHs follow the scene BVH in its buffer; templates have their own.
@@ -133,14 +139,14 @@ fn mini_bvh_node(own_bvh: bool, index: u32) -> Bvh4Node {
     return template_bvh[index];
 }
 
-fn intersect_instance(instance_index: u32, o: vec3<f32>, d: vec3<f32>, inv: vec3<f32>, t_min: f32, best: ptr<function, SceneHit>) {
+fn intersect_instance(instance_index: u32, o: vec3<f32>, d: vec3<f32>, inv: vec3<f32>, t_min: f32, cone: FootprintFilter, best: ptr<function, SceneHit>) {
     let instance = instances[instance_index];
 
     let own_bvh = (instance.flags & INSTANCE_OWN_BVH) != 0u;
     if (instance.flags & (INSTANCE_USES_TEMPLATE | INSTANCE_OWN_BVH)) == 0u || instance.mini_bvh_root == NO_MINI_BVH {
         // single-root assets and out-of-envelope poses test every slot directly
         for (var slot = 0u; slot < instance.group_count; slot++) {
-            try_bounded_frame(slot_frames[instance.slot_base + slot], o, d, inv, t_min, best);
+            try_bounded_frame(slot_frames[instance.slot_base + slot], o, d, inv, t_min, cone, best);
         }
         return;
     }
@@ -167,7 +173,7 @@ fn intersect_instance(instance_index: u32, o: vec3<f32>, d: vec3<f32>, inv: vec3
             let child = ordered.entries[i];
             if child.x != BVH_EMPTY && (child.x & BVH_LEAF_BIT) != 0u && bitcast<f32>(child.y) <= (*best).t {
                 let slot = child.x & ~BVH_LEAF_BIT;
-                try_bounded_frame(slot_frames[instance.slot_base + slot], o, d, inv, t_min, best);
+                try_bounded_frame(slot_frames[instance.slot_base + slot], o, d, inv, t_min, cone, best);
             }
         }
         // push nodes farthest first so the nearest pops first
@@ -190,8 +196,15 @@ fn previous_world_position(frame_id: u32, p: vec3<f32>) -> vec3<f32> {
 }
 
 // Finds the nearest hit along a world ray (`query_scene_candidates` + `intersect_instance`).
-@ if(!ray_query)
 fn trace_scene(o: vec3<f32>, d_in: vec3<f32>, t_min: f32, t_max: f32) -> SceneHit {
+    return trace_scene_filtered(o, d_in, t_min, t_max, exact_footprint());
+}
+
+// `trace_scene` with footprint LOD filtering against a world-space `cone` (`footprint_lod` builds
+// only; elsewhere it is exact). Mirrors `SceneSnapshot::intersect` with
+// `VoxelRoot::trace_filtered` as the frame trace.
+@ if(!ray_query)
+fn trace_scene_filtered(o: vec3<f32>, d_in: vec3<f32>, t_min: f32, t_max: f32, cone: FootprintFilter) -> SceneHit {
     var best: SceneHit;
     best.hit = false;
     best.t = t_max;
@@ -226,9 +239,9 @@ fn trace_scene(o: vec3<f32>, d_in: vec3<f32>, t_min: f32, t_max: f32) -> SceneHi
             if child.x != BVH_EMPTY && (child.x & BVH_LEAF_BIT) != 0u && bitcast<f32>(child.y) <= best.t {
                 let leaf = child.x & ~BVH_LEAF_BIT;
                 if scene.mode == MODE_FLATTENED_GROUPS {
-                    try_frame(leaf, o, d, t_min, &best);
+                    try_frame(leaf, o, d, t_min, cone, &best);
                 } else {
-                    intersect_instance(leaf, o, d, inv, t_min, &best);
+                    intersect_instance(leaf, o, d, inv, t_min, cone, &best);
                 }
             }
         }
@@ -256,7 +269,7 @@ const RAY_QUERY_FAR: f32 = 3.4e38;
 // twice, which costs time but never correctness. The query always runs to the far plane, since a
 // ray starting inside a box only crosses its exit face.
 @ if(ray_query)
-fn trace_scene(o: vec3<f32>, d_in: vec3<f32>, t_min: f32, t_max: f32) -> SceneHit {
+fn trace_scene_filtered(o: vec3<f32>, d_in: vec3<f32>, t_min: f32, t_max: f32, cone: FootprintFilter) -> SceneHit {
     var best: SceneHit;
     best.hit = false;
     best.t = t_max;
@@ -284,7 +297,7 @@ fn trace_scene(o: vec3<f32>, d_in: vec3<f32>, t_min: f32, t_max: f32) -> SceneHi
         if !inside && first > best.t {
             continue;
         }
-        try_frame(candidate.instance_custom_data, o, d, t_min, &best);
+        try_frame(candidate.instance_custom_data, o, d, t_min, cone, &best);
     }
     return best;
 }

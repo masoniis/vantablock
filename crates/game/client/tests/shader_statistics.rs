@@ -57,6 +57,17 @@ const KERNELS: &[(&str, &str, &str)] = &[
         include_wesl!("voxel_conformance_footprint_lod"),
         "filtered_rays",
     ),
+    // whole-scene traversal with footprint LOD filtering
+    (
+        "filtered_scene_rays (footprint lod)",
+        include_wesl!("voxel_conformance_footprint_lod"),
+        "filtered_scene_rays",
+    ),
+    (
+        "filtered_scene_rays (footprint lod, ray query)",
+        include_wesl!("voxel_conformance_footprint_lod_ray_query"),
+        "filtered_scene_rays",
+    ),
 ];
 
 /// SPIR-V for one WGSL module, with the naga options wgpu's Vulkan backend uses on a device with

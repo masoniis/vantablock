@@ -115,7 +115,7 @@ fn trace_octree(root: VoxelRoot, o: vec3<f32>, d: vec3<f32>, t_min: f32, t_max: 
                     result.t = max(tt.x, t_start);
                     result.cell = vec3<u32>(lo);
                     result.terminal_index = local.x + 4u * local.y + 16u * local.z;
-                    result.face = entry_face(lo, 1, o, inv, step, tt.x, t_start);
+                    result.face = entry_face(lo, lo + vec3<i32>(1), o, inv, step, tt.x, t_start);
                     // offsets stay within the block's page, so this is still a valid handle
                     result.attribute_handle = topology_load(brick + BRICK_MASK_WORDS) + rank;
                     result.steps = steps;

@@ -62,8 +62,14 @@ pub struct GpuPoseFrame {
     pub flags: u32,
     pub palette_base: u32,
     pub instance: u32,
+    /// The root's occupied bounds in group-local voxels (see [`root_bounds`]), which clip
+    /// footprint-filtered hits.
+    pub local_bounds_min: [u32; 3],
+    pub pad0: u32,
+    pub local_bounds_max: [u32; 3],
+    pub pad1: u32,
 }
-const _: () = assert!(std::mem::size_of::<GpuPoseFrame>() == 192);
+const _: () = assert!(std::mem::size_of::<GpuPoseFrame>() == 224);
 
 impl GpuPoseFrame {
     pub fn new(
@@ -72,6 +78,7 @@ impl GpuPoseFrame {
         root_page_base: u32,
         palette_base: u32,
     ) -> Self {
+        let (local_bounds_min, local_bounds_max) = root_bounds(root);
         Self {
             world_to_local: affine_rows(&frame.world_to_group),
             local_to_world: affine_rows(&frame.group_to_world),
@@ -84,8 +91,25 @@ impl GpuPoseFrame {
             flags: root_flags(root),
             palette_base,
             instance: frame.instance,
+            local_bounds_min,
+            pad0: 0,
+            local_bounds_max,
+            pad1: 0,
         }
     }
+}
+
+/// A root's occupied bounds in module voxels as integer `(min, max)` corners (`max` exclusive),
+/// zero for an empty root. Footprint-filtered traversal clips LOD hits to them.
+pub fn root_bounds(root: &VoxelRoot) -> ([u32; 3], [u32; 3]) {
+    let bounds = root.bounds();
+    if bounds.is_empty() {
+        return ([0; 3], [0; 3]);
+    }
+    (
+        bounds.min.as_uvec3().to_array(),
+        bounds.max.as_uvec3().to_array(),
+    )
 }
 
 /// The `PoseFrame::flags` describing how to trace `root`.

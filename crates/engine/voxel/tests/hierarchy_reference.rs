@@ -284,8 +284,10 @@ fn footprint_filtering_reports_aligned_occupied_regions() {
         filtered += 1;
         let size = 4u32.pow(hit.lod);
         assert_eq!(hit.cell % size, UVec3::ZERO, "ray {ray:?}");
-        let lo = hit.cell.as_vec3();
-        let (te, tx) = voxel::math::slab(lo, lo + Vec3::splat(size as f32), &ray);
+        // the hit is the entry of the node's box clipped to the occupied bounds
+        let lo = hit.cell.as_vec3().max(root.bounds.min);
+        let hi = (hit.cell.as_vec3() + Vec3::splat(size as f32)).min(root.bounds.max);
+        let (te, tx) = voxel::math::slab(lo, hi, &ray);
         assert!(
             te <= tx && (hit.t - te.max(0.0)).abs() < 1e-3,
             "ray {ray:?}"
