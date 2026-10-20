@@ -6,7 +6,7 @@ Its renderer (`src/render`) bakes the canonical asset library into GPU geometry,
 
 ## Testing
 
-`tests/gpu_conformance.rs` validates every shader with naga and, when a GPU is available, holds the WGSL traversal to the CPU reference in `vantablock-voxel` (`just test-gpu`). `gpu_scene_throughput` (ignored by default) benchmarks the traversal kernel.
+`tests/gpu_conformance.rs` validates every shader with naga and, when a GPU is available, holds the WGSL traversal to the CPU reference in `vantablock-voxel` (`just test-gpu`). `gpu_scene_throughput` (ignored by default) benchmarks the traversal kernel, and `gpu_primary_visibility_cost` the production primary visibility kernels with and without footprint LOD filtering.
 
 ## Features Flags
 

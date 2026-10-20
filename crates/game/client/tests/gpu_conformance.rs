@@ -338,6 +338,21 @@ impl Gpu {
             return None;
         }
         let (pipeline, bind_groups) = self.bind(entry, variant, groups);
+        self.time_dispatch(&pipeline, &bind_groups, [count.div_ceil(64), 1, 1], runs)
+    }
+
+    /// GPU time of one `workgroups` dispatch of `pipeline`, in milliseconds, as
+    /// [`gpu_ms`](Self::gpu_ms) measures it. `None` without timestamp queries.
+    fn time_dispatch(
+        &self,
+        pipeline: &wgpu::ComputePipeline,
+        bind_groups: &[(u32, wgpu::BindGroup)],
+        [x, y, z]: [u32; 3],
+        runs: u32,
+    ) -> Option<f64> {
+        if !self.timestamps {
+            return None;
+        }
         let queries = self.device.create_query_set(&wgpu::QuerySetDescriptor {
             label: None,
             ty: wgpu::QueryType::Timestamp,
@@ -365,11 +380,11 @@ impl Gpu {
                     end_of_pass_write_index: Some(run * 2 + 1),
                 }),
             });
-            pass.set_pipeline(&pipeline);
-            for (index, group) in &bind_groups {
+            pass.set_pipeline(pipeline);
+            for (index, group) in bind_groups {
                 pass.set_bind_group(*index, group, &[]);
             }
-            pass.dispatch_workgroups(count.div_ceil(64), 1, 1);
+            pass.dispatch_workgroups(x, y, z);
         }
         encoder.resolve_query_set(&queries, 0..runs * 2, &resolve, 0);
         encoder.copy_buffer_to_buffer(&resolve, 0, &readback, 0, resolve.size());
@@ -406,14 +421,25 @@ impl Gpu {
         variant: Variant,
         groups: &[Group<'_>],
     ) -> (wgpu::ComputePipeline, Vec<(u32, wgpu::BindGroup)>) {
+        let module = self.modules[variant as usize]
+            .as_ref()
+            .expect("the device doesn't support this kernel variant");
+        self.bind_module(module, entry, groups)
+    }
+
+    /// [`bind`](Self::bind) for any shader module, such as a production pass.
+    fn bind_module(
+        &self,
+        module: &wgpu::ShaderModule,
+        entry: &str,
+        groups: &[Group<'_>],
+    ) -> (wgpu::ComputePipeline, Vec<(u32, wgpu::BindGroup)>) {
         let pipeline = self
             .device
             .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
                 label: Some(entry),
                 layout: None,
-                module: self.modules[variant as usize]
-                    .as_ref()
-                    .expect("the device doesn't support this kernel variant"),
+                module,
                 entry_point: Some(entry),
                 compilation_options: Default::default(),
                 cache: None,
@@ -2160,6 +2186,281 @@ fn gpu_scene_throughput() {
                         "      {hierarchy:?} ({variant:?}{label}): {width}x{height} primary rays in {ms:.1} ms ({:.1} Mrays/s, includes readback)",
                         rays / ms / 1000.0
                     ),
+                }
+            }
+        }
+    }
+}
+
+/// What footprint LOD filtering costs and saves in the production `PrimaryVisibility` kernels:
+/// the exact and `footprint_lod` builds of `primary_visibility` traced over showcase and grove
+/// views at render scales 0.5 and 1.0 of a 1280x720 target, with one- and four-pixel cones, on the
+/// hardware broad phase (where the adapter has it) and the software BVH4 (flattened groups, the
+/// runtime default organization). Reports kernel time from timestamp queries and, from the
+/// `stats` and `vis` textures, voxel DDA steps per pixel and the share of pixels with filtered
+/// hits. Not a correctness test; run with
+/// `just test-gpu gpu_primary_visibility_cost --ignored --release`, one GPU benchmark at a time.
+#[test]
+#[ignore]
+fn gpu_primary_visibility_cost() {
+    use bevy::math::Mat4;
+    use client::render::{
+        geometry::GpuGeometryLibrary, gpu::layout::GpuViewUniform, scene::GpuSceneData,
+    };
+    use voxel::scene::{AssetTemplate, SceneAcceleration, SceneSnapshot};
+
+    let Some(gpu) = gpu() else { return };
+    if !gpu.timestamps {
+        eprintln!("skipping: the adapter has no timestamp queries");
+        return;
+    }
+    let workspace = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+    let library = common::world::assets::load_library(
+        &workspace.join("assets/shared/vanta"),
+        &std::env::temp_dir().join("vanta-conformance-cache"),
+    );
+    let limits = ResidencyLimits {
+        max_storage_buffer_binding_size: 1 << 30,
+        max_buffer_size: 1 << 30,
+    };
+    let geometry = GpuGeometryLibrary::build(&library, &limits).unwrap();
+    assert_eq!(
+        geometry.topology.len(),
+        1,
+        "the benchmark runs the single-slab kernels"
+    );
+    let templates: Vec<AssetTemplate> = library
+        .assets()
+        .iter()
+        .map(|a| (*a.template).clone())
+        .collect();
+
+    // `(broad phase, uses the TLAS, exact build, footprint LOD build)` of the production pass
+    let module = |label: &str, source: &str| {
+        gpu.device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some(label),
+                source: wgpu::ShaderSource::Wgsl(source.into()),
+            })
+    };
+    let mut kernels = vec![(
+        "software BVH4",
+        false,
+        module("primary_visibility", PRIMARY_VISIBILITY),
+        module(
+            "primary_visibility_footprint_lod",
+            PRIMARY_VISIBILITY_FOOTPRINT_LOD,
+        ),
+    )];
+    if gpu.ray_query {
+        kernels.insert(
+            0,
+            (
+                "hardware broad phase",
+                true,
+                module("primary_visibility_ray_query", PRIMARY_VISIBILITY_RAY_QUERY),
+                module(
+                    "primary_visibility_footprint_lod_ray_query",
+                    PRIMARY_VISIBILITY_FOOTPRINT_LOD_RAY_QUERY,
+                ),
+            ),
+        );
+    }
+
+    let topology: Vec<wgpu::Buffer> = geometry.topology.iter().map(|s| gpu.storage(s)).collect();
+    let template_bvh = gpu.storage(&geometry.template_bvh);
+    let lod = gpu.storage(&geometry.lod);
+    let meta = gpu.uniform(&GpuGeometryMeta::new(
+        &geometry.topology_page_entries,
+        &geometry.attribute_page_entries,
+    ));
+    // `scene_groups` wants a group 2; the pass replaces it with its view and targets
+    let unused = gpu.output(16);
+
+    let build = |instances: &[voxel::scene::InstanceDesc]| {
+        SceneSnapshot::build(
+            &templates,
+            instances,
+            SceneAcceleration::FlattenedGroups,
+            None,
+        )
+    };
+    let showcase = build(&showcase_instances(&library, &mut Rng(9), 1.3));
+    let grove = build(&grove_instances(&library));
+    // `(scene, view, snapshot, eye, target)`: the throughput benchmark's views, a grass-level
+    // diagonal across the meadow, and an elevated overview, where distance makes cones wide
+    let views = [
+        (
+            "showcase",
+            "street",
+            &showcase,
+            Vec3::new(0.0, 1.7, 14.0),
+            Vec3::new(0.0, 1.7, 0.0),
+        ),
+        (
+            "showcase",
+            "grass level",
+            &showcase,
+            Vec3::new(-14.0, 0.6, 12.0),
+            Vec3::new(10.0, 0.5, -10.0),
+        ),
+        (
+            "showcase",
+            "overview",
+            &showcase,
+            Vec3::new(0.0, 12.0, 26.0),
+            Vec3::new(0.0, 0.0, -4.0),
+        ),
+        (
+            "grove of 300",
+            "distant",
+            &grove,
+            Vec3::new(0.0, 6.0, 48.0),
+            Vec3::new(0.0, 4.0, 0.0),
+        ),
+    ];
+    let (target_width, target_height) = (1280u32, 720u32);
+
+    for (scene_name, view_name, snapshot, eye, target) in views {
+        let scene = GpuSceneData::pack(snapshot, &library, &geometry, HierarchyKind::Tree64);
+        let uniform = gpu.uniform(&scene.uniform);
+        let bvh = gpu.storage(&scene.bvh);
+        let frames = gpu.storage(&scene.frames);
+        let instance_buffer = gpu.storage(&scene.instances);
+        let slot_frames = gpu.storage(&scene.slot_frames);
+        let tlas = gpu
+            .ray_query
+            .then(|| scene_tlas(&gpu, snapshot, &templates));
+        eprintln!(
+            "  {scene_name}, {view_name} view ({} pose frames)",
+            snapshot.frames.len()
+        );
+
+        for render_scale in [0.5f32, 1.0] {
+            let width = (target_width as f32 * render_scale) as u32;
+            let height = (target_height as f32 * render_scale) as u32;
+            let texture = |format: wgpu::TextureFormat| {
+                gpu.device.create_texture(&wgpu::TextureDescriptor {
+                    label: None,
+                    size: wgpu::Extent3d {
+                        width,
+                        height,
+                        depth_or_array_layers: 1,
+                    },
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    format,
+                    usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_SRC,
+                    view_formats: &[],
+                })
+            };
+            let vis = texture(wgpu::TextureFormat::Rg32Uint);
+            let depth = texture(wgpu::TextureFormat::R32Float);
+            let cell = texture(wgpu::TextureFormat::R32Uint);
+            let stats = texture(wgpu::TextureFormat::R32Uint);
+            let [vis_view, depth_view, cell_view, stats_view] =
+                [&vis, &depth, &cell, &stats].map(|t| t.create_view(&Default::default()));
+
+            for (kernel_name, hardware, exact, filtered) in &kernels {
+                // `(label, footprint scale)`: `None` is the exact build
+                for (cone, scale) in [
+                    ("exact", None),
+                    ("1 px cone", Some(1.0)),
+                    ("4 px cone", Some(4.0)),
+                ] {
+                    let clip_from_world = Mat4::perspective_infinite_reverse_rh(
+                        60f32.to_radians(),
+                        target_width as f32 / target_height as f32,
+                        0.05,
+                    ) * Mat4::look_at_rh(eye, target, Vec3::Y);
+                    let view = gpu.uniform(&GpuViewUniform {
+                        world_from_clip: clip_from_world.inverse().to_cols_array(),
+                        clip_from_world: clip_from_world.to_cols_array(),
+                        prev_clip_from_world: clip_from_world.to_cols_array(),
+                        camera_position: eye.to_array(),
+                        viewport: [width as f32, height as f32],
+                        target_to_grid: render_scale,
+                        footprint_threshold: 0.5,
+                        footprint_scale: scale.unwrap_or(1.0),
+                        ..Default::default()
+                    });
+                    let mut groups = scene_groups(
+                        &topology,
+                        &template_bvh,
+                        &meta,
+                        [&uniform, &bvh, &frames, &instance_buffer, &slot_frames],
+                        tlas.as_ref().filter(|_| *hardware),
+                        &unused,
+                        &unused,
+                    );
+                    if scale.is_some() {
+                        groups[0].1.push((11, lod.as_entire_binding()));
+                    }
+                    groups[2].1 = vec![
+                        (0, view.as_entire_binding()),
+                        (1, wgpu::BindingResource::TextureView(&vis_view)),
+                        (2, wgpu::BindingResource::TextureView(&depth_view)),
+                        (3, wgpu::BindingResource::TextureView(&cell_view)),
+                        (4, wgpu::BindingResource::TextureView(&stats_view)),
+                    ];
+                    let module = if scale.is_some() { filtered } else { exact };
+                    let (pipeline, bind_groups) = gpu.bind_module(module, "main", &groups);
+                    let workgroups = [width.div_ceil(8), height.div_ceil(8), 1];
+                    // warm up (pipeline creation, caches), then time
+                    gpu.time_dispatch(&pipeline, &bind_groups, workgroups, 5);
+                    let ms = gpu
+                        .time_dispatch(&pipeline, &bind_groups, workgroups, 50)
+                        .unwrap();
+
+                    // the last dispatch's outputs: DDA steps and filtered hits per pixel
+                    let read_texture = |texture: &wgpu::Texture, texel_bytes: u32| -> Vec<u32> {
+                        let bytes_per_row = width * texel_bytes;
+                        assert_eq!(bytes_per_row % wgpu::COPY_BYTES_PER_ROW_ALIGNMENT, 0);
+                        let readback = gpu.device.create_buffer(&wgpu::BufferDescriptor {
+                            label: None,
+                            size: (bytes_per_row * height) as u64,
+                            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+                            mapped_at_creation: false,
+                        });
+                        let mut encoder = gpu.device.create_command_encoder(&Default::default());
+                        encoder.copy_texture_to_buffer(
+                            wgpu::TexelCopyTextureInfo {
+                                texture,
+                                mip_level: 0,
+                                origin: wgpu::Origin3d::ZERO,
+                                aspect: wgpu::TextureAspect::All,
+                            },
+                            wgpu::TexelCopyBufferInfo {
+                                buffer: &readback,
+                                layout: wgpu::TexelCopyBufferLayout {
+                                    offset: 0,
+                                    bytes_per_row: Some(bytes_per_row),
+                                    rows_per_image: Some(height),
+                                },
+                            },
+                            texture.size(),
+                        );
+                        gpu.queue.submit([encoder.finish()]);
+                        gpu.read(&readback)
+                    };
+                    let stats_texels = read_texture(&stats, 4);
+                    let vis_texels = read_texture(&vis, 8);
+                    let pixels = (width * height) as f64;
+                    let steps: u64 = stats_texels.iter().map(|s| (s >> 16) as u64).sum();
+                    let (mut hits, mut filtered_hits) = (0u32, 0u32);
+                    for texel in vis_texels.chunks(2) {
+                        if texel[0] != u32::MAX {
+                            hits += 1;
+                            filtered_hits += (texel[0] >> 9 & 7 != 0) as u32;
+                        }
+                    }
+                    eprintln!(
+                        "    {width}x{height} (scale {render_scale}), {kernel_name}, {cone}: {ms:.3} ms GPU, {:.1} DDA steps/px, {:.1}% hit, {:.2}% of hits filtered",
+                        steps as f64 / pixels,
+                        hits as f64 / pixels * 100.0,
+                        filtered_hits as f64 / hits.max(1) as f64 * 100.0,
+                    );
                 }
             }
         }

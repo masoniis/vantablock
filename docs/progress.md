@@ -9,8 +9,9 @@ maps the code itself; this file is the one that changes as work lands.
 Phase 1 (renderer feasibility and memory contracts) is complete on Metal and Vulkan; Phase 2 is
 under way, starting with footprint LOD filtering, which has a CPU reference, a matching shader
 variant for single modules and whole scenes, and an opt-in primary visibility path
-(`RenderSettings::footprint_lod`, off by default until it is compared against supersampled
-references; see [Phase 2 progress](#phase-2-progress)).
+(`RenderSettings::footprint_lod`, off by default: at a one-pixel cone it filters almost nothing,
+and a four-pixel cone saves up to 37% of primary visibility time but awaits the comparison
+against supersampled references; see [Phase 2 progress](#phase-2-progress)).
 
 The gate passed on Metal (M1 Pro) and Vulkan (RTX 3080). The 64-tree, short private traversal stack, slab-address residency, and visibility packing were kept on measured evidence on both backends; flattened pose groups replaced the template mini-BVH as the runtime default. The optional Vulkan hardware broad phase (ray queries over a TLAS of pose-frame boxes) matches the reference and is the fastest path measured, taking 25 to 42% less GPU time than the software BVH4; it is wired into the renderer as the default on adapters with ray queries (TLAS rebuilt every frame, primary visibility and shadow rays both using it, 34% less frame GPU time in game at 1280x720), with the software BVH4 as the always-available fallback. Driver register and spill statistics were captured on NVIDIA (128 registers per thread for the stack kernels, 80 stackless or with ray queries).
 
@@ -306,18 +307,54 @@ filtering should become the default depends on that comparison and on an in-game
 measurement (`VANTA_GPU_TIMINGS=1`, or a `primary_visibility` kernel benchmark), since the frame
 rate is capped.
 
+**Done (October 20, 2026): the cost and payoff of filtered primary visibility.** The new
+ignored benchmark `gpu_primary_visibility_cost` (`gpu_conformance.rs`; run with
+`cargo test --release -p vantablock-client --test gpu_conformance -- --ignored --nocapture gpu_primary_visibility_cost`)
+dispatches the production `primary_visibility` and `primary_visibility_footprint_lod` kernels
+(both broad phases, flattened groups, 64-tree, single slab) into real visibility, depth, cell, and
+stats textures with a `GpuViewUniform` built like the game's (60 degree vertical field of view,
+infinite reverse-z, 1280x720 target), at render scales 0.5 and 1.0, exact and with one- and
+four-pixel cones (`footprint_scale`, threshold `0.5`). It reports kernel time (timestamp queries,
+mean of 50 dispatches after 5 warm-ups), mean voxel DDA steps per pixel from `stats`, and the
+share of hits that are filtered from `vis`. Views: the throughput benchmark's showcase street
+view, a grass-level diagonal across the meadow, an elevated overview, and the 300-instance grove
+from 48 m. The conformance harness gained `Gpu::bind_module` and `Gpu::time_dispatch` (any
+module, any 3D dispatch).
+
+Measured (RTX 3080, `--release`, two runs; dispatch-to-dispatch noise is about 8%). Kernel time
+as the mean of the runs, hardware broad phase / software BVH4:
+
+| View, grid | Exact (ms) | 1 px cone | 4 px cone | DDA steps/px exact, 4 px | Filtered hits 1 px, 4 px |
+| --- | --- | --- | --- | --- | --- |
+| street, 640x360 | 1.97 / 3.08 | +5% / +2% | -37% / -33% | 39.6, 36.2 | 0.3%, 44% |
+| street, 1280x720 | 3.77 / 6.15 | +5% / -5% | -3% / -7% | 39.6, 39.1 | 0%, 9% |
+| grass level, 640x360 | 1.05 / 1.14 | +1% / +7% | -4% / +3% | 39.0, 37.1 | 0%, 27% |
+| grass level, 1280x720 | 2.39 / 2.74 | +7% / +7% | +3% / -1% | 39.0, 38.5 | 0%, 7% |
+| overview, 640x360 | 1.31 / 1.48 | +3% / -1% | -22% / -26% | 32.4, 20.3 | 8%, 100% |
+| overview, 1280x720 | 2.30 / 3.63 | +12% / +5% | -22% / -19% | 32.5, 23.0 | 0.2%, 82% |
+| grove, 640x360 | 1.50 / 1.95 | +2% / -7% | -18% / -22% | 21.6, 17.3 | 3%, 81% |
+| grove, 1280x720 | 4.75 / 5.24 | 0% / +2% | 0% / -13% | 21.6, 20.5 | 0.1%, 23% |
+
+What it says: at the default one-pixel cone, filtering buys nothing in these views (at most 8% of
+hits filtered at half scale, 0.3% at full scale, and DDA steps unchanged) and costs 0 to 12%,
+mostly within noise, so `footprint_lod` stays off by default. A four-pixel cone saves 18 to 37%
+at half scale wherever the view reaches distance (street, overview, grove) and about 20% for the
+overview at full scale, but nothing at grass level, where the expensive pixels are close. Time
+falls faster than mean DDA steps (street at half scale: 9% fewer steps, 37% less time), so the
+savings come from the long-tail pixels that finish early, not the average. Filtering grows hit
+coverage (street at half scale: 90.6% to 92.2% of pixels), since a summary box is larger than the
+voxels it covers: the silhouette dilation the reference comparison must judge.
+
 **Next steps, one per session:**
 
-1. Measure the cost and payoff of filtered primary visibility: extend `gpu_scene_throughput` (or
-   add a benchmark) to time the `primary_visibility` and `primary_visibility_footprint_lod`
-   kernels on the showcase camera paths at render scales 0.5 and 1.0, with one- and four-pixel
-   cones, reporting DDA steps per pixel (the `stats` texture) and kernel time, `--release`, one
-   run at a time.
-2. Render supersampled reference frames (exact traversal, many rays per pixel, offline or as a
-   test harness) for a few showcase views, compare the one-ray filtered frames against them
-   (silhouette coverage, mean color error) for deterministic vs. stochastic (stable per-pixel
-   random) thresholds, and pick the threshold rule and the default for `footprint_lod`.
-3. Bake SGGX-style directional summaries next to the axis-coverage proxy from the same voxels
+1. Render supersampled reference frames (exact traversal, many rays per pixel, offline or as a
+   test harness, reusing `gpu_primary_visibility_cost`'s view and texture setup) for the
+   benchmark's views, compare the one-ray filtered frames against them (silhouette coverage,
+   mean color error) at `footprint_scale` 1, 2, and 4, for deterministic vs. stochastic (stable
+   per-pixel random) thresholds, and pick the threshold rule, the default cone width, and whether
+   `footprint_lod` becomes the default. The cost table above is the other half of that decision:
+   one pixel filters almost nothing, and four pixels is where the time savings are.
+2. Bake SGGX-style directional summaries next to the axis-coverage proxy from the same voxels
    and run the same comparison (spec's "Additional Phase 2 test"): angular opacity, silhouettes,
    LOD bytes, and frame time; keep the axis proxy if it meets the quality target.
 
