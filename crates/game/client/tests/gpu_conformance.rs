@@ -1172,8 +1172,8 @@ fn gpu_footprint_filtering_matches_cpu() {
                         if cpu.is_some_and(|c| c.1 > 0) {
                             filtered[f] += 1;
                         }
-                        // shading reads the summary normal through `lod_normal`, which must
-                        // decode the record as `LodSummary::unpack` does
+                        // `lod_normal` must decode the summary normal as `LodSummary::unpack`
+                        // does
                         if result.hit != 0 && result.lod > 0 {
                             let cpu_normal =
                                 LodSummary::unpack(geometry.lod[result.record as usize]).normal;

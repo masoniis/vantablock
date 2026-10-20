@@ -11,8 +11,9 @@ under way, starting with footprint LOD filtering, which has a CPU reference, a m
 variant for single modules and whole scenes, and an opt-in primary visibility path
 (`RenderSettings::footprint_lod`, off by default: at a one-pixel cone it filters almost nothing,
 and a four-pixel cone saves up to 37% of primary visibility time, but against 4x4 supersampled
-references every filtered frame is further from the reference than the exact one-ray frame, so
-filtered-hit shading comes next; see [Phase 2 progress](#phase-2-progress)).
+references every filtered frame is still further from the reference than the exact one-ray frame;
+filtered hits now shade their node's camera-facing faces by coverage, which cut their error by up
+to 1.2 points, and silhouette dilation comes next; see [Phase 2 progress](#phase-2-progress)).
 
 The gate passed on Metal (M1 Pro) and Vulkan (RTX 3080). The 64-tree, short private traversal stack, slab-address residency, and visibility packing were kept on measured evidence on both backends; flattened pose groups replaced the template mini-BVH as the runtime default. The optional Vulkan hardware broad phase (ray queries over a TLAS of pose-frame boxes) matches the reference and is the fastest path measured, taking 25 to 42% less GPU time than the software BVH4; it is wired into the renderer as the default on adapters with ray queries (TLAS rebuilt every frame, primary visibility and shadow rays both using it, 34% less frame GPU time in game at 1280x720), with the software BVH4 as the always-available fallback. Driver register and spill statistics were captured on NVIDIA (128 registers per thread for the stack kernels, 80 stackless or with ray queries).
 
@@ -412,15 +413,75 @@ What it says, and the decisions:
   aliasing in grass and foliage, which anti-aliasing (a Phase 2 item) has to address regardless
   of filtering.
 
+**Done (October 20, 2026): filtered-hit shading.** Measured one change at a time with
+`gpu_footprint_lod_quality`, which found a bake bug first:
+
+- **Summary normals were always zero.** `Summary::of_brick` counted faces on a brick's border as
+  exposed, so along every row of voxels the `-` and `+` faces paired up and every node's mean
+  normal cancelled exactly (spread 255, `lod_normal` zero): filtered hits had always shaded with
+  the filtered box's entry face, and the conformance test's normal check compared zeros. Faces
+  now count as exposed only when the neighbor voxel in the module is empty (across bricks too,
+  `module.get`; outside the module is empty), so summaries carry real mean normals
+  (`lod_normals_see_neighbor_bricks`: a brick inside a ground layer faces up with zero spread).
+  Shading with those normals made things worse (street at 640x360 and 4 px: filtered pixels'
+  error 7.95% to 8.70%): a mean outward normal describes the node's net orientation, not the
+  faces the camera sees, so shading no longer reads it (`lod_normal` stays for conformance and
+  directional summaries).
+- **Filtered hits shade their camera-facing faces** (`filtered_face_light` in
+  `direct_lighting.wesl`): seen along local direction `d`, a node's axis-`a` faces that face the
+  camera cover `|d_a| * coverage_a` of the view (the opacity proxy's own terms, `lod_coverage` in
+  `lib/lod.wesl`), so the hit averages those three faces' sun cosine, sky height, and ground
+  bounce with these weights, as the exact voxels' faces average over the footprint. One shadow
+  ray per pixel, as before; the debug normal view shows the weighted mean normal. This is the
+  change that mattered.
+- **Shadow rays from a filtered hit leave the node's box** (clipped to the root's occupied
+  bounds) toward the light instead of starting at the box entry, so the node's own voxels can't
+  shadow it. Alone it moved the filtered pixels' error by only 0.05 to 0.1 points, so
+  self-shadowing was not what darkened crystals.
+- **The summary material is the one with the most exposed faces** (voxel count breaks ties), not
+  the most voxels, so interior material doesn't color a surface. Measured: 0.01 to 0.04 points
+  better; the single material is not the problem either.
+
+No CPU traversal or GPU layout changed (the bake still writes the same record format; `.vanta`
+files hold canonical modules, so `BAKER_VERSION` stays). `just test`, `just clippy`, and
+`just test-gpu` pass; `just shader-stats` unchanged (primary visibility 128 / 80 registers, the
+footprint LOD forms 128 / 96). BRP (release, render scale 0.5, `footprint_lod` on at
+`footprint_scale = 4`): the meadow renders without errors, filtered canopies and rocks shade as
+plausible lit blocks instead of dark blotches.
+
+Measured (RTX 3080, deterministic thresholds; filtered pixels' error before, after, and the exact
+frame's on the same pixels; whole-frame color error before and after):
+
+| View, grid, cone | Filtered px: before / after / exact | Frame error before / after |
+| --- | --- | --- |
+| street, 640x360, 4 px | 8.03% / 7.49% / 4.40% | 5.19% / 4.97% |
+| street, 1280x720, 4 px | 8.84% / 8.43% / 3.85% | 2.74% / 2.71% |
+| grass level, 640x360, 4 px | 7.45% / 7.08% / 3.68% | 2.99% / 2.91% |
+| overview, 640x360, 2 px | 8.68% / 7.64% / 6.78% | 5.99% / 5.38% |
+| overview, 640x360, 4 px | 9.08% / 7.87% / 6.73% | 6.56% / 5.70% |
+| overview, 1280x720, 4 px | 8.86% / 7.87% / 5.24% | 5.85% / 5.27% |
+| grove, 640x360, 4 px | 7.49% / 7.09% / 4.11% | 5.21% / 4.96% |
+| grove, 1280x720, 4 px | 5.99% / 5.72% / 3.02% | 2.52% / 2.48% |
+
+(At one pixel the overview's filtered pixels are now within 0.1 points of exact: 5.56% vs.
+5.47%, from 6.25%. Stochastic rows moved by the same amounts.)
+
+**Open decisions:** the quality target (filtered pixels no worse than exact) is still missed by
+1 to 4.6 points. With shading, self-shadowing, and material ruled out as the main causes, what
+remains is geometric: coverage bias is unchanged (+0.5 to +2.3 points at 4 px), since a filtered
+hit fills its whole (clipped) node box, and a pixel that should mix sky or background with a
+partly covered node shows the node's surface alone. Grass level and street views at full scale
+are the worst ratios (2.2x), where filtered pixels are mostly silhouette pixels.
+
 **Next steps, one per session:**
 
-1. Fix filtered-hit shading, measured with `gpu_footprint_lod_quality` (target: the filtered
-   pixels' error no worse than the exact frame's on the same pixels): leave shadow rays from a
-   point that can't self-shadow (the summary's occupied surface, e.g. the box exit along the
-   normal, or skip the node's own frame for a distance of one node edge), and check whether the
-   summary normal or the single material is what darkens crystals and distant grass (a debug
-   run with the summary's material but the exact voxel's normal separates them). Shrinking the
-   filtered box toward the summary's occupied volume (`volume` coverage) would cut dilation.
+1. Cut silhouette dilation, measured with `gpu_footprint_lod_quality` (coverage bias and the
+   filtered pixels' error): candidates are shrinking the filtered box toward the summary's
+   occupied extent (per-axis coverage or a baked tight sub-box of the node, CPU
+   `tree64::trace_filtered` and `trace_tree64_filtered` together, with the conformance tests),
+   and transmitting partially (a filtered hit of opacity `a` blends with what lies behind, which
+   needs a second ray or stochastic thresholds plus a resolve). Keep `footprint_lod` off unless
+   the target is met.
 2. Bake SGGX-style directional summaries next to the axis-coverage proxy from the same voxels
    and run the same comparison (spec's "Additional Phase 2 test"): angular opacity, silhouettes,
    LOD bytes, and frame time; keep the axis proxy if it meets the quality target.

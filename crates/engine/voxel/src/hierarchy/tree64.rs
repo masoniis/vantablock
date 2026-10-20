@@ -59,12 +59,12 @@ pub fn bake(
     module: &VoxelModule,
 ) -> Result<(Tree64Root, BakeStats), ArenaError> {
     let levels = module.levels() as u32;
-    let mut bricks: Vec<(u32, &Brick)> = module
+    let mut bricks: Vec<(u32, UVec3, &Brick)> = module
         .bricks()
         .iter()
-        .map(|(&coord, brick)| (brick_key(coord, levels), brick))
+        .map(|(&coord, brick)| (brick_key(coord, levels), coord, brick))
         .collect();
-    bricks.sort_unstable_by_key(|(key, _)| *key);
+    bricks.sort_unstable_by_key(|(key, _, _)| *key);
 
     // keep the whole tree in one page when it can fit, so traversal can take the single-page
     // fast path; this bound ignores deduplication and so is conservative
@@ -75,6 +75,7 @@ pub fn bake(
 
     let mut builder = Builder {
         arenas,
+        module,
         levels,
         pages: PageSpan::default(),
         stats: BakeStats::default(),
@@ -130,6 +131,7 @@ fn key_digit(key: u32, depth: u32, levels: u32) -> u32 {
 
 struct Builder<'a> {
     arenas: &'a mut GeometryArenas,
+    module: &'a VoxelModule,
     levels: u32,
     pages: PageSpan,
     stats: BakeStats,
@@ -138,20 +140,20 @@ struct Builder<'a> {
 impl Builder<'_> {
     fn build(
         &mut self,
-        bricks: &[(u32, &Brick)],
+        bricks: &[(u32, UVec3, &Brick)],
         depth: u32,
     ) -> Result<(Node64, Summary), ArenaError> {
         self.stats.nodes += 1;
 
         if depth == self.levels - 1 {
             debug_assert_eq!(bricks.len(), 1, "a terminal node covers exactly one brick");
-            let brick = bricks[0].1;
+            let (_, coord, brick) = bricks[0];
             let mask = brick.occupancy();
             let attributes: Vec<u32> = mask
                 .iter()
                 .map(|k| brick.materials[k as usize] as u32)
                 .collect();
-            let summary = Summary::of_brick(brick);
+            let summary = Summary::of_brick(brick, coord, self.module);
             let lod = self.arenas.lod.push(summary.lod().pack());
             let handle = self.arenas.attributes.alloc_dedup(&attributes)?;
             self.stats.terminal_nodes += 1;
@@ -190,11 +192,15 @@ struct Summary {
     voxels: u64,
     /// Projections along X (onto y,z), Y (onto x,z), and Z (onto x,y).
     projections: [Bitmap; 3],
-    /// Exposed face counts in `HitFace` order. Faces on a brick's border count as exposed, so
-    /// this is an approximation at node boundaries.
+    /// Exposed face counts in `HitFace` order: faces whose neighbor voxel in the module is empty
+    /// (neighbors in other bricks included, so a node's faces don't cancel out at its borders).
     faces: [u64; 6],
-    materials: Vec<(MaterialId, u64)>,
+    /// Each material's weight: `(exposed faces, voxels)`, compared in that order, so the material
+    /// a summary shades with is the one covering most of the node's surface, not its interior.
+    materials: Vec<(MaterialId, MaterialWeight)>,
 }
+
+type MaterialWeight = (u64, u64);
 
 impl Summary {
     fn empty(extent: u32) -> Self {
@@ -207,13 +213,17 @@ impl Summary {
         }
     }
 
-    fn of_brick(brick: &Brick) -> Self {
+    /// The summary of the brick at brick coordinate `coord` of `module`.
+    fn of_brick(brick: &Brick, coord: UVec3, module: &VoxelModule) -> Self {
         let mut s = Self::empty(4);
+        let corner = (coord * 4).as_ivec3();
         let occupied = |x: i32, y: i32, z: i32| {
-            (0..4).contains(&x)
-                && (0..4).contains(&y)
-                && (0..4).contains(&z)
-                && brick.materials[cell_index(x as u32, y as u32, z as u32) as usize] != EMPTY
+            if (0..4).contains(&x) && (0..4).contains(&y) && (0..4).contains(&z) {
+                return brick.materials[cell_index(x as u32, y as u32, z as u32) as usize] != EMPTY;
+            }
+            // across the brick's border: voxels outside the module are empty
+            let p = corner + IVec3::new(x, y, z);
+            p.min_element() >= 0 && module.get(p.as_uvec3()) != EMPTY
         };
         for k in 0..BRICK_VOXELS as u32 {
             let material = brick.materials[k as usize];
@@ -234,12 +244,14 @@ impl Summary {
                 (xi, yi, zi - 1),
                 (xi, yi, zi + 1),
             ];
+            let mut exposed = 0;
             for (face, (nx, ny, nz)) in neighbors.into_iter().enumerate() {
                 if !occupied(nx, ny, nz) {
                     s.faces[face] += 1;
+                    exposed += 1;
                 }
             }
-            add_material(&mut s.materials, material, 1);
+            add_material(&mut s.materials, material, (exposed, 1));
         }
         s
     }
@@ -254,8 +266,8 @@ impl Summary {
         for (total, f) in self.faces.iter_mut().zip(child.faces) {
             *total += f;
         }
-        for &(material, count) in &child.materials {
-            add_material(&mut self.materials, material, count);
+        for &(material, weight) in &child.materials {
+            add_material(&mut self.materials, material, weight);
         }
         // only the dominant materials matter, so keep the list short
         if self.materials.len() > 8 {
@@ -293,10 +305,14 @@ impl Summary {
     }
 }
 
-fn add_material(list: &mut Vec<(MaterialId, u64)>, material: MaterialId, count: u64) {
+fn add_material(
+    list: &mut Vec<(MaterialId, MaterialWeight)>,
+    material: MaterialId,
+    weight: MaterialWeight,
+) {
     match list.iter_mut().find(|(m, _)| *m == material) {
-        Some(entry) => entry.1 += count,
-        None => list.push((material, count)),
+        Some(entry) => entry.1 = (entry.1.0 + weight.0, entry.1.1 + weight.1),
+        None => list.push((material, weight)),
     }
 }
 
@@ -667,6 +683,34 @@ mod tests {
         assert_eq!(lod.volume, 0.25);
         assert_eq!(lod.coverage, [0.25, 0.25, 1.0]);
         assert_eq!(lod.material, 3);
+    }
+
+    #[test]
+    fn lod_normals_see_neighbor_bricks() {
+        // a ground layer six voxels thick across the whole module: a brick inside it exposes only
+        // its top faces, so its summary faces up instead of cancelling at the brick's borders
+        let mut module = VoxelModule::new(2);
+        for x in 0..16 {
+            for y in 0..6 {
+                for z in 0..16 {
+                    module.set(UVec3::new(x, y, z), 1);
+                }
+            }
+        }
+        let mut arenas = GeometryArenas::default();
+        let (root, _) = arenas.bake_tree64(&module).unwrap();
+        let root_header = read_node(&arenas, root.node);
+        let child = cell_index(1, 1, 1);
+        let header = read_node(
+            &arenas,
+            root_header
+                .child_ref()
+                .offset(root_header.child_mask.child_word_offset(child)),
+        );
+        let lod = arenas.lod.get(header.lod_index().unwrap());
+        assert_eq!(lod.volume, 0.5);
+        assert!(lod.normal.dot(Vec3::Y) > 0.999, "{:?}", lod.normal);
+        assert!(lod.spread < 0.01, "{}", lod.spread);
     }
 
     fn filled_brick(module: &mut VoxelModule, corner: UVec3, material: MaterialId) {

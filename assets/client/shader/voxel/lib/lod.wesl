@@ -28,8 +28,12 @@ fn footprint_covers(cone: FootprintFilter, size: f32, t: f32, voxels_per_unit: f
 // `clamp(sum(|d_axis| * coverage_axis), 0, 1)` with `d` normalized (`LodSummary::opacity`). Word
 // 0 holds volume and X coverage, word 1 Y and Z coverage, all as f16.
 fn lod_opacity(record: vec4<u32>, d: vec3<f32>) -> f32 {
-    let coverage = vec3<f32>(unpack2x16float(record.x).y, unpack2x16float(record.y));
-    return clamp(dot(abs(normalize(d)), coverage), 0.0, 1.0);
+    return clamp(dot(abs(normalize(d)), lod_coverage(record)), 0.0, 1.0);
+}
+
+// The summary's projected coverage along X, Y, and Z.
+fn lod_coverage(record: vec4<u32>) -> vec3<f32> {
+    return vec3<f32>(unpack2x16float(record.x).y, unpack2x16float(record.y));
 }
 
 // The summary's representative material (palette index).
@@ -39,7 +43,8 @@ fn lod_material(record: vec4<u32>) -> u32 {
 
 // The summary's mean outward normal in module space (`LodSummary::unpack`): word 2 holds a 12+12
 // bit octahedral encoding and the 8 bit normal spread. Zero when the exposed faces cancel out
-// (full spread), so shading falls back to the hit face.
+// (full spread). Shading doesn't use it: `filtered_face_light` in direct_lighting.wesl averages
+// the camera-facing axis faces by coverage, which the mean normal can't describe.
 fn lod_normal(record: vec4<u32>) -> vec3<f32> {
     if (record.z >> 24u) == 255u {
         return vec3<f32>(0.0);
