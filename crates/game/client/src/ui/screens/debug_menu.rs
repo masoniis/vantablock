@@ -269,10 +269,14 @@ fn update_debug_menu_system(
             .gap()
             .label("Footprint LOD")
             .mode(if settings.footprint_lod {
-                format!(
-                    "on ({} px, {})",
-                    settings.footprint_scale, settings.footprint_threshold
-                )
+                if settings.footprint_stochastic {
+                    format!("on ({} px, stochastic)", settings.footprint_scale)
+                } else {
+                    format!(
+                        "on ({} px, {})",
+                        settings.footprint_scale, settings.footprint_threshold
+                    )
+                }
             } else {
                 "off".to_string()
             }),

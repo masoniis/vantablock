@@ -115,6 +115,10 @@ pub struct RenderSettings {
     pub footprint_lod: bool,
     /// The opacity a summary must exceed to stop a filtered ray (`FootprintFilter::threshold`).
     pub footprint_threshold: f32,
+    /// Draw each traced pixel's threshold from a stable per-pixel hash instead of
+    /// `footprint_threshold` (stochastic transmission), so a summary of opacity `a` stops a
+    /// fraction `a` of the rays.
+    pub footprint_stochastic: bool,
     /// The width of a pixel's ray cone in traced pixels (`1` is one pixel); larger values filter
     /// nearer and coarser.
     pub footprint_scale: f32,
@@ -130,6 +134,7 @@ impl Default for RenderSettings {
             render_scale: 0.5,
             footprint_lod: false,
             footprint_threshold: 0.5,
+            footprint_stochastic: false,
             footprint_scale: 1.0,
         }
     }

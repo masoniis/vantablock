@@ -444,7 +444,17 @@ impl Gpu {
                 compilation_options: Default::default(),
                 cache: None,
             });
-        let bind_groups: Vec<(u32, wgpu::BindGroup)> = groups
+        let bind_groups = self.bind_groups(|index| pipeline.get_bind_group_layout(index), groups);
+        (pipeline, bind_groups)
+    }
+
+    /// Bind groups for `groups` against a pipeline's (automatic) bind group layouts.
+    fn bind_groups(
+        &self,
+        layout: impl Fn(u32) -> wgpu::BindGroupLayout,
+        groups: &[Group<'_>],
+    ) -> Vec<(u32, wgpu::BindGroup)> {
+        groups
             .iter()
             .map(|(index, bindings)| {
                 let entries: Vec<wgpu::BindGroupEntry> = bindings
@@ -456,13 +466,68 @@ impl Gpu {
                     .collect();
                 let group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
                     label: None,
-                    layout: &pipeline.get_bind_group_layout(*index),
+                    layout: &layout(*index),
                     entries: &entries,
                 });
                 (*index, group)
             })
-            .collect();
-        (pipeline, bind_groups)
+            .collect()
+    }
+
+    /// A 2D texture of `format` the voxel passes can write and read, and tests can copy out.
+    fn texture_2d(&self, width: u32, height: u32, format: wgpu::TextureFormat) -> wgpu::Texture {
+        let usage = if format.is_srgb() {
+            wgpu::TextureUsages::RENDER_ATTACHMENT
+        } else {
+            wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING
+        };
+        self.device.create_texture(&wgpu::TextureDescriptor {
+            label: None,
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format,
+            usage: usage | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        })
+    }
+
+    /// Copies a 2D texture out as `R` texels (rows must be 256-byte aligned).
+    fn read_texture<R: Pod>(&self, texture: &wgpu::Texture) -> Vec<R> {
+        let (width, height) = (texture.width(), texture.height());
+        let bytes_per_row = width * texture.format().block_copy_size(None).unwrap();
+        assert_eq!(bytes_per_row % wgpu::COPY_BYTES_PER_ROW_ALIGNMENT, 0);
+        let readback = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: None,
+            size: (bytes_per_row * height) as u64,
+            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let mut encoder = self.device.create_command_encoder(&Default::default());
+        encoder.copy_texture_to_buffer(
+            wgpu::TexelCopyTextureInfo {
+                texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyBufferInfo {
+                buffer: &readback,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(bytes_per_row),
+                    rows_per_image: Some(height),
+                },
+            },
+            texture.size(),
+        );
+        self.queue.submit([encoder.finish()]);
+        self.read(&readback)
     }
 }
 
@@ -2192,6 +2257,101 @@ fn gpu_scene_throughput() {
     }
 }
 
+/// The real asset library baked into one slab (the production single-slab kernels' geometry),
+/// and its asset templates.
+fn single_slab_library() -> (
+    common::world::VantaAssetLibrary,
+    client::render::geometry::GpuGeometryLibrary,
+    Vec<voxel::scene::AssetTemplate>,
+) {
+    let workspace = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+    let library = common::world::assets::load_library(
+        &workspace.join("assets/shared/vanta"),
+        &std::env::temp_dir().join("vanta-conformance-cache"),
+    );
+    let limits = ResidencyLimits {
+        max_storage_buffer_binding_size: 1 << 30,
+        max_buffer_size: 1 << 30,
+    };
+    let geometry = client::render::geometry::GpuGeometryLibrary::build(&library, &limits).unwrap();
+    assert_eq!(
+        geometry.topology.len(),
+        1,
+        "the benchmark runs the single-slab kernels"
+    );
+    let templates = library
+        .assets()
+        .iter()
+        .map(|a| (*a.template).clone())
+        .collect();
+    (library, geometry, templates)
+}
+
+/// The showcase and the 300-instance grove as flattened pose groups (the runtime default).
+fn primary_scenes(
+    library: &common::world::VantaAssetLibrary,
+    templates: &[voxel::scene::AssetTemplate],
+) -> (voxel::scene::SceneSnapshot, voxel::scene::SceneSnapshot) {
+    use voxel::scene::{SceneAcceleration, SceneSnapshot};
+    let build = |instances: &[voxel::scene::InstanceDesc]| {
+        SceneSnapshot::build(
+            templates,
+            instances,
+            SceneAcceleration::FlattenedGroups,
+            None,
+        )
+    };
+    (
+        build(&showcase_instances(library, &mut Rng(9), 1.3)),
+        build(&grove_instances(library)),
+    )
+}
+
+/// `(scene, view, snapshot, eye, target)` of the primary visibility benchmarks: the throughput
+/// benchmark's street view, a grass-level diagonal across the meadow, an elevated overview, and
+/// the grove from 48 m, where distance makes cones wide.
+fn primary_views<'a>(
+    showcase: &'a voxel::scene::SceneSnapshot,
+    grove: &'a voxel::scene::SceneSnapshot,
+) -> [(
+    &'static str,
+    &'static str,
+    &'a voxel::scene::SceneSnapshot,
+    Vec3,
+    Vec3,
+); 4] {
+    [
+        (
+            "showcase",
+            "street",
+            showcase,
+            Vec3::new(0.0, 1.7, 14.0),
+            Vec3::new(0.0, 1.7, 0.0),
+        ),
+        (
+            "showcase",
+            "grass level",
+            showcase,
+            Vec3::new(-14.0, 0.6, 12.0),
+            Vec3::new(10.0, 0.5, -10.0),
+        ),
+        (
+            "showcase",
+            "overview",
+            showcase,
+            Vec3::new(0.0, 12.0, 26.0),
+            Vec3::new(0.0, 0.0, -4.0),
+        ),
+        (
+            "grove of 300",
+            "distant",
+            grove,
+            Vec3::new(0.0, 6.0, 48.0),
+            Vec3::new(0.0, 4.0, 0.0),
+        ),
+    ]
+}
+
 /// What footprint LOD filtering costs and saves in the production `PrimaryVisibility` kernels:
 /// the exact and `footprint_lod` builds of `primary_visibility` traced over showcase and grove
 /// views at render scales 0.5 and 1.0 of a 1280x720 target, with one- and four-pixel cones, on the
@@ -2204,36 +2364,14 @@ fn gpu_scene_throughput() {
 #[ignore]
 fn gpu_primary_visibility_cost() {
     use bevy::math::Mat4;
-    use client::render::{
-        geometry::GpuGeometryLibrary, gpu::layout::GpuViewUniform, scene::GpuSceneData,
-    };
-    use voxel::scene::{AssetTemplate, SceneAcceleration, SceneSnapshot};
+    use client::render::{gpu::layout::GpuViewUniform, scene::GpuSceneData};
 
     let Some(gpu) = gpu() else { return };
     if !gpu.timestamps {
         eprintln!("skipping: the adapter has no timestamp queries");
         return;
     }
-    let workspace = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
-    let library = common::world::assets::load_library(
-        &workspace.join("assets/shared/vanta"),
-        &std::env::temp_dir().join("vanta-conformance-cache"),
-    );
-    let limits = ResidencyLimits {
-        max_storage_buffer_binding_size: 1 << 30,
-        max_buffer_size: 1 << 30,
-    };
-    let geometry = GpuGeometryLibrary::build(&library, &limits).unwrap();
-    assert_eq!(
-        geometry.topology.len(),
-        1,
-        "the benchmark runs the single-slab kernels"
-    );
-    let templates: Vec<AssetTemplate> = library
-        .assets()
-        .iter()
-        .map(|a| (*a.template).clone())
-        .collect();
+    let (library, geometry, templates) = single_slab_library();
 
     // `(broad phase, uses the TLAS, exact build, footprint LOD build)` of the production pass
     let module = |label: &str, source: &str| {
@@ -2277,51 +2415,10 @@ fn gpu_primary_visibility_cost() {
     // `scene_groups` wants a group 2; the pass replaces it with its view and targets
     let unused = gpu.output(16);
 
-    let build = |instances: &[voxel::scene::InstanceDesc]| {
-        SceneSnapshot::build(
-            &templates,
-            instances,
-            SceneAcceleration::FlattenedGroups,
-            None,
-        )
-    };
-    let showcase = build(&showcase_instances(&library, &mut Rng(9), 1.3));
-    let grove = build(&grove_instances(&library));
-    // `(scene, view, snapshot, eye, target)`: the throughput benchmark's views, a grass-level
-    // diagonal across the meadow, and an elevated overview, where distance makes cones wide
-    let views = [
-        (
-            "showcase",
-            "street",
-            &showcase,
-            Vec3::new(0.0, 1.7, 14.0),
-            Vec3::new(0.0, 1.7, 0.0),
-        ),
-        (
-            "showcase",
-            "grass level",
-            &showcase,
-            Vec3::new(-14.0, 0.6, 12.0),
-            Vec3::new(10.0, 0.5, -10.0),
-        ),
-        (
-            "showcase",
-            "overview",
-            &showcase,
-            Vec3::new(0.0, 12.0, 26.0),
-            Vec3::new(0.0, 0.0, -4.0),
-        ),
-        (
-            "grove of 300",
-            "distant",
-            &grove,
-            Vec3::new(0.0, 6.0, 48.0),
-            Vec3::new(0.0, 4.0, 0.0),
-        ),
-    ];
+    let (showcase, grove) = primary_scenes(&library, &templates);
     let (target_width, target_height) = (1280u32, 720u32);
 
-    for (scene_name, view_name, snapshot, eye, target) in views {
+    for (scene_name, view_name, snapshot, eye, target) in primary_views(&showcase, &grove) {
         let scene = GpuSceneData::pack(snapshot, &library, &geometry, HierarchyKind::Tree64);
         let uniform = gpu.uniform(&scene.uniform);
         let bvh = gpu.storage(&scene.bvh);
@@ -2339,22 +2436,7 @@ fn gpu_primary_visibility_cost() {
         for render_scale in [0.5f32, 1.0] {
             let width = (target_width as f32 * render_scale) as u32;
             let height = (target_height as f32 * render_scale) as u32;
-            let texture = |format: wgpu::TextureFormat| {
-                gpu.device.create_texture(&wgpu::TextureDescriptor {
-                    label: None,
-                    size: wgpu::Extent3d {
-                        width,
-                        height,
-                        depth_or_array_layers: 1,
-                    },
-                    mip_level_count: 1,
-                    sample_count: 1,
-                    dimension: wgpu::TextureDimension::D2,
-                    format,
-                    usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_SRC,
-                    view_formats: &[],
-                })
-            };
+            let texture = |format| gpu.texture_2d(width, height, format);
             let vis = texture(wgpu::TextureFormat::Rg32Uint);
             let depth = texture(wgpu::TextureFormat::R32Float);
             let cell = texture(wgpu::TextureFormat::R32Uint);
@@ -2414,38 +2496,8 @@ fn gpu_primary_visibility_cost() {
                         .unwrap();
 
                     // the last dispatch's outputs: DDA steps and filtered hits per pixel
-                    let read_texture = |texture: &wgpu::Texture, texel_bytes: u32| -> Vec<u32> {
-                        let bytes_per_row = width * texel_bytes;
-                        assert_eq!(bytes_per_row % wgpu::COPY_BYTES_PER_ROW_ALIGNMENT, 0);
-                        let readback = gpu.device.create_buffer(&wgpu::BufferDescriptor {
-                            label: None,
-                            size: (bytes_per_row * height) as u64,
-                            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
-                            mapped_at_creation: false,
-                        });
-                        let mut encoder = gpu.device.create_command_encoder(&Default::default());
-                        encoder.copy_texture_to_buffer(
-                            wgpu::TexelCopyTextureInfo {
-                                texture,
-                                mip_level: 0,
-                                origin: wgpu::Origin3d::ZERO,
-                                aspect: wgpu::TextureAspect::All,
-                            },
-                            wgpu::TexelCopyBufferInfo {
-                                buffer: &readback,
-                                layout: wgpu::TexelCopyBufferLayout {
-                                    offset: 0,
-                                    bytes_per_row: Some(bytes_per_row),
-                                    rows_per_image: Some(height),
-                                },
-                            },
-                            texture.size(),
-                        );
-                        gpu.queue.submit([encoder.finish()]);
-                        gpu.read(&readback)
-                    };
-                    let stats_texels = read_texture(&stats, 4);
-                    let vis_texels = read_texture(&vis, 8);
+                    let stats_texels: Vec<u32> = gpu.read_texture(&stats);
+                    let vis_texels: Vec<u32> = gpu.read_texture(&vis);
                     let pixels = (width * height) as f64;
                     let steps: u64 = stats_texels.iter().map(|s| (s >> 16) as u64).sum();
                     let (mut hits, mut filtered_hits) = (0u32, 0u32);
@@ -2465,6 +2517,489 @@ fn gpu_primary_visibility_cost() {
             }
         }
     }
+}
+
+/// One frame of the production passes read back: tonemapped linear color per pixel, and per
+/// pixel whether the primary ray hit (coverage, fractional once downsampled) and whether the hit
+/// was footprint filtered.
+struct ShadedFrame {
+    width: u32,
+    height: u32,
+    color: Vec<[f32; 3]>,
+    hit: Vec<f32>,
+    filtered: Vec<bool>,
+}
+
+impl ShadedFrame {
+    /// The `factor`-by-`factor` box average: linear color, and coverage as the share of hits.
+    fn downsample(&self, factor: u32) -> ShadedFrame {
+        let (width, height) = (self.width / factor, self.height / factor);
+        let samples = (factor * factor) as f32;
+        let mut out = ShadedFrame {
+            width,
+            height,
+            color: vec![[0.0; 3]; (width * height) as usize],
+            hit: vec![0.0; (width * height) as usize],
+            filtered: vec![false; (width * height) as usize],
+        };
+        for y in 0..self.height {
+            for x in 0..self.width {
+                let from = (y * self.width + x) as usize;
+                let to = ((y / factor) * width + x / factor) as usize;
+                for c in 0..3 {
+                    out.color[to][c] += self.color[from][c] / samples;
+                }
+                out.hit[to] += self.hit[from] / samples;
+            }
+        }
+        out
+    }
+
+    /// Display-encoded color after a 3x3 box filter in linear space, as a resolve that averages
+    /// neighboring pixels (temporal or spatial) would see it.
+    fn blurred_display(&self) -> Vec<[f32; 3]> {
+        let (w, h) = (self.width as i32, self.height as i32);
+        (0..h)
+            .flat_map(|y| (0..w).map(move |x| (x, y)))
+            .map(|(x, y)| {
+                let (mut sum, mut n) = ([0.0f32; 3], 0.0);
+                for sy in (y - 1).max(0)..=(y + 1).min(h - 1) {
+                    for sx in (x - 1).max(0)..=(x + 1).min(w - 1) {
+                        let c = self.color[(sy * w + sx) as usize];
+                        for i in 0..3 {
+                            sum[i] += c[i];
+                        }
+                        n += 1.0;
+                    }
+                }
+                sum.map(|v| linear_to_srgb(v / n))
+            })
+            .collect()
+    }
+
+    /// Display-encoded color per pixel.
+    fn display(&self) -> Vec<[f32; 3]> {
+        self.color.iter().map(|c| c.map(linear_to_srgb)).collect()
+    }
+
+    /// The frame as display-encoded RGBA bytes.
+    fn display_bytes(&self) -> Vec<u8> {
+        self.display()
+            .iter()
+            .flat_map(|c| {
+                let [r, g, b] = c.map(|v| (v * 255.0 + 0.5) as u8);
+                [r, g, b, 255]
+            })
+            .collect()
+    }
+}
+
+fn srgb_to_linear(v: f32) -> f32 {
+    if v <= 0.04045 {
+        v / 12.92
+    } else {
+        ((v + 0.055) / 1.055).powf(2.4)
+    }
+}
+
+fn linear_to_srgb(v: f32) -> f32 {
+    let v = v.clamp(0.0, 1.0);
+    if v <= 0.0031308 {
+        v * 12.92
+    } else {
+        1.055 * v.powf(1.0 / 2.4) - 0.055
+    }
+}
+
+/// Writes RGBA bytes as an uncompressed PNG (stored deflate blocks), so tests can save images
+/// without an encoder dependency.
+fn write_png(path: &std::path::Path, width: u32, height: u32, rgba: &[u8]) {
+    fn crc32(bytes: &[u8]) -> u32 {
+        let mut crc = !0u32;
+        for &b in bytes {
+            crc ^= b as u32;
+            for _ in 0..8 {
+                crc = if crc & 1 != 0 {
+                    (crc >> 1) ^ 0xEDB8_8320
+                } else {
+                    crc >> 1
+                };
+            }
+        }
+        !crc
+    }
+    fn chunk(out: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {
+        out.extend((data.len() as u32).to_be_bytes());
+        let start = out.len();
+        out.extend(kind);
+        out.extend(data);
+        let crc = crc32(&out[start..]);
+        out.extend(crc.to_be_bytes());
+    }
+    let mut raw = Vec::with_capacity(rgba.len() + height as usize);
+    for row in rgba.chunks(width as usize * 4) {
+        raw.push(0); // no filter
+        raw.extend(row);
+    }
+    let mut zlib = vec![0x78, 0x01];
+    let blocks: Vec<&[u8]> = raw.chunks(65535).collect();
+    for (i, block) in blocks.iter().enumerate() {
+        zlib.push((i + 1 == blocks.len()) as u8);
+        let len = block.len() as u16;
+        zlib.extend(len.to_le_bytes());
+        zlib.extend((!len).to_le_bytes());
+        zlib.extend(*block);
+    }
+    let (mut a, mut b) = (1u32, 0u32);
+    for &byte in &raw {
+        a = (a + byte as u32) % 65521;
+        b = (b + a) % 65521;
+    }
+    zlib.extend(((b << 16) | a).to_be_bytes());
+    let mut png = b"\x89PNG\r\n\x1a\n".to_vec();
+    let mut header = Vec::new();
+    header.extend(width.to_be_bytes());
+    header.extend(height.to_be_bytes());
+    header.extend([8, 6, 0, 0, 0]); // 8-bit RGBA
+    chunk(&mut png, b"IHDR", &header);
+    chunk(&mut png, b"IDAT", &zlib);
+    chunk(&mut png, b"IEND", &[]);
+    std::fs::write(path, png).unwrap();
+}
+
+/// How footprint LOD filtering compares with supersampled references: each benchmark view is
+/// rendered by the production `PrimaryVisibility` and `DirectLighting` passes (exact traversal,
+/// sun at mid-morning, tonemapped in the shader) at 4x4 times the traced resolution and box
+/// averaged in linear color, then traced once per pixel exactly and with one-, two-, and
+/// four-pixel cones, each with the fixed `0.5` threshold and with stochastic per-pixel thresholds
+/// (`VIEW_STOCHASTIC_FOOTPRINT`). Reports, against the reference: mean absolute display-space
+/// color error per pixel and after a 3x3 box filter (what an averaging resolve would leave), the
+/// coverage bias (hit pixels minus reference coverage, so silhouette dilation is positive), the
+/// mean per-pixel coverage error, and the share of hits that were filtered. Writes every frame as
+/// a PNG under the temp directory's `vanta-footprint-quality`. Not a correctness test; run with
+/// `just test-gpu gpu_footprint_lod_quality --ignored --release`.
+#[test]
+#[ignore]
+fn gpu_footprint_lod_quality() {
+    use bevy::math::Mat4;
+    use client::render::{
+        environment::environment_at,
+        gpu::layout::{GpuViewUniform, VIEW_STOCHASTIC_FOOTPRINT, VIEW_TONEMAP_IN_SHADER},
+        scene::GpuSceneData,
+    };
+
+    const SUPERSAMPLE: u32 = 4;
+    let Some(gpu) = gpu() else { return };
+    let (library, geometry, templates) = single_slab_library();
+    let (showcase, grove) = primary_scenes(&library, &templates);
+    let out_dir = std::env::temp_dir().join("vanta-footprint-quality");
+    std::fs::create_dir_all(&out_dir).unwrap();
+
+    // the production passes, on the hardware broad phase where the adapter has it (both broad
+    // phases find the same hits)
+    let hardware = gpu.ray_query;
+    let (exact_source, filtered_source, lighting_source) = if hardware {
+        (
+            PRIMARY_VISIBILITY_RAY_QUERY,
+            PRIMARY_VISIBILITY_FOOTPRINT_LOD_RAY_QUERY,
+            DIRECT_LIGHTING_RAY_QUERY,
+        )
+    } else {
+        (
+            PRIMARY_VISIBILITY,
+            PRIMARY_VISIBILITY_FOOTPRINT_LOD,
+            DIRECT_LIGHTING,
+        )
+    };
+    let module = |source: &str| {
+        gpu.device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: None,
+                source: wgpu::ShaderSource::Wgsl(source.into()),
+            })
+    };
+    let compute = |source: &str| {
+        gpu.device
+            .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: None,
+                layout: None,
+                module: &module(source),
+                entry_point: Some("main"),
+                compilation_options: Default::default(),
+                cache: None,
+            })
+    };
+    let (exact_pipeline, filtered_pipeline) = (compute(exact_source), compute(filtered_source));
+    let color_format = wgpu::TextureFormat::Rgba8UnormSrgb;
+    let lighting_module = module(lighting_source);
+    let lighting_pipeline = gpu
+        .device
+        .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: None,
+            layout: None,
+            vertex: wgpu::VertexState {
+                module: &lighting_module,
+                entry_point: Some("vs_main"),
+                compilation_options: Default::default(),
+                buffers: &[],
+            },
+            primitive: Default::default(),
+            depth_stencil: None,
+            multisample: Default::default(),
+            fragment: Some(wgpu::FragmentState {
+                module: &lighting_module,
+                entry_point: Some("fs_main"),
+                compilation_options: Default::default(),
+                targets: &[Some(color_format.into())],
+            }),
+            multiview_mask: None,
+            cache: None,
+        });
+
+    let topology: Vec<wgpu::Buffer> = geometry.topology.iter().map(|s| gpu.storage(s)).collect();
+    let attributes = gpu.storage(&geometry.attributes[0]);
+    let materials = gpu.storage(&geometry.materials);
+    let template_bvh = gpu.storage(&geometry.template_bvh);
+    let lod = gpu.storage(&geometry.lod);
+    let meta = gpu.uniform(&GpuGeometryMeta::new(
+        &geometry.topology_page_entries,
+        &geometry.attribute_page_entries,
+    ));
+    let environment = gpu.uniform(&environment_at(0.4, 0.0));
+    let unused = gpu.output(16);
+
+    // `(label, (footprint scale, stochastic thresholds))`: `None` is the exact build
+    let configs = [
+        ("exact", None),
+        ("1 px", Some((1.0, false))),
+        ("1 px stochastic", Some((1.0, true))),
+        ("2 px", Some((2.0, false))),
+        ("2 px stochastic", Some((2.0, true))),
+        ("4 px", Some((4.0, false))),
+        ("4 px stochastic", Some((4.0, true))),
+    ];
+
+    for (scene_name, view_name, snapshot, eye, target) in primary_views(&showcase, &grove) {
+        let scene = GpuSceneData::pack(snapshot, &library, &geometry, HierarchyKind::Tree64);
+        let uniform = gpu.uniform(&scene.uniform);
+        let bvh = gpu.storage(&scene.bvh);
+        let frames = gpu.storage(&scene.frames);
+        let instance_buffer = gpu.storage(&scene.instances);
+        let slot_frames = gpu.storage(&scene.slot_frames);
+        let tlas = hardware.then(|| scene_tlas(&gpu, snapshot, &templates));
+        let groups = || {
+            scene_groups(
+                &topology,
+                &template_bvh,
+                &meta,
+                [&uniform, &bvh, &frames, &instance_buffer, &slot_frames],
+                tlas.as_ref(),
+                &unused,
+                &unused,
+            )
+        };
+
+        // one frame of both passes, `width`x`height` traced and shaded pixels
+        let render = |width: u32, height: u32, footprint: Option<(f32, bool)>| -> ShadedFrame {
+            let vis = gpu.texture_2d(width, height, wgpu::TextureFormat::Rg32Uint);
+            let depth = gpu.texture_2d(width, height, wgpu::TextureFormat::R32Float);
+            let cell = gpu.texture_2d(width, height, wgpu::TextureFormat::R32Uint);
+            let stats = gpu.texture_2d(width, height, wgpu::TextureFormat::R32Uint);
+            let color = gpu.texture_2d(width, height, color_format);
+            let [vis_view, depth_view, cell_view, stats_view, color_view] =
+                [&vis, &depth, &cell, &stats, &color].map(|t| t.create_view(&Default::default()));
+
+            let clip_from_world = Mat4::perspective_infinite_reverse_rh(
+                60f32.to_radians(),
+                width as f32 / height as f32,
+                0.05,
+            ) * Mat4::look_at_rh(eye, target, Vec3::Y);
+            let (footprint_scale, stochastic) = footprint.unwrap_or((1.0, false));
+            let view = gpu.uniform(&GpuViewUniform {
+                world_from_clip: clip_from_world.inverse().to_cols_array(),
+                clip_from_world: clip_from_world.to_cols_array(),
+                prev_clip_from_world: clip_from_world.to_cols_array(),
+                camera_position: eye.to_array(),
+                viewport: [width as f32, height as f32],
+                flags: VIEW_TONEMAP_IN_SHADER
+                    | if stochastic {
+                        VIEW_STOCHASTIC_FOOTPRINT
+                    } else {
+                        0
+                    },
+                target_to_grid: 1.0,
+                footprint_threshold: 0.5,
+                footprint_scale,
+                ..Default::default()
+            });
+
+            let visibility_pipeline = if footprint.is_some() {
+                &filtered_pipeline
+            } else {
+                &exact_pipeline
+            };
+            let mut visibility_groups = groups();
+            if footprint.is_some() {
+                visibility_groups[0].1.push((11, lod.as_entire_binding()));
+            }
+            visibility_groups[2].1 = vec![
+                (0, view.as_entire_binding()),
+                (1, wgpu::BindingResource::TextureView(&vis_view)),
+                (2, wgpu::BindingResource::TextureView(&depth_view)),
+                (3, wgpu::BindingResource::TextureView(&cell_view)),
+                (4, wgpu::BindingResource::TextureView(&stats_view)),
+            ];
+            let visibility_bind_groups = gpu.bind_groups(
+                |i| visibility_pipeline.get_bind_group_layout(i),
+                &visibility_groups,
+            );
+            let mut lighting_groups = groups();
+            lighting_groups[0].1.extend([
+                (1, attributes.as_entire_binding()),
+                (2, materials.as_entire_binding()),
+                (11, lod.as_entire_binding()),
+            ]);
+            lighting_groups[2].1 = vec![
+                (0, view.as_entire_binding()),
+                (1, environment.as_entire_binding()),
+                (2, wgpu::BindingResource::TextureView(&vis_view)),
+                (3, wgpu::BindingResource::TextureView(&depth_view)),
+                (4, wgpu::BindingResource::TextureView(&cell_view)),
+                (5, wgpu::BindingResource::TextureView(&stats_view)),
+            ];
+            let lighting_bind_groups = gpu.bind_groups(
+                |i| lighting_pipeline.get_bind_group_layout(i),
+                &lighting_groups,
+            );
+
+            let mut encoder = gpu.device.create_command_encoder(&Default::default());
+            {
+                let mut pass = encoder.begin_compute_pass(&Default::default());
+                pass.set_pipeline(visibility_pipeline);
+                for (index, group) in &visibility_bind_groups {
+                    pass.set_bind_group(*index, group, &[]);
+                }
+                pass.dispatch_workgroups(width.div_ceil(8), height.div_ceil(8), 1);
+            }
+            {
+                let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: None,
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &color_view,
+                        depth_slice: None,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    ..Default::default()
+                });
+                pass.set_pipeline(&lighting_pipeline);
+                for (index, group) in &lighting_bind_groups {
+                    pass.set_bind_group(*index, group, &[]);
+                }
+                pass.draw(0..3, 0..1);
+            }
+            gpu.queue.submit([encoder.finish()]);
+
+            let vis_texels: Vec<[u32; 2]> = gpu.read_texture(&vis);
+            let color_texels: Vec<[u8; 4]> = gpu.read_texture(&color);
+            ShadedFrame {
+                width,
+                height,
+                color: color_texels
+                    .iter()
+                    .map(|c| [0, 1, 2].map(|i| srgb_to_linear(c[i] as f32 / 255.0)))
+                    .collect(),
+                hit: vis_texels
+                    .iter()
+                    .map(|v| if v[0] != u32::MAX { 1.0 } else { 0.0 })
+                    .collect(),
+                filtered: vis_texels
+                    .iter()
+                    .map(|v| v[0] != u32::MAX && (v[0] >> 9) & 7 != 0)
+                    .collect(),
+            }
+        };
+
+        eprintln!("  {scene_name}, {view_name} view");
+        for (width, height) in [(640u32, 360u32), (1280, 720)] {
+            let reference =
+                render(width * SUPERSAMPLE, height * SUPERSAMPLE, None).downsample(SUPERSAMPLE);
+            let stem = format!("{}_{width}x{height}", view_name.replace(' ', "_"));
+            write_png(
+                &out_dir.join(format!("{stem}_reference.png")),
+                width,
+                height,
+                &reference.display_bytes(),
+            );
+            let reference_display = reference.display();
+            let reference_blurred = reference.blurred_display();
+            let pixels = (width * height) as f64;
+            let reference_coverage = reference.hit.iter().map(|&h| h as f64).sum::<f64>() / pixels;
+            eprintln!(
+                "    {width}x{height} ({SUPERSAMPLE}x{SUPERSAMPLE} reference coverage {:.2}%)",
+                reference_coverage * 100.0
+            );
+            let mean_error = |a: &[[f32; 3]], b: &[[f32; 3]]| -> f64 {
+                a.iter()
+                    .zip(b)
+                    .map(|(a, b)| (0..3).map(|i| (a[i] - b[i]).abs() as f64).sum::<f64>() / 3.0)
+                    .sum::<f64>()
+                    / pixels
+            };
+            // the exact one-ray frame, to compare filtered pixels with
+            let mut exact_display = Vec::new();
+            for (label, footprint) in configs {
+                let frame = render(width, height, footprint);
+                write_png(
+                    &out_dir.join(format!("{stem}_{}.png", label.replace(' ', "_"))),
+                    width,
+                    height,
+                    &frame.display_bytes(),
+                );
+                let display = frame.display();
+                let color_error = mean_error(&display, &reference_display);
+                if footprint.is_none() {
+                    exact_display = display.clone();
+                }
+                // on the pixels whose hit was filtered: this frame's and the exact frame's error
+                let (mut filtered_error, mut exact_error) = (0.0f64, 0.0f64);
+                for (i, _) in frame.filtered.iter().enumerate().filter(|(_, f)| **f) {
+                    let error = |c: [f32; 3]| {
+                        (0..3)
+                            .map(|k| (c[k] - reference_display[i][k]).abs() as f64)
+                            .sum::<f64>()
+                            / 3.0
+                    };
+                    filtered_error += error(display[i]);
+                    exact_error += error(exact_display[i]);
+                }
+                let blurred_error = mean_error(&frame.blurred_display(), &reference_blurred);
+                let hits: f64 = frame.hit.iter().map(|&h| h as f64).sum();
+                let coverage_error = frame
+                    .hit
+                    .iter()
+                    .zip(&reference.hit)
+                    .map(|(a, b)| (a - b).abs() as f64)
+                    .sum::<f64>()
+                    / pixels;
+                let filtered = frame.filtered.iter().filter(|&&f| f).count() as f64;
+                eprintln!(
+                    "      {label}: color error {:.2}%, 3x3 {:.2}%, coverage bias {:+.2} pt, coverage error {:.2}%, {:.1}% of hits filtered (their error {:.2}%, exact {:.2}%)",
+                    color_error * 100.0,
+                    blurred_error * 100.0,
+                    (hits / pixels - reference_coverage) * 100.0,
+                    coverage_error * 100.0,
+                    filtered / hits.max(1.0) * 100.0,
+                    filtered_error / filtered.max(1.0) * 100.0,
+                    exact_error / filtered.max(1.0) * 100.0,
+                );
+            }
+        }
+    }
+    eprintln!("  frames written to {}", out_dir.display());
 }
 
 /// What the multi-slab path costs: the grove traced with production geometry and the

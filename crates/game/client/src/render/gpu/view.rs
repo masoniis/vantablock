@@ -147,6 +147,11 @@ pub fn prepare_view_bind_groups(
     let (footprint_threshold, footprint_scale) = settings
         .as_ref()
         .map_or((0.5, 1.0), |s| (s.footprint_threshold, s.footprint_scale));
+    let stochastic = if settings.as_ref().is_some_and(|s| s.footprint_stochastic) {
+        VIEW_STOCHASTIC_FOOTPRINT
+    } else {
+        0
+    };
     let environment = environment.map(|e| e.0).unwrap_or_default();
     let visibility_layout = pipeline_cache.get_bind_group_layout(&visibility_view_layout());
     let lighting_layout = pipeline_cache.get_bind_group_layout(&lighting_view_layout());
@@ -168,11 +173,12 @@ pub fn prepare_view_bind_groups(
             debug_view,
             viewport: targets.size.as_vec2().to_array(),
             // Bevy tonemaps HDR cameras itself
-            flags: if camera.hdr {
-                0
-            } else {
-                VIEW_TONEMAP_IN_SHADER
-            },
+            flags: stochastic
+                | if camera.hdr {
+                    0
+                } else {
+                    VIEW_TONEMAP_IN_SHADER
+                },
             target_to_grid: targets.size.x as f32 / targets.target.x as f32,
             footprint_threshold,
             footprint_scale,

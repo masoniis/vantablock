@@ -10,8 +10,9 @@ Phase 1 (renderer feasibility and memory contracts) is complete on Metal and Vul
 under way, starting with footprint LOD filtering, which has a CPU reference, a matching shader
 variant for single modules and whole scenes, and an opt-in primary visibility path
 (`RenderSettings::footprint_lod`, off by default: at a one-pixel cone it filters almost nothing,
-and a four-pixel cone saves up to 37% of primary visibility time but awaits the comparison
-against supersampled references; see [Phase 2 progress](#phase-2-progress)).
+and a four-pixel cone saves up to 37% of primary visibility time, but against 4x4 supersampled
+references every filtered frame is further from the reference than the exact one-ray frame, so
+filtered-hit shading comes next; see [Phase 2 progress](#phase-2-progress)).
 
 The gate passed on Metal (M1 Pro) and Vulkan (RTX 3080). The 64-tree, short private traversal stack, slab-address residency, and visibility packing were kept on measured evidence on both backends; flattened pose groups replaced the template mini-BVH as the runtime default. The optional Vulkan hardware broad phase (ray queries over a TLAS of pose-frame boxes) matches the reference and is the fastest path measured, taking 25 to 42% less GPU time than the software BVH4; it is wired into the renderer as the default on adapters with ray queries (TLAS rebuilt every frame, primary visibility and shadow rays both using it, 34% less frame GPU time in game at 1280x720), with the software BVH4 as the always-available fallback. Driver register and spill statistics were captured on NVIDIA (128 registers per thread for the stack kernels, 80 stackless or with ray queries).
 
@@ -345,18 +346,87 @@ savings come from the long-tail pixels that finish early, not the average. Filte
 coverage (street at half scale: 90.6% to 92.2% of pixels), since a summary box is larger than the
 voxels it covers: the silhouette dilation the reference comparison must judge.
 
+**Done (October 20, 2026): filtered frames against supersampled references.** The new ignored
+test `gpu_footprint_lod_quality` (`gpu_conformance.rs`; run with
+`cargo test --release -p vantablock-client --test gpu_conformance -- --ignored --nocapture gpu_footprint_lod_quality`)
+renders the cost benchmark's four views through both production passes (`PrimaryVisibility`,
+then `DirectLighting` as a fullscreen draw into an sRGB target, sun at cycle `0.4`, tonemapped in
+the shader, hardware broad phase): the reference traces exactly at 4x4 times the grid and box
+averages in linear color, and each test frame traces one ray per pixel, exactly and with one-,
+two-, and four-pixel cones, each with the fixed `0.5` threshold and with stochastic thresholds.
+It reports mean absolute display-space color error per pixel and after a 3x3 box filter (what an
+averaging resolve would leave), coverage bias (hit pixels minus reference coverage; positive is
+dilation), mean per-pixel coverage error, the filtered share of hits, and the error on just the
+filtered pixels next to the exact frame's error on the same pixels. Every frame is written as a
+PNG under the temp directory's `vanta-footprint-quality` (a dependency-free stored-deflate
+writer, since `image` only comes with the `brp` feature). The harness gained `Gpu::bind_groups`,
+`Gpu::texture_2d`, and `Gpu::read_texture`, and the views and library setup are shared with
+`gpu_primary_visibility_cost` (`single_slab_library`, `primary_scenes`, `primary_views`).
+
+Stochastic thresholds are a runtime option: `RenderSettings::footprint_stochastic` (off) sets the
+new `VIEW_STOCHASTIC_FOOTPRINT` view flag (`layout.rs`, `types.wesl`), and `pixel_footprint` then
+takes each traced pixel's threshold from a stable PCG hash of its coordinates, so a summary of
+opacity `a` stops a fraction `a` of the rays. The CPU reference is unchanged (the threshold is
+already an input of `FootprintFilter`). The debug overlay shows "stochastic" in place of the
+threshold. `just shader-stats`: unchanged (128 / 96 registers for the footprint LOD forms).
+
+Measured (RTX 3080, deterministic, `color error / 3x3 error / coverage bias`, then the error on
+filtered pixels vs. the exact frame's on the same pixels; stochastic rows are within 0.1 to 1
+point of these, see below):
+
+| View, grid | Exact | 1 px | 2 px | 4 px | Filtered px: 4 px vs. exact |
+| --- | --- | --- | --- | --- | --- |
+| street, 640x360 | 3.70 / 1.61 / +0.01 | 3.70 / 1.61 / +0.02 | 3.96 / 1.86 / +0.69 | 5.19 / 3.02 / +1.65 | 8.0% vs. 4.4% (44% filtered) |
+| street, 1280x720 | 2.32 / 1.18 / +0.01 | 2.32 / 1.18 / +0.01 | 2.33 / 1.18 / +0.02 | 2.74 / 1.59 / +0.69 | 8.8% vs. 3.9% (9%) |
+| grass level, 640x360 | 2.13 / 1.12 / 0.00 | same | 2.31 / 1.32 / +0.49 | 2.99 / 1.99 / +1.11 | 7.5% vs. 3.7% (27%) |
+| grass level, 1280x720 | 1.27 / 0.73 / 0.00 | same | same | 1.55 / 1.01 / +0.49 | 7.9% vs. 3.5% (7%) |
+| overview, 640x360 | 4.87 / 1.69 / -0.02 | 4.91 / 1.73 / +0.03 | 5.99 / 2.55 / +0.57 | 6.56 / 3.05 / +0.88 | 9.1% vs. 6.7% (100%) |
+| overview, 1280x720 | 3.70 / 1.34 / 0.00 | same | 3.80 / 1.42 / +0.04 | 5.85 / 3.08 / +0.57 | 8.9% vs. 5.2% (82%) |
+| grove, 640x360 | 3.08 / 1.33 / +0.02 | 3.10 / 1.34 / +0.09 | 3.39 / 1.60 / +0.63 | 5.21 / 3.31 / +2.25 | 7.5% vs. 4.1% (81%) |
+| grove, 1280x720 | 2.00 / 0.97 / 0.00 | same | 2.03 / 1.00 / +0.08 | 2.52 / 1.44 / +0.61 | 6.0% vs. 3.0% (23%) |
+
+(Reference coverage: street 90.6%, grass level 84.2%, overview 70.5%, grove 74.6%. Stochastic
+thresholds cut the coverage bias by 10 to 30% (overview 4 px at half scale: +0.88 to +0.61 pt;
+grove: +2.25 to +2.06) and the 3x3 error slightly at 4 px (street 3.02% to 2.88%, grove 3.31% to
+3.11%), but raise the per-pixel error (overview 4 px: 6.56% to 7.50%), since they trade bias for
+noise that only a temporal resolve removes.)
+
+What it says, and the decisions:
+
+- **Filtering does not meet the quality bar yet.** In no view or cone does a filtered frame come
+  closer to the reference than the exact one-ray frame, per pixel or after the 3x3 filter. The
+  filtered pixels themselves carry 1.3 to 2.3 times the exact ray's error on the same pixels, so
+  the summaries' look, not only silhouette dilation, is the problem. The frames show why:
+  filtered crystals and distant grass shade with dark streaks and blotches (the summary's single
+  material and mean normal, and exact shadow rays leaving the filtered box entry, which sits
+  inside or below the node's voxels and self-shadows), and summary boxes dilate silhouettes
+  (+0.5 to +2.3 points of coverage at four pixels).
+- **`footprint_lod` stays off by default**, and the default cone stays one pixel: at one pixel it
+  is indistinguishable from exact (at most 0.04 points of error) and buys nothing (see the cost
+  table); at four pixels it saves 18 to 37% of primary visibility time where views reach distance
+  but costs 1.3 to 3.5 points of color error.
+- **The threshold rule stays deterministic (`0.5`) by default;** stochastic thresholds are the
+  better rule for coverage but need a temporal resolve to pay off, so revisit them with temporal
+  accumulation (Phase 4) or anti-aliasing. Both stay available at runtime.
+- The 4x4 reference itself is limited: the exact one-ray frame is 2 to 5% from it, mostly
+  aliasing in grass and foliage, which anti-aliasing (a Phase 2 item) has to address regardless
+  of filtering.
+
 **Next steps, one per session:**
 
-1. Render supersampled reference frames (exact traversal, many rays per pixel, offline or as a
-   test harness, reusing `gpu_primary_visibility_cost`'s view and texture setup) for the
-   benchmark's views, compare the one-ray filtered frames against them (silhouette coverage,
-   mean color error) at `footprint_scale` 1, 2, and 4, for deterministic vs. stochastic (stable
-   per-pixel random) thresholds, and pick the threshold rule, the default cone width, and whether
-   `footprint_lod` becomes the default. The cost table above is the other half of that decision:
-   one pixel filters almost nothing, and four pixels is where the time savings are.
+1. Fix filtered-hit shading, measured with `gpu_footprint_lod_quality` (target: the filtered
+   pixels' error no worse than the exact frame's on the same pixels): leave shadow rays from a
+   point that can't self-shadow (the summary's occupied surface, e.g. the box exit along the
+   normal, or skip the node's own frame for a distance of one node edge), and check whether the
+   summary normal or the single material is what darkens crystals and distant grass (a debug
+   run with the summary's material but the exact voxel's normal separates them). Shrinking the
+   filtered box toward the summary's occupied volume (`volume` coverage) would cut dilation.
 2. Bake SGGX-style directional summaries next to the axis-coverage proxy from the same voxels
    and run the same comparison (spec's "Additional Phase 2 test"): angular opacity, silhouettes,
    LOD bytes, and frame time; keep the axis proxy if it meets the quality target.
+3. Then the next Phase 2 roadmap items: anti-aliasing (the exact one-ray frame is 2 to 5% from the
+   supersampled reference, so `gpu_footprint_lod_quality` doubles as its yardstick), atmosphere,
+   and sky-light occlusion.
 
 ## What comes next
 

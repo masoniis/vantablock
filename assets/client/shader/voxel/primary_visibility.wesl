@@ -9,7 +9,7 @@
 // cell  = the hit voxel's group-local coordinate, x | y << 10 | z << 20
 // stats = scene nodes (8 bits) | group candidates (8 bits) << 8 | voxel DDA steps (16 bits) << 16
 
-import super::lib::types::{ViewUniform, VISIBILITY_MISS};
+import super::lib::types::{ViewUniform, VISIBILITY_MISS, VIEW_STOCHASTIC_FOOTPRINT};
 import super::lib::scene::trace_scene_filtered;
 import super::lib::lod::{FootprintFilter, exact_footprint};
 import super::lib::view::camera_ray_direction;
@@ -22,14 +22,25 @@ import super::lib::view::camera_ray_direction;
 
 const MISS_DEPTH: f32 = 3.0e38;
 
+// A stable value in [0, 1) per traced pixel (a PCG hash of its coordinates).
+fn pixel_hash(pixel: vec2<f32>) -> f32 {
+    var h = u32(pixel.x) * 747796405u + u32(pixel.y) * 2891336453u + 2654435769u;
+    h = ((h >> ((h >> 28u) + 4u)) ^ h) * 277803737u;
+    h = (h >> 22u) ^ h;
+    return f32(h >> 8u) / 16777216.0;
+}
+
 // The ray cone of the traced pixel centered at `pixel`: a pinhole camera's cone has no radius,
 // and its diameter at distance t is `footprint_scale` traced pixels' width there. The width comes
-// from the traced grid, so reduced render scales filter more.
+// from the traced grid, so reduced render scales filter more. With `VIEW_STOCHASTIC_FOOTPRINT`
+// the threshold is the pixel's hash, so a summary of opacity `a` stops a fraction `a` of the rays
+// (stochastic transmission) instead of all or none of them.
 @ if(footprint_lod)
 fn pixel_footprint(pixel: vec2<f32>) -> FootprintFilter {
     let left = camera_ray_direction(view, pixel - vec2<f32>(0.5, 0.0));
     let right = camera_ray_direction(view, pixel + vec2<f32>(0.5, 0.0));
-    return FootprintFilter(0.0, 0.5 * length(right - left) * view.footprint_scale, view.footprint_threshold);
+    let threshold = select(view.footprint_threshold, pixel_hash(pixel), (view.flags & VIEW_STOCHASTIC_FOOTPRINT) != 0u);
+    return FootprintFilter(0.0, 0.5 * length(right - left) * view.footprint_scale, threshold);
 }
 
 // Exact builds trace a zero cone, which `trace_scene_filtered` compiles down to `trace_scene`.

@@ -27,6 +27,9 @@ pub const MODE_INSTANCE_REFIT: u32 = 2;
 
 /// `ViewUniform::flags`: the target is not HDR, so the shader tonemaps itself.
 pub const VIEW_TONEMAP_IN_SHADER: u32 = 1;
+/// `ViewUniform::flags`: footprint LOD filtering draws each traced pixel's opacity threshold from
+/// a stable per-pixel hash (stochastic transmission) instead of `footprint_threshold`.
+pub const VIEW_STOCHASTIC_FOOTPRINT: u32 = 2;
 
 /// An affine transform as three rows of `[x, y, z, translation]`.
 pub type AffineRows = [[f32; 4]; 3];
