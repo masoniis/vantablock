@@ -12,8 +12,10 @@ the hardware broad phase are the runtime defaults (see [Phase 1 results](#phase-
 
 Phase 2 is under way. Footprint LOD filtering is done as an opt-in path
 (`RenderSettings::footprint_lod`, off by default, since filtered frames still miss the quality
-target in most views; see [Phase 2 results](#phase-2-results)). Next is the SGGX-style directional
-summary comparison.
+target in most views; see [Phase 2 results](#phase-2-results)). The directional summary
+comparison's CPU half is done: the axis proxy overestimates angular coverage everywhere, and an
+`L2` combination of the same coverages and a fitted SGGX tensor fix most of it. Next is trying
+them in the renderer.
 
 ## Known issues
 
@@ -299,17 +301,73 @@ material (0.01 to 0.04). The occupied box with node-relative coverage cut covera
 - The footprint rule (cell edge vs. cone diameter) is untuned, and the 4x4 reference is itself
   limited: the exact one-ray frame is 2 to 5% from it, mostly grass and foliage aliasing.
 
+### Directional summaries: axis proxy vs. SGGX
+
+**In progress: the CPU angular comparison is done; the GPU side is next.** `voxel::angular`
+measures a node's angular coverage (the chance that a ray along `w` entering the occupied box hits
+a voxel, the quantity a filtered hit stands for) with 48x48 stratified parallel rays per
+direction, and scores four summaries baked from the same voxels on 96 directions disjoint from
+the 48 the fits see: the shipped axis proxy (`clamp(sum(|w_a| c_a))`), the diagonal tensor
+`diag(c_a^2)` (the same three coverages combined in `L2`: no extra bytes), a PSD SGGX tensor
+least-squares fitted to measured `coverage^2` and stored as six `f16` (12 bytes), and a
+15-coefficient quartic (spherical harmonic bands 0, 2, 4) as the richer reference. The study is
+the ignored test `directional_lod_comparison` (`cargo test --release -p vantablock-baker --test
+directional_lod -- --ignored --nocapture`, 6 s); `angular_axis_coverage_matches_the_baked_summary`
+holds its axis proxy to the baked record.
+
+Mean `|error|` (bias) and the share of node-direction pairs whose hit/pass decision at the `0.5`
+threshold differs from the measurement, for up to 160 nodes per asset and size:
+
+| Nodes                    | Axis proxy           | Diagonal SGGX        | Fitted SGGX (f16)   | Quartic            |
+| ------------------------ | -------------------- | -------------------- | ------------------- | ------------------ |
+| diagonal/tilted leaves   | 0.442 (+0.44), 48.6% | 0.259 (+0.26), 44.8% | 0.057 (+0.02), 5.9% | 0.023 (0.00), 2.3% |
+| oak 4^3                  | 0.156 (+0.16), 5.0%  | 0.058 (+0.05), 3.6%  | 0.015 (0.00), 1.2%  | 0.007 (0.00), 0.7% |
+| oak 16^3                 | 0.289 (+0.29), 38.1% | 0.104 (+0.10), 21.7% | 0.025 (0.00), 5.0%  | 0.012 (0.00), 2.2% |
+| oak 64^3                 | 0.266 (+0.27), 45.3% | 0.090 (+0.09), 11.4% | 0.022 (0.00), 1.8%  | 0.011 (0.00), 1.1% |
+| crystal grotto 4^3       | 0.120 (+0.12), 0.6%  | 0.045 (+0.04), 0.6%  | 0.011 (0.00), 0.3%  | 0.005 (0.00), 0.1% |
+| crystal grotto 16^3      | 0.274 (+0.27), 20.9% | 0.122 (+0.09), 18.9% | 0.031 (0.00), 5.1%  | 0.017 (0.00), 2.6% |
+| crystal grotto 64^3      | 0.349 (+0.35), 43.4% | 0.161 (+0.13), 32.2% | 0.040 (+0.01), 6.9% | 0.023 (0.00), 4.2% |
+| meadow tile 4^3          | 0.144 (+0.14), 14.1% | 0.045 (+0.04), 4.3%  | 0.013 (0.00), 1.8%  | 0.008 (0.00), 1.1% |
+| meadow tile 16^3         | 0.212 (+0.21), 29.8% | 0.075 (+0.07), 3.3%  | 0.019 (0.00), 0.4%  | 0.011 (0.00), 0.4% |
+| meadow tile 64^3         | 0.263 (+0.26), 0.0%  | 0.086 (+0.09), 0.0%  | 0.015 (0.00), 0.0%  | 0.010 (0.00), 0.0% |
+
+(Sampling error is about 1% per direction, so the quartic sits near the noise floor.)
+
+What it says: the axis proxy fails the spec's test. It overestimates coverage in every population,
+by 0.12 to 0.35 on average, and at the deterministic `0.5` threshold it decides 21 to 45% of the
+16^3 and 64^3 node-direction pairs wrongly, which is the measured coverage bias (silhouette
+dilation) of filtered frames. `L1` is the culprit: the same three coverages combined in `L2` cut
+the error 1.7 to 3.2x for free. The fitted SGGX tensor cuts it 8 to 18x, is unbiased, and its
+mean error stays within 0.035 of the quartic's everywhere, so the quartic's 30 bytes aren't worth
+it. A tensor built from
+exposed faces instead of fitted is diagonal for voxels (their faces are axis aligned) and can't
+tell a leaf along `x = y` from one along `x = -y`; fitting to measured coverage is what captures
+diagonal leaves and crystal facets.
+
+Costs: the shipped LOD tables are 18,430 records for the oak (288 KiB), 60,795 for the crystal
+grotto (950 KiB), and 31,826 for the meadow tile (497 KiB). Six `f16` don't fit beside the
+current record's material, box, and volume, so SGGX means a 32-byte record (twice those) or
+dropping the axis coverages and the octahedral normal (unused in shading, a dead end) to fit
+`S` into words 0 to 2 with the material moving into word 3's spare bits. Measuring 48 directions
+by DDA costs about 4 to 25 ms per node on one thread, minutes for a full bake against today's 47
+to 221 ms, so the bake needs a cheaper measurement (rasterized projections, fewer rays per
+direction, or measuring only nodes large enough to be filtered).
+
 ## Next steps, one per session
 
-1. **SGGX-style directional summaries** (the spec's "Additional Phase 2 test"): bake them next to
-   the axis-coverage proxy from the same voxels and compare angular opacity, foliage silhouettes,
-   shadows, LOD bytes, and frame time with `gpu_footprint_lod_quality` and
-   `gpu_primary_visibility_cost`; keep the axis proxy if it meets the quality target. Partial
-   transmission for filtered hits can be tried as an option of the same comparison; otherwise it
-   stays deferred.
-2. **Anti-aliasing:** the exact one-ray frame is 2 to 5% from the supersampled reference, so
+1. **Directional summaries on the GPU, cheap first:** switch the opacity proxy from `L1` to `L2`
+   (`sqrt(sum(w_a^2 c_a^2))`, no record change) in `LodSummary::opacity` and `lib/lod.wesl`
+   together, keep the CPU/GPU conformance passing, and rerun `gpu_footprint_lod_quality` and
+   `gpu_primary_visibility_cost` (`--release`, one at a time) against the table in "Footprint LOD
+   filtering"; adopt it if coverage bias and filtered-pixel error fall.
+2. **Fitted SGGX in the record:** bake the fitted tensor (cheaper measurement, see "Directional
+   summaries"), pack it (32-byte record or replacing the axis coverages and normal), read it in
+   `lib/lod.wesl`, and measure quality, LOD bytes, shader traffic, and frame time against the `L2`
+   proxy; keep the smaller representation that meets the target. Partial transmission for
+   filtered hits can be tried as an option of the same comparison; otherwise it stays deferred.
+3. **Anti-aliasing:** the exact one-ray frame is 2 to 5% from the supersampled reference, so
    `gpu_footprint_lod_quality` doubles as its yardstick.
-3. **Atmosphere.** Today the sky is a horizon/zenith gradient with `pow()` sun and moon lobes
+4. **Atmosphere.** Today the sky is a horizon/zenith gradient with `pow()` sun and moon lobes
    (`lib/view.wesl` `sky_color`, colors hand-tuned in `render/environment.rs`), fog is a flat mix,
    and night is nearly black (a weak moon, `NIGHT_AMBIENT`, no exposure control). Each step is
    verified with BRP screenshots at noon, sunset, twilight, and midnight:
@@ -322,9 +380,9 @@ material (0.01 to 0.04). The occupied box with node-relative coverage cut covera
    3. Night and exposure: stars and a moon that actually lights the scene, and exposure (a
       time-of-day curve as the first slice, then auto exposure / eye adaptation) so night is
       darker than day but readable, which sky-light occlusion's dark caves will also need.
-4. **Sky-light occlusion:** an occlusion term for sky light (caves are as bright as the open
+5. **Sky-light occlusion:** an occlusion term for sky light (caves are as bright as the open
    meadow).
-5. **Phase 2 showcase and gate checks:** the dense jungle-to-crystal-cavern scene against the
+6. **Phase 2 showcase and gate checks:** the dense jungle-to-crystal-cavern scene against the
    spec's target (1440p / 60 FPS within 4 GB of VRAM on the RTX 3080, the M1 Pro as lower tier):
    slow pans, close approaches, overlapping leaves, thin crystal facets, memory occupancy, and
    comparison with supersampled images.
@@ -340,7 +398,8 @@ software path, 80 with ray queries) is worth watching with `just shader-stats` a
 
 The roadmap, in the spec's order:
 
-- Phase 2: footprint LOD filtering (done, opt-in), foliage filtering candidates (SGGX),
+- Phase 2: footprint LOD filtering (done, opt-in), foliage filtering candidates (SGGX: CPU
+  comparison done),
   anti-aliasing, a physically based atmosphere (scattering LUTs, sun disk, aerial perspective,
   night sky and moonlight, exposure), and an occlusion term for sky light. The reference GPU is
   the RTX 3080 (Vulkan, hardware broad phase), with the M1 Pro (Metal, software broad phase) as

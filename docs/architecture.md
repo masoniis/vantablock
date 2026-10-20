@@ -71,6 +71,7 @@ client: GpuGeometryLibrary (bake every module as a 64-tree and an octree into sh
 | Optional hardware broad phase (Vulkan TLAS)     | `ray_query` in `lib/scene.wesl`, `frame_boxes`, `gpu::broad_phase`       |
 | Register, spill, and occupancy profiling        | `crates/game/client/tests/shader_statistics.rs` (`just shader-stats`)    |
 | 16-byte LOD payload                             | `voxel::lod`                                                             |
+| Directional LOD candidates (axis, SGGX) study   | `voxel::angular`, `crates/engine/baker/tests/directional_lod.rs`         |
 | Footprint LOD filtering (primary rays, opt-in)  | `tree64::trace_filtered`, `VoxelRoot::trace_filtered`, `trace_scene_filtered`, the `footprint_lod` WESL feature, `pixel_footprint` in `primary_visibility.wesl` |
 | Exact integer terminal-cell identity            | `VoxelHit::cell`, the visibility buffer's cell target                    |
 | Visibility buffer (`R32G32Uint` + `R32Float`)   | `client::render::gpu::view`, `primary_visibility.wesl`                   |

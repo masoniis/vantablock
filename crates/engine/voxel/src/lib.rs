@@ -18,6 +18,7 @@
 //! Derived representations (hierarchies, LOD summaries, bounds, BVHs) may change freely; they must
 //! never change which canonical geometry is visible.
 
+pub mod angular;
 pub mod arena;
 pub mod assembly;
 pub mod bvh;

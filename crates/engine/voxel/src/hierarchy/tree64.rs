@@ -714,6 +714,30 @@ mod tests {
     }
 
     #[test]
+    fn angular_axis_coverage_matches_the_baked_summary() {
+        // the directional LOD study's axis proxy must be the record the renderer reads
+        let mut module = VoxelModule::new(2);
+        for x in 0..16u32 {
+            for z in 0..16u32 {
+                if (x * 5 + z * 3) % 7 < 2 {
+                    module.set(UVec3::new(x, (x + z) % 11, z), 1);
+                }
+            }
+        }
+        let mut arenas = GeometryArenas::default();
+        let (root, _) = arenas.bake_tree64(&module).unwrap();
+        let lod = arenas
+            .lod
+            .get(read_node(&arenas, root.node).lod_index().unwrap());
+        let node = crate::angular::NodeVoxels::from_module(&module, UVec3::ZERO, 16).unwrap();
+        let (lo, hi) = node.occupied_box();
+        assert_eq!(lod.occupied, [lo / 16.0, hi / 16.0]);
+        for (baked, measured) in lod.coverage.iter().zip(node.axis_coverage()) {
+            assert!((baked - measured).abs() < 1e-3, "{baked} vs {measured}");
+        }
+    }
+
+    #[test]
     fn lod_normals_see_neighbor_bricks() {
         // a ground layer six voxels thick across the whole module: a brick inside it exposes only
         // its top faces, so its summary faces up instead of cancelling at the brick's borders
