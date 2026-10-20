@@ -2,7 +2,8 @@
 // scene, emission, and simple aerial perspective. Also renders the debug views.
 
 import super::lib::types::{ViewUniform, Environment, VISIBILITY_MISS, VIEW_TONEMAP_IN_SHADER};
-import super::lib::geometry::{materials, voxel_material};
+import super::lib::geometry::{materials, voxel_material, lod_record_load};
+import super::lib::lod::{lod_material, lod_normal};
 import super::lib::scene::{frames, trace_scene, previous_world_position};
 import super::lib::view::{camera_ray_direction, sky_color, tonemap, id_color, heatmap};
 
@@ -23,6 +24,7 @@ const DEBUG_GROUP_CANDIDATES: u32 = 5u;
 const DEBUG_SCENE_NODES: u32 = 6u;
 const DEBUG_DEPTH: u32 = 7u;
 const DEBUG_MOTION: u32 = 8u;
+const DEBUG_LOD_LEVELS: u32 = 9u;
 
 const FOG_DENSITY: f32 = 0.0035;
 
@@ -65,15 +67,32 @@ fn shade(pixel: vec2<i32>, dir: vec3<f32>) -> vec3<f32> {
     }
 
     let frame_id = vis.x >> 12u;
+    let lod = (vis.x >> 9u) & 7u;
     let face = vis.x & 7u;
     let frame = frames[frame_id];
     let t = textureLoad(depth_tex, pixel, 0).x;
 
-    // the local face normal through the inverse-transpose (rows of world_to_local)
-    var normal = -dir;
+    // local normals reach world space through the inverse-transpose: the rows of world_to_local
+    // as columns
+    let to_world = mat3x3<f32>(frame.world_to_local[0].xyz, frame.world_to_local[1].xyz, frame.world_to_local[2].xyz);
+    // the hit face's normal, which offsets shadow rays off the surface
+    var face_n = -dir;
     if face < 6u {
-        let n = face_normal(face);
-        normal = normalize(frame.world_to_local[0].xyz * n.x + frame.world_to_local[1].xyz * n.y + frame.world_to_local[2].xyz * n.z);
+        face_n = normalize(to_world * face_normal(face));
+    }
+    // a footprint-filtered hit (lod > 0) shades with its LOD summary's material and mean normal
+    // (the hit face's where the summary's faces cancel out); exact hits with the voxel's
+    var normal = face_n;
+    var material_index: u32;
+    if lod == 0u {
+        material_index = voxel_material(vis.y);
+    } else {
+        let record = lod_record_load(vis.y);
+        material_index = lod_material(record);
+        let n = lod_normal(record);
+        if any(n != vec3<f32>(0.0)) {
+            normal = normalize(to_world * n);
+        }
     }
 
     switch view.debug_view {
@@ -91,6 +110,13 @@ fn shade(pixel: vec2<i32>, dir: vec3<f32>) -> vec3<f32> {
         case DEBUG_DEPTH: {
             return vec3<f32>(exp(-t * 0.05));
         }
+        case DEBUG_LOD_LEVELS: {
+            // exact voxels grey, filtered hits from blue (level 1) to red (level 4 and up)
+            if lod == 0u {
+                return vec3<f32>(0.25);
+            }
+            return heatmap(f32(lod - 1u) / 3.0);
+        }
         case DEBUG_MOTION: {
             // where this surface point was last frame, through the hit frame's pose history and
             // the camera's: red/green encode the screen-space motion in pixels, blue its length
@@ -104,7 +130,7 @@ fn shade(pixel: vec2<i32>, dir: vec3<f32>) -> vec3<f32> {
         default: {}
     }
 
-    let material = materials[frame.palette_base + voxel_material(vis.y)];
+    let material = materials[frame.palette_base + material_index];
     let position = view.camera_position + dir * t;
     // half a voxel off the surface, in world units
     let voxel_size = 1.0 / length(frame.world_to_local[0].xyz);
@@ -113,7 +139,7 @@ fn shade(pixel: vec2<i32>, dir: vec3<f32>) -> vec3<f32> {
     let n_dot_l = max(dot(normal, light), 0.0);
     var sun = 0.0;
     if n_dot_l > 0.0 {
-        let shadow = trace_scene(position + normal * voxel_size * 0.5, light, 0.0, 1.0e30);
+        let shadow = trace_scene(position + face_n * voxel_size * 0.5, light, 0.0, 1.0e30);
         sun = select(n_dot_l, 0.0, shadow.hit);
     }
     // sky light from the hemisphere the surface faces, plus a little ground bounce

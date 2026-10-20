@@ -192,8 +192,13 @@ pub struct GpuViewUniform {
     pub flags: u32,
     /// Ray grid pixels per view target pixel (the render scale).
     pub target_to_grid: f32,
+    /// Footprint LOD filtering (the `footprint_lod` primary visibility variants): the opacity
+    /// threshold, and the width of a pixel's ray cone in traced pixels.
+    pub footprint_threshold: f32,
+    pub footprint_scale: f32,
+    pub _pad: [u32; 2],
 }
-const _: () = assert!(std::mem::size_of::<GpuViewUniform>() == 224);
+const _: () = assert!(std::mem::size_of::<GpuViewUniform>() == 240);
 
 /// Sun, sky, and atmosphere parameters.
 #[repr(C)]

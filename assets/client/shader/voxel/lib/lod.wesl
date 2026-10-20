@@ -36,3 +36,20 @@ fn lod_opacity(record: vec4<u32>, d: vec3<f32>) -> f32 {
 fn lod_material(record: vec4<u32>) -> u32 {
     return record.w & 0xFFFFu;
 }
+
+// The summary's mean outward normal in module space (`LodSummary::unpack`): word 2 holds a 12+12
+// bit octahedral encoding and the 8 bit normal spread. Zero when the exposed faces cancel out
+// (full spread), so shading falls back to the hit face.
+fn lod_normal(record: vec4<u32>) -> vec3<f32> {
+    if (record.z >> 24u) == 255u {
+        return vec3<f32>(0.0);
+    }
+    let e = vec2<f32>(f32(record.z & 0xFFFu), f32((record.z >> 12u) & 0xFFFu)) / 4095.0 * 2.0 - 1.0;
+    // `e` is never zero (4095 is odd), so the sign is never ambiguous
+    let z = 1.0 - abs(e.x) - abs(e.y);
+    var xy = e;
+    if z < 0.0 {
+        xy = (vec2<f32>(1.0) - abs(e.yx)) * select(vec2<f32>(-1.0), vec2<f32>(1.0), e >= vec2<f32>(0.0));
+    }
+    return normalize(vec3<f32>(xy, z));
+}

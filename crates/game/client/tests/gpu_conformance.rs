@@ -39,6 +39,11 @@ const CONFORMANCE_STACKLESS: &str = include_wesl!("voxel_conformance_stackless")
 const PRIMARY_VISIBILITY_RAY_QUERY: &str = include_wesl!("primary_visibility_ray_query");
 const DIRECT_LIGHTING_RAY_QUERY: &str = include_wesl!("direct_lighting_ray_query");
 const CONFORMANCE_RAY_QUERY: &str = include_wesl!("voxel_conformance_ray_query");
+const PRIMARY_VISIBILITY_FOOTPRINT_LOD: &str = include_wesl!("primary_visibility_footprint_lod");
+const PRIMARY_VISIBILITY_FOOTPRINT_LOD_MULTI_SLAB: &str =
+    include_wesl!("primary_visibility_footprint_lod_multi_slab");
+const PRIMARY_VISIBILITY_FOOTPRINT_LOD_RAY_QUERY: &str =
+    include_wesl!("primary_visibility_footprint_lod_ray_query");
 const CONFORMANCE_FOOTPRINT_LOD: &str = include_wesl!("voxel_conformance_footprint_lod");
 const CONFORMANCE_FOOTPRINT_LOD_MULTI_SLAB: &str =
     include_wesl!("voxel_conformance_footprint_lod_multi_slab");
@@ -70,6 +75,18 @@ fn shaders_validate() {
         ("primary_visibility_ray_query", PRIMARY_VISIBILITY_RAY_QUERY),
         ("direct_lighting_ray_query", DIRECT_LIGHTING_RAY_QUERY),
         ("voxel_conformance_ray_query", CONFORMANCE_RAY_QUERY),
+        (
+            "primary_visibility_footprint_lod",
+            PRIMARY_VISIBILITY_FOOTPRINT_LOD,
+        ),
+        (
+            "primary_visibility_footprint_lod_multi_slab",
+            PRIMARY_VISIBILITY_FOOTPRINT_LOD_MULTI_SLAB,
+        ),
+        (
+            "primary_visibility_footprint_lod_ray_query",
+            PRIMARY_VISIBILITY_FOOTPRINT_LOD_RAY_QUERY,
+        ),
         ("voxel_conformance_footprint_lod", CONFORMANCE_FOOTPRINT_LOD),
         (
             "voxel_conformance_footprint_lod_multi_slab",
@@ -839,6 +856,10 @@ struct FilteredRayResult {
     steps: u32,
     /// The hit frame, for whole-scene queries.
     frame: u32,
+    /// A filtered hit's LOD record index and the summary normal the shader decoded from it
+    /// (bare 64-tree queries only).
+    record: u32,
+    normal: [f32; 3],
     pad: u32,
 }
 
@@ -867,7 +888,10 @@ fn slab_bindings(
 #[test]
 fn gpu_footprint_filtering_matches_cpu() {
     use client::render::geometry::GpuGeometryLibrary;
-    use voxel::{hierarchy::tree64, lod::FootprintFilter};
+    use voxel::{
+        hierarchy::tree64,
+        lod::{FootprintFilter, LodSummary},
+    };
 
     let Some(gpu) = gpu() else { return };
     let workspace = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
@@ -1056,6 +1080,18 @@ fn gpu_footprint_filtering_matches_cpu() {
                         }
                         if cpu.is_some_and(|c| c.1 > 0) {
                             filtered[f] += 1;
+                        }
+                        // shading reads the summary normal through `lod_normal`, which must
+                        // decode the record as `LodSummary::unpack` does
+                        if result.hit != 0 && result.lod > 0 {
+                            let cpu_normal =
+                                LodSummary::unpack(geometry.lod[result.record as usize]).normal;
+                            if (cpu_normal - Vec3::from(result.normal)).abs().max_element() > 1e-5 {
+                                failures.push(format!(
+                                    "{} module {module}, filter {f}: record {} decodes to {cpu_normal} on the CPU, {:?} on the GPU",
+                                    asset.assembly.name, result.record, result.normal
+                                ));
+                            }
                         }
                     }
                 }

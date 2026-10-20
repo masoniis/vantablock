@@ -7,9 +7,10 @@ maps the code itself; this file is the one that changes as work lands.
 ## Status
 
 Phase 1 (renderer feasibility and memory contracts) is complete on Metal and Vulkan; Phase 2 is
-under way, starting with footprint LOD filtering, which has a CPU reference and a matching
-shader variant for single modules and whole scenes but isn't used by any pass yet (see
-[Phase 2 progress](#phase-2-progress)).
+under way, starting with footprint LOD filtering, which has a CPU reference, a matching shader
+variant for single modules and whole scenes, and an opt-in primary visibility path
+(`RenderSettings::footprint_lod`, off by default until it is compared against supersampled
+references; see [Phase 2 progress](#phase-2-progress)).
 
 The gate passed on Metal (M1 Pro) and Vulkan (RTX 3080). The 64-tree, short private traversal stack, slab-address residency, and visibility packing were kept on measured evidence on both backends; flattened pose groups replaced the template mini-BVH as the runtime default. The optional Vulkan hardware broad phase (ray queries over a TLAS of pose-frame boxes) matches the reference and is the fastest path measured, taking 25 to 42% less GPU time than the software BVH4; it is wired into the renderer as the default on adapters with ray queries (TLAS rebuilt every frame, primary visibility and shadow rays both using it, 34% less frame GPU time in game at 1280x720), with the software BVH4 as the always-available fallback. Driver register and spill statistics were captured on NVIDIA (128 registers per thread for the stack kernels, 80 stackless or with ray queries).
 
@@ -23,6 +24,12 @@ The gate passed on Metal (M1 Pro) and Vulkan (RTX 3080). The 64-tree, short priv
   the same adapter, so the trigger is likely a scene state its rays don't reach (a pose, the day
   cycle, or a camera ray). Found October 19, 2026, and reproduced on `d71582dc` with the
   hardware broad phase switched off, so it predates the UI overhaul.
+- **Windows: a directly launched binary exits silently.** Dynamically linked builds import
+  `bevy_dylib-<hash>.dll`, which only `target/<profile>/deps` holds; the unhashed
+  `bevy_dylib.dll` cargo leaves beside the executable can be a different feature build (here the
+  `brp` build's hash was `be6dfb3b…` while the stale copy was `85d76526…`). `cargo run` puts
+  `deps` on `PATH`; a direct launch (as for BRP) must too. Found October 20, 2026; a lasting fix
+  (copying the hashed dylib next to the binaries, or a launcher setting `PATH`) is open.
 - **No hardware broad phase on Metal.** naga's MSL backend (wgpu 29) lowers `rayQueryProceed` to a
   flag only `rayQueryTerminate` clears, over a single closest-hit `intersect`, so the broad
   phase's candidate loop never ends. `render::device::ray_query_supported` keeps Metal on the
@@ -268,17 +275,57 @@ argues for a runtime toggle that switches between the exact and `footprint_lod` 
 variant compiled for every production kernel) rather than a uniform in the exact kernels; step 1
 decides it when wiring the passes.
 
+**Done (October 20, 2026): filtered primary visibility.** Primary visibility traces each pixel's
+ray cone through `trace_scene_filtered` in `footprint_lod` builds (`pixel_footprint`: no radius,
+and a spread of half the angle between the traced pixel's left and right edges, times
+`footprint_scale`, so reduced render scales filter more; exact builds pass `exact_footprint()`
+and are unchanged). `vis.x` now carries the hit's level, and `vis.y` the LOD record index for
+filtered hits. `build.rs` builds `primary_visibility_footprint_lod` in single-slab, multi-slab, and
+ray query forms, and `PrimaryVisibilityPipeline` holds an exact and a footprint LOD set of
+variants, chosen per frame by the new `RenderSettings::footprint_lod` (F8 or L, listed in the
+pause menu and shown in the debug overlay) with `footprint_threshold` (`0.5`) and
+`footprint_scale` (`1` pixel) reaching the shader through two new `ViewUniform` fields (224 to 240
+bytes). The decision: a runtime switch between pipelines, not a uniform in the exact kernels.
+Direct lighting needs no variant: every build reads the level, and filtered hits shade with the
+summary's material and mean normal (`lod_normal` in `lib/lod.wesl` decodes the octahedral
+normal as `LodSummary::unpack` does; the hit face's normal where the summary's faces cancel),
+while shadow rays stay exact and leave from the hit face. A `LodLevels` debug view shows exact
+voxels grey and filtered hits from blue (level 1) to red.
+
+Tests: `gpu_footprint_filtering_matches_cpu` now also requires the GPU's decoded summary normal
+of every filtered hit to match `LodSummary::unpack` to `1e-5` (all match on the RTX 3080), and
+`shaders_validate` covers the three new variants. `just test`, `just clippy`, and `just test-gpu`
+pass. `just shader-stats`: the production kernels are unchanged (`primary_visibility` 128
+registers software, 80 ray query); the footprint LOD forms use 128 (software) and 96 (ray
+query, vs. 80 for `filtered_scene_rays`; the pixel cone and the 32-byte hit are live longer).
+BRP (release, 1280x720, render scale 0.5, showcase meadow): with a one-pixel cone, `LodLevels`
+shows level 1 hits on the distant tree canopies and trunks only, and the shaded frame is
+indistinguishable from the exact one at a glance; at `footprint_scale = 4` the grass, canopies,
+and rotor blades turn visibly blockier. In-game FPS stayed at the 144 Hz cap with filtering on
+and off, at render scales 0.5 and 1.0, so it says nothing about cost; the kernel cost is the
+`filtered_scene_rays` measurement above.
+
+**Open decisions:** filtered summaries are opaque boxes at a fixed threshold, so a summary normal
+can face away from the camera (thin foliage seen from behind) and shadow rays from a filtered
+box can self-shadow on the node's own voxels; both await the reference comparison. Whether
+filtering should become the default depends on that comparison and on an in-game GPU time
+measurement (`VANTA_GPU_TIMINGS=1`, or a `primary_visibility` kernel benchmark), since the frame
+rate is capped.
+
 **Next steps, one per session:**
 
-1. Derive the cone per pixel in `primary_visibility.wesl` (camera pixel spread from the view
-   uniform, using the traced grid's pixel size so reduced render scales filter more), build
-   `primary_visibility`/`direct_lighting` `footprint_lod` variants (single slab, multi slab, ray
-   query), call `trace_scene_filtered`, write the LOD level into `vis.x` (currently hardwired to
-   `0`), and shade filtered hits from the summary's normal and material (`attribute_handle` holds
-   the LOD record index when `lod > 0`). Shadow rays can stay exact for now. Add a
-   `RenderSettings` toggle, check it with BRP screenshots, and measure in game.
-2. Compare against supersampled reference frames, and decide between deterministic and
-   stochastic thresholds before moving on to SGGX candidates.
+1. Measure the cost and payoff of filtered primary visibility: extend `gpu_scene_throughput` (or
+   add a benchmark) to time the `primary_visibility` and `primary_visibility_footprint_lod`
+   kernels on the showcase camera paths at render scales 0.5 and 1.0, with one- and four-pixel
+   cones, reporting DDA steps per pixel (the `stats` texture) and kernel time, `--release`, one
+   run at a time.
+2. Render supersampled reference frames (exact traversal, many rays per pixel, offline or as a
+   test harness) for a few showcase views, compare the one-ray filtered frames against them
+   (silhouette coverage, mean color error) for deterministic vs. stochastic (stable per-pixel
+   random) thresholds, and pick the threshold rule and the default for `footprint_lod`.
+3. Bake SGGX-style directional summaries next to the axis-coverage proxy from the same voxels
+   and run the same comparison (spec's "Additional Phase 2 test"): angular opacity, silhouettes,
+   LOD bytes, and frame time; keep the axis proxy if it meets the quality target.
 
 ## What comes next
 

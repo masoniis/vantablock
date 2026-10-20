@@ -63,6 +63,12 @@ struct ViewUniform {
     flags: u32,
     // ray grid pixels per view target pixel (the render scale)
     target_to_grid: f32,
+    // footprint LOD filtering (`footprint_lod` builds): the opacity threshold, and the pixel
+    // cone's width in traced pixels
+    footprint_threshold: f32,
+    footprint_scale: f32,
+    pad0: u32,
+    pad1: u32,
 };
 
 struct Environment {

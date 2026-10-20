@@ -35,6 +35,10 @@ pub const CLIENT_KEYS: &[(ClientAction, &[KeyCode])] = &[
         ClientAction::ToggleHardwareBroadPhase,
         &[KeyCode::F7, KeyCode::KeyG],
     ),
+    (
+        ClientAction::ToggleFootprintLod,
+        &[KeyCode::F8, KeyCode::KeyL],
+    ),
     // world clock
     (ClientAction::TimeForward, &[KeyCode::ArrowRight]),
     (ClientAction::TimeBackward, &[KeyCode::ArrowLeft]),

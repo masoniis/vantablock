@@ -41,7 +41,8 @@ client: GpuGeometryLibrary (bake every module as a 64-tree and an octree into sh
                      (+ one box per pose frame where the hardware broad phase applies)
         render: SceneTlas (ray query adapters) -> PrimaryVisibility (compute) -> DirectLighting
                 (fullscreen) in Bevy's Core3d graph, each in a single-slab, multi-slab, or
-                hardware broad phase shader variant
+                hardware broad phase shader variant; primary visibility also has footprint LOD
+                forms of all three (`RenderSettings::footprint_lod`)
 ```
 
 ## Spec concepts in code
@@ -70,7 +71,7 @@ client: GpuGeometryLibrary (bake every module as a 64-tree and an octree into sh
 | Optional hardware broad phase (Vulkan TLAS)     | `ray_query` in `lib/scene.wesl`, `frame_boxes`, `gpu::broad_phase`       |
 | Register, spill, and occupancy profiling        | `crates/game/client/tests/shader_statistics.rs` (`just shader-stats`)    |
 | 16-byte LOD payload                             | `voxel::lod`                                                             |
-| Footprint LOD filtering (no pass uses it yet)   | `tree64::trace_filtered`, `VoxelRoot::trace_filtered`, `trace_scene_filtered`, the `footprint_lod` WESL feature |
+| Footprint LOD filtering (primary rays, opt-in)  | `tree64::trace_filtered`, `VoxelRoot::trace_filtered`, `trace_scene_filtered`, the `footprint_lod` WESL feature, `pixel_footprint` in `primary_visibility.wesl` |
 | Exact integer terminal-cell identity            | `VoxelHit::cell`, the visibility buffer's cell target                    |
 | Visibility buffer (`R32G32Uint` + `R32Float`)   | `client::render::gpu::view`, `primary_visibility.wesl`                   |
 | `.vanta` files                                  | `voxel::format`                                                          |
@@ -93,7 +94,7 @@ client: GpuGeometryLibrary (bake every module as a 64-tree and an octree into sh
   bit-for-bit; both hierarchies by the reference rules on the single-page, multi-page, and
   four-slab paths; the stackless experiment bit-identical to the stack; 64-tree footprint LOD
   filtering on the real assets taking the CPU reference's exact path (hit, level, material, and
-  step count) in both residency layouts, and whole-scene filtered traversal finding the CPU's
+  step count) and decoding the summary normal as the CPU does, in both residency layouts, and whole-scene filtered traversal finding the CPU's
   nearest filtered hits for every organization, including the hardware broad phase; whole-scene traversal on
   the real assets for every organization, hierarchy, and a library split over several slabs; the
   hardware broad phase where the adapter has ray queries; and motion reconstruction across a pose

@@ -67,22 +67,35 @@ fn main() {
 
     // 64-tree footprint LOD filtering, held to the CPU reference (`tree64::trace_filtered`, and
     // whole scenes through `VoxelRoot::trace_filtered`) by the conformance tests in both residency
-    // layouts and with the hardware broad phase; no pass uses it yet
+    // layouts and with the hardware broad phase. Primary visibility switches to these variants
+    // when `RenderSettings::footprint_lod` is on; lighting reads filtered hits in every variant
+    // (its shadow rays stay exact), so it needs none
     for (multi_slab, ray_query, suffix) in [
         (false, false, ""),
         (true, false, "_multi_slab"),
         (false, true, "_ray_query"),
     ] {
-        build(
-            "package::voxel::tests::conformance",
-            &format!("voxel_conformance_footprint_lod{suffix}"),
-            &[
-                ("multi_slab", multi_slab),
-                ("stackless", false),
-                ("ray_query", ray_query),
-                ("footprint_lod", true),
-            ],
-        );
+        for (module, artifact) in [
+            (
+                "package::voxel::primary_visibility",
+                "primary_visibility_footprint_lod",
+            ),
+            (
+                "package::voxel::tests::conformance",
+                "voxel_conformance_footprint_lod",
+            ),
+        ] {
+            build(
+                module,
+                &format!("{artifact}{suffix}"),
+                &[
+                    ("multi_slab", multi_slab),
+                    ("stackless", false),
+                    ("ray_query", ray_query),
+                    ("footprint_lod", true),
+                ],
+            );
+        }
     }
 
     // the optional hardware scene broad phase (ray queries over flattened pose groups): the

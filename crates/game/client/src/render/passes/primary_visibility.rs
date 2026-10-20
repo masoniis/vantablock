@@ -4,7 +4,10 @@ use crate::render::{
         buffers::{VoxelGpuResources, geometry_layout, scene_layout, scene_ray_query_layout},
         view::{VisibilityTargets, VoxelViewBindGroups, visibility_view_layout},
     },
+    settings::RenderSettings,
     shaders::{
+        PRIMARY_VISIBILITY_FOOTPRINT_LOD_MULTI_SLAB_SHADER,
+        PRIMARY_VISIBILITY_FOOTPRINT_LOD_RAY_QUERY_SHADER, PRIMARY_VISIBILITY_FOOTPRINT_LOD_SHADER,
         PRIMARY_VISIBILITY_MULTI_SLAB_SHADER, PRIMARY_VISIBILITY_RAY_QUERY_SHADER,
         PRIMARY_VISIBILITY_SHADER,
     },
@@ -23,13 +26,29 @@ use bevy::{
 
 const WORKGROUP_SIZE: u32 = 8;
 
-/// The single-slab and multi-slab variants, which the geometry's residency picks between, and
-/// the hardware broad phase variant where the adapter has ray queries.
-#[derive(Resource)]
-pub struct PrimaryVisibilityPipeline {
+/// One build of the pass: single-slab and multi-slab variants, which the geometry's residency
+/// picks between, and the hardware broad phase variant where the adapter has ray queries.
+pub struct PrimaryVisibilityVariants {
     pub single_slab: CachedComputePipelineId,
     pub multi_slab: CachedComputePipelineId,
     pub ray_query: Option<CachedComputePipelineId>,
+}
+
+impl PrimaryVisibilityVariants {
+    fn select(&self, resources: &VoxelGpuResources) -> CachedComputePipelineId {
+        match self.ray_query {
+            Some(ray_query) if resources.hardware_broad_phase() => ray_query,
+            _ if resources.multi_slab() => self.multi_slab,
+            _ => self.single_slab,
+        }
+    }
+}
+
+/// The exact pass and the footprint LOD filtering pass (`RenderSettings::footprint_lod`).
+#[derive(Resource)]
+pub struct PrimaryVisibilityPipeline {
+    pub exact: PrimaryVisibilityVariants,
+    pub footprint_lod: PrimaryVisibilityVariants,
 }
 
 impl FromWorld for PrimaryVisibilityPipeline {
@@ -48,23 +67,44 @@ impl FromWorld for PrimaryVisibilityPipeline {
             })
         };
         Self {
-            single_slab: queue(
-                "voxel_primary_visibility",
-                scene_layout(),
-                PRIMARY_VISIBILITY_SHADER,
-            ),
-            multi_slab: queue(
-                "voxel_primary_visibility_multi_slab",
-                scene_layout(),
-                PRIMARY_VISIBILITY_MULTI_SLAB_SHADER,
-            ),
-            ray_query: ray_query.then(|| {
-                queue(
-                    "voxel_primary_visibility_ray_query",
-                    scene_ray_query_layout(),
-                    PRIMARY_VISIBILITY_RAY_QUERY_SHADER,
-                )
-            }),
+            exact: PrimaryVisibilityVariants {
+                single_slab: queue(
+                    "voxel_primary_visibility",
+                    scene_layout(),
+                    PRIMARY_VISIBILITY_SHADER,
+                ),
+                multi_slab: queue(
+                    "voxel_primary_visibility_multi_slab",
+                    scene_layout(),
+                    PRIMARY_VISIBILITY_MULTI_SLAB_SHADER,
+                ),
+                ray_query: ray_query.then(|| {
+                    queue(
+                        "voxel_primary_visibility_ray_query",
+                        scene_ray_query_layout(),
+                        PRIMARY_VISIBILITY_RAY_QUERY_SHADER,
+                    )
+                }),
+            },
+            footprint_lod: PrimaryVisibilityVariants {
+                single_slab: queue(
+                    "voxel_primary_visibility_footprint_lod",
+                    scene_layout(),
+                    PRIMARY_VISIBILITY_FOOTPRINT_LOD_SHADER,
+                ),
+                multi_slab: queue(
+                    "voxel_primary_visibility_footprint_lod_multi_slab",
+                    scene_layout(),
+                    PRIMARY_VISIBILITY_FOOTPRINT_LOD_MULTI_SLAB_SHADER,
+                ),
+                ray_query: ray_query.then(|| {
+                    queue(
+                        "voxel_primary_visibility_footprint_lod_ray_query",
+                        scene_ray_query_layout(),
+                        PRIMARY_VISIBILITY_FOOTPRINT_LOD_RAY_QUERY_SHADER,
+                    )
+                }),
+            },
         }
     }
 }
@@ -76,14 +116,16 @@ pub fn primary_visibility_pass(
     resources: Res<VoxelGpuResources>,
     pipelines: Res<PrimaryVisibilityPipeline>,
     pipeline_cache: Res<PipelineCache>,
+    settings: Option<Res<RenderSettings>>,
     mut ctx: RenderContext,
 ) {
     let (targets, bind_groups) = view.into_inner();
-    let pipeline_id = match pipelines.ray_query {
-        Some(ray_query) if resources.hardware_broad_phase() => ray_query,
-        _ if resources.multi_slab() => pipelines.multi_slab,
-        _ => pipelines.single_slab,
+    let variants = if settings.is_some_and(|s| s.footprint_lod) {
+        &pipelines.footprint_lod
+    } else {
+        &pipelines.exact
     };
+    let pipeline_id = variants.select(&resources);
     let Some(pipeline) = pipeline_cache.get_compute_pipeline(pipeline_id) else {
         if let CachedPipelineState::Err(e) = pipeline_cache.get_compute_pipeline_state(pipeline_id)
         {

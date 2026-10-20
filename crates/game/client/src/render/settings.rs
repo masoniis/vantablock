@@ -25,10 +25,12 @@ pub enum DebugView {
     Depth,
     /// Screen-space motion reconstructed from pose-frame and camera history.
     Motion,
+    /// The level of footprint LOD filtered hits (grey for exact voxels).
+    LodLevels,
 }
 
 impl DebugView {
-    const ALL: [Self; 9] = [
+    const ALL: [Self; 10] = [
         Self::Shaded,
         Self::Normals,
         Self::PoseFrames,
@@ -38,6 +40,7 @@ impl DebugView {
         Self::SceneNodes,
         Self::Depth,
         Self::Motion,
+        Self::LodLevels,
     ];
 
     pub fn index(self) -> u32 {
@@ -106,6 +109,15 @@ pub struct RenderSettings {
     /// with its square; lighting upsamples to the target. Defaults to half until traversal
     /// optimization lands (see `just test-gpu gpu_scene_throughput --ignored`).
     pub render_scale: f32,
+    /// Trace primary visibility with footprint LOD filtering: where a pixel's ray cone covers a
+    /// whole 64-tree node, the node's LOD summary stands in for its voxels. Shadow rays stay
+    /// exact. Off until filtering is compared against supersampled references.
+    pub footprint_lod: bool,
+    /// The opacity a summary must exceed to stop a filtered ray (`FootprintFilter::threshold`).
+    pub footprint_threshold: f32,
+    /// The width of a pixel's ray cone in traced pixels (`1` is one pixel); larger values filter
+    /// nearer and coarser.
+    pub footprint_scale: f32,
 }
 
 impl Default for RenderSettings {
@@ -116,6 +128,9 @@ impl Default for RenderSettings {
             hierarchy: LocalHierarchy::default(),
             hardware_broad_phase: true,
             render_scale: 0.5,
+            footprint_lod: false,
+            footprint_threshold: 0.5,
+            footprint_scale: 1.0,
         }
     }
 }
@@ -139,6 +154,8 @@ impl Plugin for RenderSettingsPlugin {
                         .run_if(action_just_pressed(ClientAction::ToggleLocalHierarchy)),
                     toggle_hardware_broad_phase_system
                         .run_if(action_just_pressed(ClientAction::ToggleHardwareBroadPhase)),
+                    toggle_footprint_lod_system
+                        .run_if(action_just_pressed(ClientAction::ToggleFootprintLod)),
                 )
                     // in game only, so typing in a menu text field doesn't flip settings
                     .run_if(in_state(ClientLifecycleState::InGame)),
@@ -186,5 +203,13 @@ fn toggle_hardware_broad_phase_system(mut settings: ResMut<RenderSettings>) {
         } else {
             "off"
         }
+    );
+}
+
+fn toggle_footprint_lod_system(mut settings: ResMut<RenderSettings>) {
+    settings.footprint_lod = !settings.footprint_lod;
+    info!(
+        "Footprint LOD filtering: {}",
+        if settings.footprint_lod { "on" } else { "off" }
     );
 }

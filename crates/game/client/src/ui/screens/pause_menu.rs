@@ -135,6 +135,7 @@ fn controls() -> Vec<Box<dyn Scene>> {
             "Hardware broad phase",
             bindings(&client(&[C::ToggleHardwareBroadPhase])),
         ),
+        row("Footprint LOD", bindings(&client(&[C::ToggleFootprintLod]))),
         row("Render scale", bindings(&client(&[C::CycleRenderScale]))),
     ]
 }

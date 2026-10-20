@@ -143,7 +143,10 @@ pub fn prepare_view_bind_groups(
     environment: Option<Res<ExtractedEnvironment>>,
     views: Query<(Entity, &ExtractedView, &ExtractedCamera, &VisibilityTargets), With<VoxelCamera>>,
 ) {
-    let debug_view = settings.map_or(0, |s| s.debug_view.index());
+    let debug_view = settings.as_ref().map_or(0, |s| s.debug_view.index());
+    let (footprint_threshold, footprint_scale) = settings
+        .as_ref()
+        .map_or((0.5, 1.0), |s| (s.footprint_threshold, s.footprint_scale));
     let environment = environment.map(|e| e.0).unwrap_or_default();
     let visibility_layout = pipeline_cache.get_bind_group_layout(&visibility_view_layout());
     let lighting_layout = pipeline_cache.get_bind_group_layout(&lighting_view_layout());
@@ -171,6 +174,9 @@ pub fn prepare_view_bind_groups(
                 VIEW_TONEMAP_IN_SHADER
             },
             target_to_grid: targets.size.x as f32 / targets.target.x as f32,
+            footprint_threshold,
+            footprint_scale,
+            _pad: [0; 2],
         };
         let view_buffer = device.create_buffer_with_data(&BufferInitDescriptor {
             label: Some("voxel_view_uniform"),

@@ -31,6 +31,16 @@ const KERNELS: &[(&str, &str, &str)] = &[
         "main",
     ),
     (
+        "primary_visibility (footprint lod)",
+        include_wesl!("primary_visibility_footprint_lod"),
+        "main",
+    ),
+    (
+        "primary_visibility (footprint lod, ray query)",
+        include_wesl!("primary_visibility_footprint_lod_ray_query"),
+        "main",
+    ),
+    (
         "scene_rays",
         include_wesl!("voxel_conformance"),
         "scene_rays",

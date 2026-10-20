@@ -265,6 +265,16 @@ fn update_debug_menu_system(
                 "hardware"
             } else {
                 "software"
+            })
+            .gap()
+            .label("Footprint LOD")
+            .mode(if settings.footprint_lod {
+                format!(
+                    "on ({} px, {})",
+                    settings.footprint_scale, settings.footprint_threshold
+                )
+            } else {
+                "off".to_string()
             }),
     );
     right.push(
