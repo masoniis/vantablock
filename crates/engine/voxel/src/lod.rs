@@ -98,14 +98,15 @@ impl LodSummary {
 }
 
 impl LodSummary {
-    /// The axis-coverage opacity proxy for a ray along `dir` that enters the occupied box:
-    /// `clamp(sum(|dir_axis| * coverage_axis), 0, 1)` with `dir` normalized. A low-cost
-    /// approximation (spec section 3.4), not exact arbitrary-angle coverage.
+    /// The axis-coverage opacity proxy for a ray along `dir` that enters the occupied box: the
+    /// coverages combined in `L2`, `min(sqrt(sum(dir_axis^2 * coverage_axis^2)), 1)` with `dir`
+    /// normalized (the diagonal SGGX tensor `diag(coverage^2)`). A low-cost approximation (spec
+    /// section 3.4), not exact arbitrary-angle coverage: the spec's `L1` sum overestimates it
+    /// everywhere (see [`crate::angular`]).
     pub fn opacity(&self, dir: Vec3) -> f32 {
-        dir.normalize_or_zero()
-            .abs()
-            .dot(Vec3::from(self.coverage))
-            .clamp(0.0, 1.0)
+        (dir.normalize_or_zero() * Vec3::from(self.coverage))
+            .length()
+            .min(1.0)
     }
 }
 

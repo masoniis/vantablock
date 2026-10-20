@@ -25,10 +25,10 @@ fn footprint_covers(cone: FootprintFilter, size: f32, t: f32, voxels_per_unit: f
     return size <= 2.0 * (cone.radius + cone.spread * t) * voxels_per_unit;
 }
 
-// `clamp(sum(|d_axis| * coverage_axis), 0, 1)` with `d` normalized (`LodSummary::opacity`): the
-// chance of a hit for a ray entering the summary's occupied box.
+// `min(sqrt(sum(d_axis^2 * coverage_axis^2)), 1)` with `d` normalized (`LodSummary::opacity`):
+// the chance of a hit for a ray entering the summary's occupied box.
 fn lod_opacity(record: vec4<u32>, d: vec3<f32>) -> f32 {
-    return clamp(dot(abs(normalize(d)), lod_coverage(record)), 0.0, 1.0);
+    return min(length(normalize(d) * lod_coverage(record)), 1.0);
 }
 
 // The summary's projected coverage of its occupied box's faces along X, Y, and Z: f16s in word 0

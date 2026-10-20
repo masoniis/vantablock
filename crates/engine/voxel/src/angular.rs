@@ -7,15 +7,16 @@
 //! it is symmetric in `w`. [`NodeVoxels::coverage`] measures it with stratified parallel rays.
 //! The candidates, all derived from the same voxels:
 //!
-//! - **Axis proxy** (the shipped record): `clamp(sum(|w_a| * c_a), 0, 1)` over the box-relative
-//!   axis coverages [`NodeVoxels::axis_coverage`] (the baked [`crate::lod::LodSummary::coverage`]).
+//! - **Axis proxy** (the spec's): `clamp(sum(|w_a| * c_a), 0, 1)` over the box-relative axis
+//!   coverages [`NodeVoxels::axis_coverage`] (the baked [`crate::lod::LodSummary::coverage`]).
 //! - **SGGX tensor** ([`Sggx`]): a symmetric positive-semidefinite `S` with
 //!   `sigma(w) = sqrt(max(0, w^T S w))`, six coefficients (12 bytes as `f16`). Built from the
 //!   node's exposed faces (the usual surface construction, `S = sum(area * n n^T)`), it is diagonal
 //!   for voxels, whose faces are axis aligned, and can't tell a leaf along one diagonal from a
 //!   leaf along the other, so it is fitted here to measured coverage instead: least squares on
 //!   `sigma^2 = coverage^2` over a fixed direction set, then projected onto the PSD cone. The
-//!   diagonal tensor `diag(c_a^2)` is the axis coverages combined in `L2` instead of `L1`.
+//!   diagonal tensor `diag(c_a^2)` is the axis coverages combined in `L2` instead of `L1`, the
+//!   proxy [`crate::lod::LodSummary::opacity`] evaluates.
 //! - **Degree-4 even polynomial** ([`EvenPoly4`]): coverage fitted by the 15 homogeneous quartic
 //!   monomials (spherical harmonic bands 0, 2, and 4), the richer reference representation.
 //!
@@ -271,7 +272,8 @@ pub fn hemisphere_directions(n: usize, phase: f32) -> Vec<Vec3> {
         .collect()
 }
 
-/// The axis-coverage opacity proxy, as [`crate::lod::LodSummary::opacity`] evaluates it.
+/// The spec's `L1` axis-coverage opacity proxy (the renderer now uses the `L2` combination,
+/// [`Sggx::from_axis_coverage`]).
 pub fn axis_opacity(coverage: [f32; 3], dir: Vec3) -> f32 {
     dir.normalize_or_zero()
         .abs()

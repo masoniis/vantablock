@@ -12,10 +12,10 @@ the hardware broad phase are the runtime defaults (see [Phase 1 results](#phase-
 
 Phase 2 is under way. Footprint LOD filtering is done as an opt-in path
 (`RenderSettings::footprint_lod`, off by default, since filtered frames still miss the quality
-target in most views; see [Phase 2 results](#phase-2-results)). The directional summary
-comparison's CPU half is done: the axis proxy overestimates angular coverage everywhere, and an
-`L2` combination of the same coverages and a fitted SGGX tensor fix most of it. Next is trying
-them in the renderer.
+target in most views; see [Phase 2 results](#phase-2-results)). Directional summaries: the CPU
+comparison showed the spec's `L1` axis proxy overestimates angular coverage everywhere; the
+renderer now combines the same coverages in `L2` (free, a small gain in frames), and a fitted
+SGGX tensor in the LOD record is next.
 
 ## Known issues
 
@@ -191,9 +191,10 @@ off by default.
 - **CPU reference:** `voxel::lod::FootprintFilter` is a cone (`radius + spread * t` in world units;
   local rays are never renormalized, so a frame's direction length scales it into voxels) and a
   threshold. `tree64::trace_filtered` shares `trace`'s DDA loop: an occupied node whose cell edge
-  fits the footprint's diameter is tested with the spec's axis-coverage proxy
-  (`clamp(sum(|d_axis| * coverage_axis), 0, 1)`, `LodSummary::opacity`) and stops the ray when the
-  threshold is below it. Filtered hits report the aligned corner as `cell`, the level as
+  fits the footprint's diameter is tested with the axis-coverage proxy combined in `L2`
+  (`min(sqrt(sum(d_axis^2 * coverage_axis^2)), 1)`, `LodSummary::opacity`; the spec's `L1` sum
+  overestimates coverage, see "Directional summaries") and stops the ray when the threshold is
+  below it. Filtered hits report the aligned corner as `cell`, the level as
   `VoxelHit::lod` (`0` is exact), and the summary's material. `VoxelRoot::trace_filtered` is the
   frame trace of `SceneSnapshot::intersect`; octrees have no summaries and are never filtered.
 - **Shader variant:** the `footprint_lod` WESL feature. `lib/lod.wesl` mirrors `voxel::lod`, and
@@ -249,16 +250,18 @@ time, and display-space color error against the reference as `per pixel / 3x3 / 
 
 | View, grid         | Exact time (ms) | 4 px time                 | Exact error         | 4 px error          | Filtered px: 4 px vs. exact |
 | ------------------ | --------------- | ------------------------- | ------------------- | ------------------- | --------------------------- |
-| street, 640x360    | 1.97 / 3.08     | -26 to -39% / -30 to -34% | 3.70 / 1.61 / +0.01 | 4.22 / 2.28 / +1.09 | 5.83% vs. 4.52%             |
-| street, 1280x720   | 3.77 / 6.15     | within noise              | 2.32 / 1.18 / +0.01 | 2.51 / 1.39 / +0.45 | 6.48% vs. 4.05%             |
-| grass, 640x360     | 1.05 / 1.14     | -5 to -10% / -7 to -14%   | 2.13 / 1.12 / 0.00  | 2.48 / 1.55 / +0.71 | 5.35% vs. 3.77%             |
-| overview, 640x360  | 1.31 / 1.48     | -14 to -22% / -16 to -25% | 4.87 / 1.69 / -0.02 | 4.53 / 2.48 / +0.83 | 6.30% vs. 6.78%             |
-| overview, 1280x720 | 2.30 / 3.63     | within noise              | 3.70 / 1.34 / 0.00  | 4.11 / 2.26 / +0.55 | 5.97% vs. 5.27%             |
-| grove, 640x360     | 1.50 / 1.95     | -5 to +1% / -18 to -28%   | 3.08 / 1.33 / +0.02 | 3.89 / 2.25 / +1.26 | 5.48% vs. 4.17%             |
-| grove, 1280x720    | 4.75 / 5.24     | within noise              | 2.00 / 0.97 / 0.00  | 2.22 / 1.19 / +0.32 | 4.38% vs. 3.08%             |
+| street, 640x360    | 1.87 / 2.68     | -33 to -39% / -28 to -34% | 3.70 / 1.61 / +0.01 | 4.21 / 2.25 / +1.02 | 5.79% vs. 4.51%             |
+| street, 1280x720   | 3.41 / 5.33     | within noise              | 2.32 / 1.18 / +0.01 | 2.50 / 1.38 / +0.42 | 6.37% vs. 4.04%             |
+| grass, 640x360     | 0.98 / 1.07     | -9 to -10% / -11 to -14%  | 2.13 / 1.12 / 0.00  | 2.47 / 1.54 / +0.67 | 5.30% vs. 3.76%             |
+| overview, 640x360  | 1.29 / 1.51     | -17 to -22% / -25%        | 4.87 / 1.69 / -0.02 | 4.73 / 2.17 / +0.63 | 6.57% vs. 6.78%             |
+| overview, 1280x720 | 2.30 / 3.51     | -19 to -21% / -20 to -22% | 3.70 / 1.34 / 0.00  | 4.21 / 2.06 / +0.47 | 6.13% vs. 5.27%             |
+| grove, 640x360     | 1.39 / 1.83     | -8 to -9% / -17 to -18%   | 3.08 / 1.33 / +0.02 | 3.86 / 2.21 / +1.19 | 5.42% vs. 4.17%             |
+| grove, 1280x720    | 4.35 / 4.75     | within noise              | 2.00 / 0.97 / 0.00  | 2.22 / 1.18 / +0.30 | 4.34% vs. 3.08%             |
 
-(Reference coverage: street 90.6%, grass level 84.2%, overview 70.5%, grove 74.6%. Time ranges
-are two runs; dispatch noise is about 8%, more at 1280x720 on the hardware path. At a one-pixel
+(Reference coverage: street 90.6%, grass level 84.2%, overview 70.5%, grove 74.6%. Errors are
+the `L2` proxy's. Time ranges are an `L1` and an `L2` run, which agree within noise (the `L2`
+overview rows are at most 3% slower, as more rays pass through: 19.9 vs. 19.2 DDA steps);
+dispatch noise is about 8%, more at 1280x720 on the hardware path. At a one-pixel
 cone at most 8% of hits are filtered at half scale, the frame is within 0.04 points of exact, and
 the cost is 0 to 12%, mostly noise. At two pixels the overview frame is 4.50% per pixel.)
 
@@ -266,8 +269,8 @@ What it says: a four-pixel cone saves up to 39% of primary visibility time where
 distance, less at grass level, where the expensive pixels are close; time falls faster than mean
 DDA steps, so the savings come from the long-tail pixels. On the grove the hardware path saves
 little, because rays that miss a small occupied box keep traversing. In the overview, filtered
-pixels and the whole frame per pixel beat the exact ray; elsewhere filtered pixels carry 1.3 to 2.4
-points more error than exact, and every filtered frame's 3x3 error is 0.2 to 0.8 points above the
+pixels and the whole frame per pixel beat the exact ray; elsewhere filtered pixels carry 1.3 to 2.3
+points more error than exact, and every filtered frame's 3x3 error is 0.2 to 0.9 points above the
 exact frame's.
 
 Dead ends, so nobody retries them: shading with the summary's mean normal made filtered pixels
@@ -291,8 +294,8 @@ material (0.01 to 0.04). The occupied box with node-relative coverage cut covera
 
 **Open issues:**
 
-- **Coverage bias:** filtered frames still dilate silhouettes (+0.3 to +1.3 points at 4 px), a
-  low-frequency error the 3x3 filter doesn't remove.
+- **Coverage bias:** filtered frames still dilate silhouettes (+0.3 to +1.2 points at 4 px), a
+  low-frequency error the 3x3 filter doesn't remove; the fitted SGGX tensor is the next lever.
 - **Partial transmission:** an opaque box covers its whole projection, so a pixel that should mix
   background with a partly covered node shows the node alone. Blending a hit of opacity `a` with
   what lies behind (a second visibility record) is the untried lever.
@@ -303,11 +306,12 @@ material (0.01 to 0.04). The occupied box with node-relative coverage cut covera
 
 ### Directional summaries: axis proxy vs. SGGX
 
-**In progress: the CPU angular comparison is done; the GPU side is next.** `voxel::angular`
+**In progress: the CPU angular comparison is done and the renderer uses the `L2` proxy; the
+fitted SGGX tensor in the record is next.** `voxel::angular`
 measures a node's angular coverage (the chance that a ray along `w` entering the occupied box hits
 a voxel, the quantity a filtered hit stands for) with 48x48 stratified parallel rays per
 direction, and scores four summaries baked from the same voxels on 96 directions disjoint from
-the 48 the fits see: the shipped axis proxy (`clamp(sum(|w_a| c_a))`), the diagonal tensor
+the 48 the fits see: the spec's axis proxy (`clamp(sum(|w_a| c_a))`), the diagonal tensor
 `diag(c_a^2)` (the same three coverages combined in `L2`: no extra bytes), a PSD SGGX tensor
 least-squares fitted to measured `coverage^2` and stored as six `f16` (12 bytes), and a
 15-coefficient quartic (spherical harmonic bands 0, 2, 4) as the richer reference. The study is
@@ -344,6 +348,16 @@ exposed faces instead of fitted is diagonal for voxels (their faces are axis ali
 tell a leaf along `x = y` from one along `x = -y`; fitting to measured coverage is what captures
 diagonal leaves and crystal facets.
 
+**`L2` in the renderer (shipped):** `LodSummary::opacity` and `lod_opacity` (`lib/lod.wesl`)
+evaluate the diagonal tensor, `min(|w * c|, 1)`, with no record change; conformance passes on
+every variant. In `gpu_footprint_lod_quality` at 4 px it lowers coverage bias in every view
+(street +1.09 to +1.02 points at half scale, overview +0.83 to +0.63, grove +1.26 to +1.19) and
+3x3 error by up to 0.31 points (overview); filtered pixels' error falls 0.04 to 0.11 points
+except in the overview, where it rises 0.16 to 0.27 (still below exact at half scale) and the
+per-pixel frame error with it (4.53 to 4.73%). The frame gain is far smaller than the CPU study's
+1.7 to 3.2x: box-relative opacities mostly sit near 0 or 1, so few hit/pass decisions at `0.5`
+flip. Primary visibility cost is unchanged within noise.
+
 Costs: the shipped LOD tables are 18,430 records for the oak (288 KiB), 60,795 for the crystal
 grotto (950 KiB), and 31,826 for the meadow tile (497 KiB). Six `f16` don't fit beside the
 current record's material, box, and volume, so SGGX means a 32-byte record (twice those) or
@@ -355,16 +369,19 @@ direction, or measuring only nodes large enough to be filtered).
 
 ## Next steps, one per session
 
-1. **Directional summaries on the GPU, cheap first:** switch the opacity proxy from `L1` to `L2`
-   (`sqrt(sum(w_a^2 c_a^2))`, no record change) in `LodSummary::opacity` and `lib/lod.wesl`
-   together, keep the CPU/GPU conformance passing, and rerun `gpu_footprint_lod_quality` and
-   `gpu_primary_visibility_cost` (`--release`, one at a time) against the table in "Footprint LOD
-   filtering"; adopt it if coverage bias and filtered-pixel error fall.
-2. **Fitted SGGX in the record:** bake the fitted tensor (cheaper measurement, see "Directional
-   summaries"), pack it (32-byte record or replacing the axis coverages and normal), read it in
-   `lib/lod.wesl`, and measure quality, LOD bytes, shader traffic, and frame time against the `L2`
-   proxy; keep the smaller representation that meets the target. Partial transmission for
-   filtered hits can be tried as an option of the same comparison; otherwise it stays deferred.
+1. **Fitted SGGX in the record, bake side:** a cheap bake-time coverage measurement (rasterized
+   projections, fewer rays per direction, or only nodes large enough to be filtered; today's DDA
+   measurement costs 4 to 25 ms per node) and the fitted tensor baked into the LOD table, with
+   bake time and LOD bytes measured and `voxel::angular`'s study still passing. Pick the packing
+   first: a 32-byte record, or six `f16` in words 0 to 2 replacing the axis coverages and the
+   octahedral normal, with the material in word 3's spare bits (shading's node-relative face
+   coverages would then come from `sqrt(S_aa)`, which equals `c_a` only for the diagonal tensor).
+2. **Fitted SGGX in the record, renderer side:** read the tensor in `lib/lod.wesl` and
+   `LodSummary::opacity` together, keep conformance passing on every variant, and rerun
+   `gpu_footprint_lod_quality` and `gpu_primary_visibility_cost` (`--release`, one at a time)
+   against the `L2` table in "Footprint LOD filtering"; keep the smaller representation that
+   meets the target. Partial transmission for filtered hits can be tried as an option of the same
+   comparison; otherwise it stays deferred.
 3. **Anti-aliasing:** the exact one-ray frame is 2 to 5% from the supersampled reference, so
    `gpu_footprint_lod_quality` doubles as its yardstick.
 4. **Atmosphere.** Today the sky is a horizon/zenith gradient with `pow()` sun and moon lobes
@@ -399,7 +416,7 @@ software path, 80 with ray queries) is worth watching with `just shader-stats` a
 The roadmap, in the spec's order:
 
 - Phase 2: footprint LOD filtering (done, opt-in), foliage filtering candidates (SGGX: CPU
-  comparison done),
+  comparison done, `L2` axis proxy shipped),
   anti-aliasing, a physically based atmosphere (scattering LUTs, sun disk, aerial perspective,
   night sky and moonlight, exposure), and an occlusion term for sky light. The reference GPU is
   the RTX 3080 (Vulkan, hardware broad phase), with the M1 Pro (Metal, software broad phase) as
