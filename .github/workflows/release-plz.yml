@@ -90,7 +90,7 @@ jobs:
 
       - name: Build and Package Game
         run: |
-          cargo build -p vantablock-app --bin vantablock --profile distribution --features distribution
+          cargo build -p vantablock-app --bin vantablock --profile distribution --no-default-features --features client,distribution
           cargo packager -p vantablock-app --profile distribution
 
       - name: Build and Package Server

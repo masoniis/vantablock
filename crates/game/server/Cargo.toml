@@ -8,6 +8,9 @@ publish.workspace = true
 name = "server"
 path = "src/lib.rs"
 
+[features]
+default = ["bevy/dynamic_linking"]
+
 [lints]
 workspace = true
 

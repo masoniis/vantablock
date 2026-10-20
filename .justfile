@@ -21,6 +21,9 @@ server  := "vantablock-server"
 app     := "vantablock-app"
 baker   := "vantablock-baker"
 
+# drops the default bevy dynamic linking
+distribution_features := "--no-default-features --features client,distribution"
+
 # lists all available recipes, in file order so niche groups stay at the bottom
 [private]
 default:
@@ -38,12 +41,12 @@ client *args:
 # runs the server via debug profile
 [group("core")]
 server *args:
-    cargo run -p {{app}} --bin vantablock-server --no-default-features --features server {{args}}
+    cargo run -p {{app}} --bin vantablock-server --no-default-features --features server,bevy/dynamic_linking {{args}}
 
 # runs the client via max-optimization release profile
 [group("core")]
 release *args:
-    cargo run -p {{app}} --bin vantablock --profile distribution --features distribution {{args}}
+    cargo run -p {{app}} --bin vantablock --profile distribution {{distribution_features}} {{args}}
 
 # runs the client with the bevy remote protocol (BRP) enabled for agent/tool control
 [group("core")]
@@ -154,7 +157,7 @@ ready *args:
 # packages the client for distribution
 [group("build")]
 package profile="distribution":
-    cargo build -p {{app}} --bin vantablock --profile {{profile}} --features distribution
+    cargo build -p {{app}} --bin vantablock --profile {{profile}} {{distribution_features}}
     cargo packager -p {{app}} --bin vantablock --profile {{ if profile == "dev" { "debug" } else { profile } }}
 
 # packages the server for distribution

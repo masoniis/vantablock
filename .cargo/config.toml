@@ -1,0 +1,4 @@
+# faster linking on Windows with the LLVM linker that ships with the Rust toolchain (as Bevy
+# recommends); Linux already defaults to lld and macOS's linker is fast
+[target.x86_64-pc-windows-msvc]
+linker = "rust-lld.exe"

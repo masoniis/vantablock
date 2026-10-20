@@ -31,11 +31,15 @@ opt-level = 0
 debug = true
 
 # standard: fastish, but compiles quicker than distribution and keeps logging/debugging
+# (no lto: it fails to link against the dynamically linked bevy)
 [profile.release]
 opt-level = 3
-lto = "thin"
 debug = 1
 strip = false
+
+# dependencies compile once, and an unoptimized bevy is too slow to run
+[profile.dev.package."*"]
+opt-level = 3
 
 # the voxel core and content baker are hot paths (asset baking, CPU reference traversal), so
 # they are optimized even in dev builds to keep startup bakes and tests fast
@@ -69,9 +73,10 @@ debug = false
 platform = { path = "./crates/platform", package = "vantablock-platform" }
 voxel = { path = "./crates/engine/voxel", package = "vantablock-voxel" }
 baker = { path = "./crates/engine/baker", package = "vantablock-baker" }
-common = { path = "./crates/game/common", package = "vantablock-common" }
-server = { path = "./crates/game/server", package = "vantablock-server" }
-client = { path = "./crates/game/client", package = "vantablock-client" }
+# no default features, so their dynamic linking only applies when built directly
+common = { path = "./crates/game/common", package = "vantablock-common", default-features = false }
+server = { path = "./crates/game/server", package = "vantablock-server", default-features = false }
+client = { path = "./crates/game/client", package = "vantablock-client", default-features = false }
 
 # development deps
 criterion = { version = "0.8", features = ["html_reports"] }
