@@ -6,18 +6,14 @@ maps the code itself; this file is the one that changes as work lands.
 
 ## Status
 
-Phase 1 (renderer feasibility and memory contracts) is complete on Metal and Vulkan; Phase 2 is
-under way, starting with footprint LOD filtering, which has a CPU reference, a matching shader
-variant for single modules and whole scenes, and an opt-in primary visibility path
-(`RenderSettings::footprint_lod`, off by default: at a one-pixel cone it filters almost nothing,
-and a four-pixel cone saves up to 37% of primary visibility time; against 4x4 supersampled
-references, filtered hits now shade their node's camera-facing faces by coverage and fill only
-their node's occupied box, which together cut the filtered pixels' error by 1.5 to 2.5 points and
-coverage bias by up to 60%, so in the overview filtered pixels beat the exact ray, but in the
-other views they are still worse, and partial transmission comes next; see
-[Phase 2 progress](#phase-2-progress)).
+Phase 1 (renderer feasibility and memory contracts) is complete: its gate passed on Metal (M1 Pro)
+and Vulkan (RTX 3080), and the 64-tree, flattened pose groups, and, on adapters with ray queries,
+the hardware broad phase are the runtime defaults (see [Phase 1 results](#phase-1-results)).
 
-The gate passed on Metal (M1 Pro) and Vulkan (RTX 3080). The 64-tree, short private traversal stack, slab-address residency, and visibility packing were kept on measured evidence on both backends; flattened pose groups replaced the template mini-BVH as the runtime default. The optional Vulkan hardware broad phase (ray queries over a TLAS of pose-frame boxes) matches the reference and is the fastest path measured, taking 25 to 42% less GPU time than the software BVH4; it is wired into the renderer as the default on adapters with ray queries (TLAS rebuilt every frame, primary visibility and shadow rays both using it, 34% less frame GPU time in game at 1280x720), with the software BVH4 as the always-available fallback. Driver register and spill statistics were captured on NVIDIA (128 registers per thread for the stack kernels, 80 stackless or with ray queries).
+Phase 2 is under way. Footprint LOD filtering is done as an opt-in path
+(`RenderSettings::footprint_lod`, off by default, since filtered frames still miss the quality
+target in most views; see [Phase 2 results](#phase-2-results)). Next is the SGGX-style directional
+summary comparison.
 
 ## Known issues
 
@@ -179,406 +175,174 @@ narrower stack entries or splitting scene search from voxel traversal should be 
 - Metal and Vulkan agree on every conformance case of the software paths; no backend-specific
   shader path was needed. The hardware broad phase is Vulkan only (see Known issues).
 
-## Phase 2 progress
+## Phase 2 results
+
+Measured on the RTX 3080 (Vulkan, `--release`), the Phase 2 reference GPU.
 
 ### Footprint LOD filtering
 
-**Done (October 20, 2026): the CPU reference.** `voxel::lod::FootprintFilter` describes a ray
-cone (`radius + spread * t` in world units, scaled into module voxels by the ray's direction
-length) and a threshold. `tree64::trace_filtered` shares the 64-tree DDA loop with `trace`: when
-it would descend into an occupied node whose cell edge fits inside the footprint's diameter and
-that node has a summary, it uses the spec's axis-coverage proxy
-(`clamp(sum(|d_axis| * coverage_axis), 0, 1)`, `LodSummary::opacity`) instead. The ray hits the
-node's box when the threshold is below that opacity and passes through it otherwise. Filtered hits
-report the aligned corner as `cell`, the level as the new `VoxelHit::lod` (`0` is an exact voxel),
-and the summary's material, with `ArenaHandle::INVALID` as the attribute. `GeometrySource` gained
-`lod_record`, and `GpuGeometryLibrary` keeps the LOD records (`lod`).
-Tests: unit cases in `tree64` (wide vs. narrow footprints, pass-through below the threshold,
-distance and ray-scale growth) and `footprint_filtering_reports_aligned_occupied_regions` in
-`tests/hierarchy_reference.rs` (a zero cone matches `trace` exactly; wide-cone hits are aligned,
-occupied, and at the box entry).
+**Done (opt-in).** Every primary ray carries a pixel cone, and where a 64-tree node's cell fits
+inside the cone's footprint the ray hits or passes the node's baked summary instead of descending.
+It is held to a CPU reference on every variant and ships behind `RenderSettings::footprint_lod`,
+off by default.
 
-**Done (October 20, 2026): the shader mirror.** The LOD records are uploaded as one storage
-binding (group 0, binding 11, `lod_records` in `lib/geometry.wesl`; the renderer's geometry layout
-now needs 15 storage buffers per stage, and the library build fails if the records outgrow one
-binding). `lib/lod.wesl` mirrors `voxel::lod` (`FootprintFilter`, `footprint_covers`, and
-`lod_opacity` unpacking the f16 coverage with `unpack2x16float`), and `trace_tree64_filtered` in
-`lib/tree64.wesl` mirrors `trace_filtered`: `trace_tree64` is now the filtered traversal with a
-zero cone. The filter test lives in `footprint_decision`, which only the new `footprint_lod` WESL
-feature compiles in (it reads the child's `lod_meta` word only when the footprint covers the
-cell); without the feature it always says "descend", so the production kernels are unchanged
-(`just shader-stats`: still 128 registers for the software path, 80 with ray queries). `VoxelHit`
-gained `lod`, and a filtered hit carries its LOD record index in `attribute_handle` so shading can
-read the summary's normal and material. `build.rs` builds `voxel_conformance_footprint_lod` in
-single- and multi-slab forms; no pass uses the feature yet.
+- **CPU reference:** `voxel::lod::FootprintFilter` is a cone (`radius + spread * t` in world units;
+  local rays are never renormalized, so a frame's direction length scales it into voxels) and a
+  threshold. `tree64::trace_filtered` shares `trace`'s DDA loop: an occupied node whose cell edge
+  fits the footprint's diameter is tested with the spec's axis-coverage proxy
+  (`clamp(sum(|d_axis| * coverage_axis), 0, 1)`, `LodSummary::opacity`) and stops the ray when the
+  threshold is below it. Filtered hits report the aligned corner as `cell`, the level as
+  `VoxelHit::lod` (`0` is exact), and the summary's material. `VoxelRoot::trace_filtered` is the
+  frame trace of `SceneSnapshot::intersect`; octrees have no summaries and are never filtered.
+- **Shader variant:** the `footprint_lod` WESL feature. `lib/lod.wesl` mirrors `voxel::lod`, and
+  `trace_tree64_filtered` and `trace_scene_filtered` (`lib/tree64.wesl`, `lib/scene.wesl`) thread
+  the filter through both broad phases; the exact traces are the filtered ones with
+  `exact_footprint()`. Only the feature reads the LOD records (geometry binding 11, which needs 15
+  storage buffers per stage), so the exact kernels are unchanged: 128 registers software, 80 with
+  ray queries; the footprint LOD primary visibility forms use 128 and 96.
+- **Occupied boxes:** a filtered hit fills its node's occupied box, clipped to the root's occupied
+  bounds, and a ray that misses it passes through. Clipping is required for correctness: every
+  broad phase culls frames by those bounds (`PoseFrame::local_bounds_min`/`max`, 224 bytes), so an
+  unclipped node box sticking out of them was hit by exhaustive search but not through the BVHs.
+- **LOD record (16 bytes):** word 0 is X and Y coverage (f16), word 1 Z coverage and the material,
+  word 2 the octahedral mean normal, word 3 the occupied box (4 bits per bound in sixteenths of the
+  node edge, rounded outward) and the solid volume fraction (unorm8). The material is the one with
+  the most exposed faces; faces count as exposed only when the neighbor voxel in the module is
+  empty. `.vanta` files hold canonical modules, so the record format needs no `BAKER_VERSION` bump.
+- **Primary visibility:** `pixel_footprint` uses no radius and a spread of half the traced pixel's
+  angle times `footprint_scale` (`1`), so reduced render scales filter more; `footprint_threshold`
+  is `0.5`. Both reach the shader through `ViewUniform`. `vis.x` carries the hit's level and `vis.y`
+  the LOD record index. `PrimaryVisibilityPipeline` holds an exact and a footprint LOD variant set,
+  chosen per frame: a runtime switch between pipelines rather than a uniform in the exact kernels.
+  `F8`/`L` toggles it (pause menu, debug overlay), and the `LodLevels` debug view shows exact voxels
+  grey and filtered levels from blue to red.
+- **Stochastic thresholds:** `RenderSettings::footprint_stochastic` (off) sets
+  `VIEW_STOCHASTIC_FOOTPRINT`, which takes each pixel's threshold from a stable PCG hash, so a
+  summary of opacity `a` stops a fraction `a` of the rays.
+- **Filtered-hit shading:** `filtered_face_light` (`direct_lighting.wesl`) averages the sun cosine,
+  sky height, and ground bounce of the node's three camera-facing faces, each weighted by the
+  share of the view it covers (`|d_a|` times its node-relative coverage, `lod_node_coverage`), as
+  exact voxels' faces average over a footprint. The one shadow ray leaves the occupied box toward
+  the light, so the node's own voxels can't shadow it.
+- **Benchmarks** (ignored tests in `gpu_conformance.rs`, run with `--release --nocapture`):
+  `gpu_primary_visibility_cost` dispatches the production primary visibility kernels (both broad
+  phases) in four views (street, grass level, overview, the 300-instance grove from 48 m) at render
+  scales 0.5 and 1.0, exact and with one- and four-pixel cones, and reports kernel time, DDA steps,
+  and the filtered share. `gpu_footprint_lod_quality` renders the same views through both
+  production passes and compares one ray per pixel (exact, and 1, 2, and 4 px cones, fixed and
+  stochastic thresholds) with a 4x4 supersampled exact reference: per-pixel and 3x3-filtered color
+  error, coverage bias, and the error on just the filtered pixels next to the exact frame's on the
+  same pixels. Frames are written as PNGs under the temp directory's `vanta-footprint-quality`.
+- **Tests:** the CPU reference (`tree64` units,
+  `footprint_filtering_reports_aligned_occupied_regions`,
+  `filtered_scene_traces_match_exhaustive_search_in_world_units`) and the GPU conformance tests
+  (`gpu_footprint_filtering_matches_cpu`, `gpu_filtered_scene_traversal_matches_cpu`: cell, level,
+  material, `t`, and the decoded normal, every organization, hierarchy, residency, and ray query
+  variant) agree with zero disagreements. Cones that exactly fit a cell are ties `length(d)` can
+  round either way, so the tests avoid exact fits.
 
-Tests: `gpu_footprint_filtering_matches_cpu` traces 18,432 rays (1,024 per real-asset module,
-axis-aligned and random, with direction scales of 0.5, 1, and 3 as pose frames produce) per cone
-for four cones (zero, pixel-like `0.25 + 0.01 t` at `0.5`, wide `2.1 + 0.05 t` at `0.1`, and
-`1.0 + 0.02 t` at `0.37`) in both residency layouts, and requires the CPU's exact result: hit or
-miss, cell, level, material (the voxel's or the summary's), `t` to `1e-4`, and DDA step count. All
-match on the RTX 3080 (filtered hits per cone: 0, 7,530, 13,402, 9,577). Footprints that exactly
-fit a cell are ties `length(d)` can round either way: a radius of exactly `2` disagreed on one
-ray at `t = 0`, so the test avoids exact fits. Driver statistics: the bare 64-tree `rays` kernel
-(exact, which also contains the octree) uses 64 registers, `filtered_rays` 80.
+Measured at the final state: four-pixel cone vs. exact, hardware broad phase / software BVH4 kernel
+time, and display-space color error against the reference as `per pixel / 3x3 / coverage bias`
+(points), with the filtered pixels' error vs. the exact frame's on the same pixels:
 
-**Done (October 20, 2026): filtered scene traversal.** One world-space cone now reaches every
-frame: `trace_scene_filtered` in `lib/scene.wesl` threads a `FootprintFilter` through
-`trace_frame`, `try_frame`, `try_bounded_frame`, and `intersect_instance` in both broad phases
-(`trace_scene` is the filtered trace with `exact_footprint()`, so the passes are unchanged). Local
-rays are never renormalized, so a frame's direction length is its voxels per world unit and the
-cone needs no rescaling, on the GPU as on the CPU. The CPU mirror is
-`VoxelRoot::trace_filtered` (`tree64::trace_filtered` for 64-tree roots, exact for octrees) as
-the frame trace of `SceneSnapshot::intersect`. `build.rs` adds
-`voxel_conformance_footprint_lod_ray_query`.
+| View, grid         | Exact time (ms) | 4 px time                 | Exact error         | 4 px error          | Filtered px: 4 px vs. exact |
+| ------------------ | --------------- | ------------------------- | ------------------- | ------------------- | --------------------------- |
+| street, 640x360    | 1.97 / 3.08     | -26 to -39% / -30 to -34% | 3.70 / 1.61 / +0.01 | 4.22 / 2.28 / +1.09 | 5.83% vs. 4.52%             |
+| street, 1280x720   | 3.77 / 6.15     | within noise              | 2.32 / 1.18 / +0.01 | 2.51 / 1.39 / +0.45 | 6.48% vs. 4.05%             |
+| grass, 640x360     | 1.05 / 1.14     | -5 to -10% / -7 to -14%   | 2.13 / 1.12 / 0.00  | 2.48 / 1.55 / +0.71 | 5.35% vs. 3.77%             |
+| overview, 640x360  | 1.31 / 1.48     | -14 to -22% / -16 to -25% | 4.87 / 1.69 / -0.02 | 4.53 / 2.48 / +0.83 | 6.30% vs. 6.78%             |
+| overview, 1280x720 | 2.30 / 3.63     | within noise              | 3.70 / 1.34 / 0.00  | 4.11 / 2.26 / +0.55 | 5.97% vs. 5.27%             |
+| grove, 640x360     | 1.50 / 1.95     | -5 to +1% / -18 to -28%   | 3.08 / 1.33 / +0.02 | 3.89 / 2.25 / +1.26 | 5.48% vs. 4.17%             |
+| grove, 1280x720    | 4.75 / 5.24     | within noise              | 2.00 / 0.97 / 0.00  | 2.22 / 1.19 / +0.32 | 4.38% vs. 3.08%             |
 
-The scene test found a real bug: a filtered node's aligned box can stick out of its module's
-occupied bounds, which every broad phase culls frames with (scene BVH leaves, mini-BVH envelopes,
-per-frame bounds, and TLAS boxes), so a ray grazing the protruding part hit the summary in an
-exhaustive search but not through the BVHs (the CPU's `InstanceRefit` disagreed with brute force).
-Filtered hits are now where the ray enters the node's box clipped to the root's occupied bounds,
-and a ray that misses the clipped box passes through. That needed the bounds on the GPU:
-`PoseFrame` grew `local_bounds_min`/`local_bounds_max` (192 to 224 bytes, `layout::root_bounds`),
-`VoxelRoot` in `dda.wesl` carries them, and `entry_face` takes a box's two corners on both sides.
+(Reference coverage: street 90.6%, grass level 84.2%, overview 70.5%, grove 74.6%. Time ranges
+are two runs; dispatch noise is about 8%, more at 1280x720 on the hardware path. At a one-pixel
+cone at most 8% of hits are filtered at half scale, the frame is within 0.04 points of exact, and
+the cost is 0 to 12%, mostly noise. At two pixels the overview frame is 4.50% per pixel.)
 
-Tests: `filtered_scene_traces_match_exhaustive_search_in_world_units` (voxel: every organization
-and hierarchy matches an exhaustive filtered search, a zero cone equals `intersect`, the octree is
-never filtered, and each filtered cell's world edge fits the cone's world diameter),
-`filtered_boxes_are_clipped_to_the_occupied_bounds` (tree64 unit), and
-`gpu_filtered_scene_traversal_matches_cpu`: 4,304 showcase rays per cone for four world-space
-cones (zero, a 1280x720 pixel's `spread = 0.0008`, `0.02 + 0.004 t` at `0.1`, and
-`0.01 + 0.002 t` at `0.37`) for every organization and hierarchy, both residency layouts, and
-the ray query variant, requiring the CPU's frame, cell, level, and `t` (to `1e-3`). All agree on
-the RTX 3080 with zero disagreements (filtered hits per cone: 0, 1, 2,898, 414; the pixel cone
-filters almost nothing within the showcase's 26 m). The module-level filtered counts moved
-slightly with clipping (7,510, 13,142, 9,511).
+What it says: a four-pixel cone saves up to 39% of primary visibility time wherever a view reaches
+distance, less at grass level, where the expensive pixels are close; time falls faster than mean
+DDA steps, so the savings come from the long-tail pixels. On the grove the hardware path saves
+little, because rays that miss a small occupied box keep traversing. In the overview, filtered
+pixels and the whole frame per pixel beat the exact ray; elsewhere filtered pixels carry 1.3 to 2.4
+points more error than exact, and every filtered frame's 3x3 error is 0.2 to 0.8 points above the
+exact frame's.
 
-Measured (`gpu_scene_throughput --release`, RTX 3080, two runs, `filtered_scene_rays` vs.
-`scene_rays`; the filtered kernel also writes 32-byte results instead of 16): with the hardware
-broad phase the zero-cone variant is within noise (showcase 4.50 to 4.69 ms vs. 4.69 to 4.67 ms;
-grove 5.43 to 5.68 ms vs. 5.51 to 5.55 ms); on the software BVH4 it costs 0 to 11% (showcase
-flattened 7.66 to 7.73 ms vs. 7.94 to 8.07 ms; grove refit 6.84 to 6.95 ms vs. 7.59 to 7.62 ms).
-The pixel cone costs the same as the zero cone. `just shader-stats`: production kernels unchanged
-(128 registers software, 80 ray query); `filtered_scene_rays` uses the same (128 and 80).
+Dead ends, so nobody retries them: shading with the summary's mean normal made filtered pixels
+worse (it describes the node's net orientation, not the faces the camera sees; `lod_normal` stays
+for conformance and directional summaries). Self-shadowing was not the cause of dark filtered
+crystals (moving the shadow ray out of the box gained 0.05 to 0.1 points), nor was the single
+material (0.01 to 0.04). The occupied box with node-relative coverage cut coverage bias further
+(overview 4 px +0.26) but left higher color error than box-relative coverage.
 
-**Open decisions:** a fixed `0.5` threshold makes sparse foliage disappear at distance (the
-reference test needs `0.1` to see many filtered hits), so the threshold should probably become a
-stable per-pixel random value (stochastic transmission). The octree has no summaries and is never
-filtered, and the footprint rule (cell edge vs. cone diameter) is untuned. At one pixel's cone the
-showcase barely filters at all, so filtering's payoff is at distance or at reduced render scale
-(the cone should use the traced grid's pixel size, not the target's).
+**Decisions:**
 
-Compile-time variant or runtime uniform: on the default (ray query) path the variant costs nothing
-measurable with a zero cone, and 0 to 11% on the software fallback, with no register change. That
-argues for a runtime toggle that switches between the exact and `footprint_lod` pipelines (the
-variant compiled for every production kernel) rather than a uniform in the exact kernels; step 1
-decides it when wiring the passes.
+- **`footprint_lod` is off by default,** with a one-pixel cone: at one pixel it changes nothing,
+  and larger cones miss the target (filtered pixels no worse than exact) in street, grass level,
+  and grove views. It stays a runtime toggle for distance and reduced render scales.
+- **Axis coverage is relative to the occupied box,** a departure from the spec's node-relative
+  coverage: the opacity proxy is the chance of a hit given that the ray enters the box, and
+  node-relative coverage (the box value times the box face's share) weights shading.
+- **Thresholds stay deterministic (`0.5`);** stochastic thresholds trade bias for noise that only
+  an averaging or temporal resolve removes, and now move results by at most 0.2 points, since
+  box-relative opacities sit near 0 or 1.
 
-**Done (October 20, 2026): filtered primary visibility.** Primary visibility traces each pixel's
-ray cone through `trace_scene_filtered` in `footprint_lod` builds (`pixel_footprint`: no radius,
-and a spread of half the angle between the traced pixel's left and right edges, times
-`footprint_scale`, so reduced render scales filter more; exact builds pass `exact_footprint()`
-and are unchanged). `vis.x` now carries the hit's level, and `vis.y` the LOD record index for
-filtered hits. `build.rs` builds `primary_visibility_footprint_lod` in single-slab, multi-slab, and
-ray query forms, and `PrimaryVisibilityPipeline` holds an exact and a footprint LOD set of
-variants, chosen per frame by the new `RenderSettings::footprint_lod` (F8 or L, listed in the
-pause menu and shown in the debug overlay) with `footprint_threshold` (`0.5`) and
-`footprint_scale` (`1` pixel) reaching the shader through two new `ViewUniform` fields (224 to 240
-bytes). The decision: a runtime switch between pipelines, not a uniform in the exact kernels.
-Direct lighting needs no variant: every build reads the level, and filtered hits shade with the
-summary's material and mean normal (`lod_normal` in `lib/lod.wesl` decodes the octahedral
-normal as `LodSummary::unpack` does; the hit face's normal where the summary's faces cancel),
-while shadow rays stay exact and leave from the hit face. A `LodLevels` debug view shows exact
-voxels grey and filtered hits from blue (level 1) to red.
+**Open issues:**
 
-Tests: `gpu_footprint_filtering_matches_cpu` now also requires the GPU's decoded summary normal
-of every filtered hit to match `LodSummary::unpack` to `1e-5` (all match on the RTX 3080), and
-`shaders_validate` covers the three new variants. `just test`, `just clippy`, and `just test-gpu`
-pass. `just shader-stats`: the production kernels are unchanged (`primary_visibility` 128
-registers software, 80 ray query); the footprint LOD forms use 128 (software) and 96 (ray
-query, vs. 80 for `filtered_scene_rays`; the pixel cone and the 32-byte hit are live longer).
-BRP (release, 1280x720, render scale 0.5, showcase meadow): with a one-pixel cone, `LodLevels`
-shows level 1 hits on the distant tree canopies and trunks only, and the shaded frame is
-indistinguishable from the exact one at a glance; at `footprint_scale = 4` the grass, canopies,
-and rotor blades turn visibly blockier. In-game FPS stayed at the 144 Hz cap with filtering on
-and off, at render scales 0.5 and 1.0, so it says nothing about cost; the kernel cost is the
-`filtered_scene_rays` measurement above.
+- **Coverage bias:** filtered frames still dilate silhouettes (+0.3 to +1.3 points at 4 px), a
+  low-frequency error the 3x3 filter doesn't remove.
+- **Partial transmission:** an opaque box covers its whole projection, so a pixel that should mix
+  background with a partly covered node shows the node alone. Blending a hit of opacity `a` with
+  what lies behind (a second visibility record) is the untried lever.
+- **Grove hardware-path cost:** small occupied boxes leave the hardware broad phase saving -5 to
+  +1% on the grove, against -18 to -28% on the software BVH4.
+- The footprint rule (cell edge vs. cone diameter) is untuned, and the 4x4 reference is itself
+  limited: the exact one-ray frame is 2 to 5% from it, mostly grass and foliage aliasing.
 
-**Open decisions:** filtered summaries are opaque boxes at a fixed threshold, so a summary normal
-can face away from the camera (thin foliage seen from behind) and shadow rays from a filtered
-box can self-shadow on the node's own voxels; both await the reference comparison. Whether
-filtering should become the default depends on that comparison and on an in-game GPU time
-measurement (`VANTA_GPU_TIMINGS=1`, or a `primary_visibility` kernel benchmark), since the frame
-rate is capped.
+## Next steps, one per session
 
-**Done (October 20, 2026): the cost and payoff of filtered primary visibility.** The new
-ignored benchmark `gpu_primary_visibility_cost` (`gpu_conformance.rs`; run with
-`cargo test --release -p vantablock-client --test gpu_conformance -- --ignored --nocapture gpu_primary_visibility_cost`)
-dispatches the production `primary_visibility` and `primary_visibility_footprint_lod` kernels
-(both broad phases, flattened groups, 64-tree, single slab) into real visibility, depth, cell, and
-stats textures with a `GpuViewUniform` built like the game's (60 degree vertical field of view,
-infinite reverse-z, 1280x720 target), at render scales 0.5 and 1.0, exact and with one- and
-four-pixel cones (`footprint_scale`, threshold `0.5`). It reports kernel time (timestamp queries,
-mean of 50 dispatches after 5 warm-ups), mean voxel DDA steps per pixel from `stats`, and the
-share of hits that are filtered from `vis`. Views: the throughput benchmark's showcase street
-view, a grass-level diagonal across the meadow, an elevated overview, and the 300-instance grove
-from 48 m. The conformance harness gained `Gpu::bind_module` and `Gpu::time_dispatch` (any
-module, any 3D dispatch).
-
-Measured (RTX 3080, `--release`, two runs; dispatch-to-dispatch noise is about 8%). Kernel time
-as the mean of the runs, hardware broad phase / software BVH4:
-
-| View, grid | Exact (ms) | 1 px cone | 4 px cone | DDA steps/px exact, 4 px | Filtered hits 1 px, 4 px |
-| --- | --- | --- | --- | --- | --- |
-| street, 640x360 | 1.97 / 3.08 | +5% / +2% | -37% / -33% | 39.6, 36.2 | 0.3%, 44% |
-| street, 1280x720 | 3.77 / 6.15 | +5% / -5% | -3% / -7% | 39.6, 39.1 | 0%, 9% |
-| grass level, 640x360 | 1.05 / 1.14 | +1% / +7% | -4% / +3% | 39.0, 37.1 | 0%, 27% |
-| grass level, 1280x720 | 2.39 / 2.74 | +7% / +7% | +3% / -1% | 39.0, 38.5 | 0%, 7% |
-| overview, 640x360 | 1.31 / 1.48 | +3% / -1% | -22% / -26% | 32.4, 20.3 | 8%, 100% |
-| overview, 1280x720 | 2.30 / 3.63 | +12% / +5% | -22% / -19% | 32.5, 23.0 | 0.2%, 82% |
-| grove, 640x360 | 1.50 / 1.95 | +2% / -7% | -18% / -22% | 21.6, 17.3 | 3%, 81% |
-| grove, 1280x720 | 4.75 / 5.24 | 0% / +2% | 0% / -13% | 21.6, 20.5 | 0.1%, 23% |
-
-What it says: at the default one-pixel cone, filtering buys nothing in these views (at most 8% of
-hits filtered at half scale, 0.3% at full scale, and DDA steps unchanged) and costs 0 to 12%,
-mostly within noise, so `footprint_lod` stays off by default. A four-pixel cone saves 18 to 37%
-at half scale wherever the view reaches distance (street, overview, grove) and about 20% for the
-overview at full scale, but nothing at grass level, where the expensive pixels are close. Time
-falls faster than mean DDA steps (street at half scale: 9% fewer steps, 37% less time), so the
-savings come from the long-tail pixels that finish early, not the average. Filtering grows hit
-coverage (street at half scale: 90.6% to 92.2% of pixels), since a summary box is larger than the
-voxels it covers: the silhouette dilation the reference comparison must judge.
-
-**Done (October 20, 2026): filtered frames against supersampled references.** The new ignored
-test `gpu_footprint_lod_quality` (`gpu_conformance.rs`; run with
-`cargo test --release -p vantablock-client --test gpu_conformance -- --ignored --nocapture gpu_footprint_lod_quality`)
-renders the cost benchmark's four views through both production passes (`PrimaryVisibility`,
-then `DirectLighting` as a fullscreen draw into an sRGB target, sun at cycle `0.4`, tonemapped in
-the shader, hardware broad phase): the reference traces exactly at 4x4 times the grid and box
-averages in linear color, and each test frame traces one ray per pixel, exactly and with one-,
-two-, and four-pixel cones, each with the fixed `0.5` threshold and with stochastic thresholds.
-It reports mean absolute display-space color error per pixel and after a 3x3 box filter (what an
-averaging resolve would leave), coverage bias (hit pixels minus reference coverage; positive is
-dilation), mean per-pixel coverage error, the filtered share of hits, and the error on just the
-filtered pixels next to the exact frame's error on the same pixels. Every frame is written as a
-PNG under the temp directory's `vanta-footprint-quality` (a dependency-free stored-deflate
-writer, since `image` only comes with the `brp` feature). The harness gained `Gpu::bind_groups`,
-`Gpu::texture_2d`, and `Gpu::read_texture`, and the views and library setup are shared with
-`gpu_primary_visibility_cost` (`single_slab_library`, `primary_scenes`, `primary_views`).
-
-Stochastic thresholds are a runtime option: `RenderSettings::footprint_stochastic` (off) sets the
-new `VIEW_STOCHASTIC_FOOTPRINT` view flag (`layout.rs`, `types.wesl`), and `pixel_footprint` then
-takes each traced pixel's threshold from a stable PCG hash of its coordinates, so a summary of
-opacity `a` stops a fraction `a` of the rays. The CPU reference is unchanged (the threshold is
-already an input of `FootprintFilter`). The debug overlay shows "stochastic" in place of the
-threshold. `just shader-stats`: unchanged (128 / 96 registers for the footprint LOD forms).
-
-Measured (RTX 3080, deterministic, `color error / 3x3 error / coverage bias`, then the error on
-filtered pixels vs. the exact frame's on the same pixels; stochastic rows are within 0.1 to 1
-point of these, see below):
-
-| View, grid | Exact | 1 px | 2 px | 4 px | Filtered px: 4 px vs. exact |
-| --- | --- | --- | --- | --- | --- |
-| street, 640x360 | 3.70 / 1.61 / +0.01 | 3.70 / 1.61 / +0.02 | 3.96 / 1.86 / +0.69 | 5.19 / 3.02 / +1.65 | 8.0% vs. 4.4% (44% filtered) |
-| street, 1280x720 | 2.32 / 1.18 / +0.01 | 2.32 / 1.18 / +0.01 | 2.33 / 1.18 / +0.02 | 2.74 / 1.59 / +0.69 | 8.8% vs. 3.9% (9%) |
-| grass level, 640x360 | 2.13 / 1.12 / 0.00 | same | 2.31 / 1.32 / +0.49 | 2.99 / 1.99 / +1.11 | 7.5% vs. 3.7% (27%) |
-| grass level, 1280x720 | 1.27 / 0.73 / 0.00 | same | same | 1.55 / 1.01 / +0.49 | 7.9% vs. 3.5% (7%) |
-| overview, 640x360 | 4.87 / 1.69 / -0.02 | 4.91 / 1.73 / +0.03 | 5.99 / 2.55 / +0.57 | 6.56 / 3.05 / +0.88 | 9.1% vs. 6.7% (100%) |
-| overview, 1280x720 | 3.70 / 1.34 / 0.00 | same | 3.80 / 1.42 / +0.04 | 5.85 / 3.08 / +0.57 | 8.9% vs. 5.2% (82%) |
-| grove, 640x360 | 3.08 / 1.33 / +0.02 | 3.10 / 1.34 / +0.09 | 3.39 / 1.60 / +0.63 | 5.21 / 3.31 / +2.25 | 7.5% vs. 4.1% (81%) |
-| grove, 1280x720 | 2.00 / 0.97 / 0.00 | same | 2.03 / 1.00 / +0.08 | 2.52 / 1.44 / +0.61 | 6.0% vs. 3.0% (23%) |
-
-(Reference coverage: street 90.6%, grass level 84.2%, overview 70.5%, grove 74.6%. Stochastic
-thresholds cut the coverage bias by 10 to 30% (overview 4 px at half scale: +0.88 to +0.61 pt;
-grove: +2.25 to +2.06) and the 3x3 error slightly at 4 px (street 3.02% to 2.88%, grove 3.31% to
-3.11%), but raise the per-pixel error (overview 4 px: 6.56% to 7.50%), since they trade bias for
-noise that only a temporal resolve removes.)
-
-What it says, and the decisions:
-
-- **Filtering does not meet the quality bar yet.** In no view or cone does a filtered frame come
-  closer to the reference than the exact one-ray frame, per pixel or after the 3x3 filter. The
-  filtered pixels themselves carry 1.3 to 2.3 times the exact ray's error on the same pixels, so
-  the summaries' look, not only silhouette dilation, is the problem. The frames show why:
-  filtered crystals and distant grass shade with dark streaks and blotches (the summary's single
-  material and mean normal, and exact shadow rays leaving the filtered box entry, which sits
-  inside or below the node's voxels and self-shadows), and summary boxes dilate silhouettes
-  (+0.5 to +2.3 points of coverage at four pixels).
-- **`footprint_lod` stays off by default**, and the default cone stays one pixel: at one pixel it
-  is indistinguishable from exact (at most 0.04 points of error) and buys nothing (see the cost
-  table); at four pixels it saves 18 to 37% of primary visibility time where views reach distance
-  but costs 1.3 to 3.5 points of color error.
-- **The threshold rule stays deterministic (`0.5`) by default;** stochastic thresholds are the
-  better rule for coverage but need a temporal resolve to pay off, so revisit them with temporal
-  accumulation (Phase 4) or anti-aliasing. Both stay available at runtime.
-- The 4x4 reference itself is limited: the exact one-ray frame is 2 to 5% from it, mostly
-  aliasing in grass and foliage, which anti-aliasing (a Phase 2 item) has to address regardless
-  of filtering.
-
-**Done (October 20, 2026): filtered-hit shading.** Measured one change at a time with
-`gpu_footprint_lod_quality`, which found a bake bug first:
-
-- **Summary normals were always zero.** `Summary::of_brick` counted faces on a brick's border as
-  exposed, so along every row of voxels the `-` and `+` faces paired up and every node's mean
-  normal cancelled exactly (spread 255, `lod_normal` zero): filtered hits had always shaded with
-  the filtered box's entry face, and the conformance test's normal check compared zeros. Faces
-  now count as exposed only when the neighbor voxel in the module is empty (across bricks too,
-  `module.get`; outside the module is empty), so summaries carry real mean normals
-  (`lod_normals_see_neighbor_bricks`: a brick inside a ground layer faces up with zero spread).
-  Shading with those normals made things worse (street at 640x360 and 4 px: filtered pixels'
-  error 7.95% to 8.70%): a mean outward normal describes the node's net orientation, not the
-  faces the camera sees, so shading no longer reads it (`lod_normal` stays for conformance and
-  directional summaries).
-- **Filtered hits shade their camera-facing faces** (`filtered_face_light` in
-  `direct_lighting.wesl`): seen along local direction `d`, a node's axis-`a` faces that face the
-  camera cover `|d_a| * coverage_a` of the view (the opacity proxy's own terms, `lod_coverage` in
-  `lib/lod.wesl`), so the hit averages those three faces' sun cosine, sky height, and ground
-  bounce with these weights, as the exact voxels' faces average over the footprint. One shadow
-  ray per pixel, as before; the debug normal view shows the weighted mean normal. This is the
-  change that mattered.
-- **Shadow rays from a filtered hit leave the node's box** (clipped to the root's occupied
-  bounds) toward the light instead of starting at the box entry, so the node's own voxels can't
-  shadow it. Alone it moved the filtered pixels' error by only 0.05 to 0.1 points, so
-  self-shadowing was not what darkened crystals.
-- **The summary material is the one with the most exposed faces** (voxel count breaks ties), not
-  the most voxels, so interior material doesn't color a surface. Measured: 0.01 to 0.04 points
-  better; the single material is not the problem either.
-
-No CPU traversal or GPU layout changed (the bake still writes the same record format; `.vanta`
-files hold canonical modules, so `BAKER_VERSION` stays). `just test`, `just clippy`, and
-`just test-gpu` pass; `just shader-stats` unchanged (primary visibility 128 / 80 registers, the
-footprint LOD forms 128 / 96). BRP (release, render scale 0.5, `footprint_lod` on at
-`footprint_scale = 4`): the meadow renders without errors, filtered canopies and rocks shade as
-plausible lit blocks instead of dark blotches.
-
-Measured (RTX 3080, deterministic thresholds; filtered pixels' error before, after, and the exact
-frame's on the same pixels; whole-frame color error before and after):
-
-| View, grid, cone | Filtered px: before / after / exact | Frame error before / after |
-| --- | --- | --- |
-| street, 640x360, 4 px | 8.03% / 7.49% / 4.40% | 5.19% / 4.97% |
-| street, 1280x720, 4 px | 8.84% / 8.43% / 3.85% | 2.74% / 2.71% |
-| grass level, 640x360, 4 px | 7.45% / 7.08% / 3.68% | 2.99% / 2.91% |
-| overview, 640x360, 2 px | 8.68% / 7.64% / 6.78% | 5.99% / 5.38% |
-| overview, 640x360, 4 px | 9.08% / 7.87% / 6.73% | 6.56% / 5.70% |
-| overview, 1280x720, 4 px | 8.86% / 7.87% / 5.24% | 5.85% / 5.27% |
-| grove, 640x360, 4 px | 7.49% / 7.09% / 4.11% | 5.21% / 4.96% |
-| grove, 1280x720, 4 px | 5.99% / 5.72% / 3.02% | 2.52% / 2.48% |
-
-(At one pixel the overview's filtered pixels are now within 0.1 points of exact: 5.56% vs.
-5.47%, from 6.25%. Stochastic rows moved by the same amounts.)
-
-**Open decisions:** the quality target (filtered pixels no worse than exact) is still missed by
-1 to 4.6 points. With shading, self-shadowing, and material ruled out as the main causes, what
-remains is geometric: coverage bias is unchanged (+0.5 to +2.3 points at 4 px), since a filtered
-hit fills its whole (clipped) node box, and a pixel that should mix sky or background with a
-partly covered node shows the node's surface alone. Grass level and street views at full scale
-are the worst ratios (2.2x), where filtered pixels are mostly silhouette pixels.
-
-**Done (October 20, 2026): occupied boxes against silhouette dilation.** Every LOD record now
-carries its node's occupied box, the bounding box of the node's voxels in sixteenths of its edge
-rounded outward (exact for nodes up to 16 voxels on a side, four-voxel steps at 64), and a filtered
-hit fills that box instead of the whole node: the ray hits where it enters the occupied box
-clipped to the root's bounds, and passes through when it misses it. The record's layout changed
-(still 16 bytes): word 0 holds the X and Y coverage, word 1 Z coverage and the material, word 2 the
-normal, and word 3 the box (4 bits per bound, 24 bits) and the solid volume fraction as unorm8
-(the spec's f16 volume is unused at runtime). Axis coverage is now relative to the occupied box's
-faces, not the node's, so the opacity proxy is the chance of a hit given that the ray enters the
-box (a deviation from the spec's node-relative coverage; node-relative coverage is the box value
-times the box face's share, `lod_node_coverage`, which filtered-hit shading weights with). CPU:
-`LodSummary::occupied` and `filtered_box`, `entry_face_box` (non-integer corners),
-`tree64::trace_filtered`; GPU: `lod_filtered_box` and `lod_node_coverage` in `lib/lod.wesl`,
-`footprint_box` in `tree64.wesl` (a `footprint_lod`-only twin, so the exact kernels still never
-bind the LOD records), and the filtered shadow ray in `direct_lighting.wesl` leaves the occupied
-box. No GPU layout struct changed and `.vanta` files hold canonical modules, so `BAKER_VERSION`
-stays.
-
-Measured both rules one at a time with `gpu_footprint_lod_quality`. The box with node-relative
-coverage alone cut coverage bias by 60 to 70% (street at 640x360 and 4 px: +1.65 to +0.66 pt;
-grove: +2.25 to +0.78) and the filtered pixels' error by 1.3 points; box-relative coverage then
-traded some bias back (it lets sparse but box-filling nodes stop rays) for lower per-pixel color
-and coverage error everywhere. Kept: box-relative coverage. With it, filtered pixels in the
-overview are now closer to the reference than the exact ray at every cone at half scale (4 px:
-6.30% vs. 6.78%), and the whole overview frame beats the exact frame per pixel at 2 and 4 px
-(4.50% and 4.53% vs. 4.87%).
-
-Measured (RTX 3080, deterministic thresholds; `color error / 3x3 error / coverage bias`, then the
-filtered pixels' error vs. the exact frame's on the same pixels; before is the previous step's,
-whose 3x3 error was not recorded):
-
-| View, grid, cone | Before | After | Filtered px before | Filtered px after |
-| --- | --- | --- | --- | --- |
-| street, 640x360, 4 px | 4.97% / - / +1.65 | 4.22% / 2.28% / +1.09 | 7.49% vs. 4.40% | 5.83% vs. 4.52% |
-| street, 1280x720, 4 px | 2.71% / - / +0.69 | 2.51% / 1.39% / +0.45 | 8.43% vs. 3.85% | 6.48% vs. 4.05% |
-| grass level, 640x360, 4 px | 2.91% / - / +1.11 | 2.48% / 1.55% / +0.71 | 7.08% vs. 3.68% | 5.35% vs. 3.77% |
-| overview, 640x360, 2 px | 5.38% / - / +0.57 | 4.50% / 2.17% / +0.55 | 7.64% vs. 6.78% | 6.18% vs. 6.82% |
-| overview, 640x360, 4 px | 5.70% / - / +0.88 | 4.53% / 2.48% / +0.83 | 7.87% vs. 6.73% | 6.30% vs. 6.78% |
-| overview, 1280x720, 4 px | 5.27% / - / +0.57 | 4.11% / 2.26% / +0.55 | 7.87% vs. 5.24% | 5.97% vs. 5.27% |
-| grove, 640x360, 4 px | 4.96% / - / +2.25 | 3.89% / 2.25% / +1.26 | 7.09% vs. 4.11% | 5.48% vs. 4.17% |
-| grove, 1280x720, 4 px | 2.48% / - / +0.61 | 2.22% / 1.19% / +0.32 | 5.72% vs. 3.02% | 4.38% vs. 3.08% |
-
-(The intermediate rule, the box with node-relative coverage, gave street 640x360 4 px 4.42% /
-2.38% / +0.66 and overview 5.45% / 2.50% / +0.26. Stochastic thresholds now move results by at
-most 0.1 to 0.2 points, since box-relative opacities sit near 0 or 1. The exact frames are
-unchanged: street 3.70% / 1.61%, grass level 2.13% / 1.12%, overview 4.87% / 1.69%, grove 3.08% /
-1.33% at 640x360.)
-
-Cost (`gpu_primary_visibility_cost --release`, two runs, hardware broad phase / software BVH4, 4 px
-cone vs. exact at 640x360): street -26 to -39% / -30 to -34%, overview -14 to -22% / -16 to
--25%, grass level -5 to -10% / -7 to -14%, grove -5 to +1% / -18 to -28% (hardware was -18%
-before: rays that miss a small occupied box keep traversing). At 1280x720 the run-to-run noise on
-the hardware path (the one-pixel cone, which filters nothing, read +6 to +16%) hides any change.
-`just shader-stats`: production kernels unchanged (`primary_visibility` 128 software, 80 ray
-query); footprint LOD forms 128 / 96; `filtered_rays` 80 to 72, `filtered_scene_rays` with ray
-queries 80 to 96.
-
-Tests: `filtered_hits_fill_only_the_occupied_box` (tree64 unit: a lone voxel's summary stands
-exactly where the voxel does), `lod_summaries_describe_their_subtree` and
-`lod_normals_see_neighbor_bricks` check the box, `summaries_round_trip` the packing (exact
-sixteenths survive, others round outward), the sparse-summary test uses two opposite-corner voxels
-so the box spans the brick, and `footprint_filtering_reports_aligned_occupied_regions` recomputes
-each filtered hit's box from the module's voxels (4,000 rays now, since tight boxes are hit less).
-`gpu_footprint_filtering_matches_cpu` and `gpu_filtered_scene_traversal_matches_cpu` match the CPU
-in every variant with zero disagreements (module filtered hits per cone 0, 7,755, 11,798, 9,242).
-`just test`, `just clippy` (and `-D warnings` over all targets), and `just test-gpu` pass. BRP
-(release, render scale 0.5, `footprint_lod` on at `footprint_scale = 4`): the meadow, grove,
-rotors, and rocks render without errors and look close to the exact frame.
-
-**Open decisions:** the target (filtered pixels no worse than exact) is now met in the overview
-but still missed by 1.3 to 2.4 points in street, grass level, and grove views, and the filtered
-frames' 3x3 error stays 0.2 to 0.8 points above the exact frames': the remaining positive
-coverage bias (+0.3 to +1.3 points at 4 px) is low-frequency. An opaque box still covers its
-whole projection; partial transmission (blending a hit of opacity `a` with what lies behind) is
-the next lever. `footprint_lod` stays off by default; the threshold rule stays deterministic.
-
-**Next steps, one per session:**
-
-1. Partial transmission for filtered hits, measured with `gpu_footprint_lod_quality` (coverage
-   bias, 3x3 error, filtered pixels' error) and `gpu_primary_visibility_cost`: e.g. continue the
-   primary ray past a filtered hit of opacity `a < 1` once and blend the two surfaces' shading by
-   `a` in direct lighting (needs a second visibility record), or stochastic thresholds with an
-   averaging resolve. Keep `footprint_lod` off unless the target is met in every view.
-2. Bake SGGX-style directional summaries next to the axis-coverage proxy from the same voxels
-   and run the same comparison (spec's "Additional Phase 2 test"): angular opacity, silhouettes,
-   LOD bytes, and frame time; keep the axis proxy if it meets the quality target.
-3. Then the next Phase 2 roadmap items: anti-aliasing (the exact one-ray frame is 2 to 5% from the
-   supersampled reference, so `gpu_footprint_lod_quality` doubles as its yardstick), atmosphere,
-   and sky-light occlusion.
+1. **SGGX-style directional summaries** (the spec's "Additional Phase 2 test"): bake them next to
+   the axis-coverage proxy from the same voxels and compare angular opacity, foliage silhouettes,
+   shadows, LOD bytes, and frame time with `gpu_footprint_lod_quality` and
+   `gpu_primary_visibility_cost`; keep the axis proxy if it meets the quality target. Partial
+   transmission for filtered hits can be tried as an option of the same comparison; otherwise it
+   stays deferred.
+2. **Anti-aliasing:** the exact one-ray frame is 2 to 5% from the supersampled reference, so
+   `gpu_footprint_lod_quality` doubles as its yardstick.
+3. **Atmosphere.** Today the sky is a horizon/zenith gradient with `pow()` sun and moon lobes
+   (`lib/view.wesl` `sky_color`, colors hand-tuned in `render/environment.rs`), fog is a flat mix,
+   and night is nearly black (a weak moon, `NIGHT_AMBIENT`, no exposure control). Each step is
+   verified with BRP screenshots at noon, sunset, twilight, and midnight:
+   1. Physically based sky scattering: Rayleigh, Mie, and ozone with Hillaire-style transmittance
+      and sky-view LUTs, so sunrise, sunset, and twilight colors and the zenith and horizon follow
+      from the sun instead of hand-tuned values.
+   2. The sun through the atmosphere: a disk with limb darkening and a Mie halo replacing the
+      `pow()` spot, surface sun light colored by the transmittance so lighting matches the sky,
+      and aerial perspective replacing the flat fog mix.
+   3. Night and exposure: stars and a moon that actually lights the scene, and exposure (a
+      time-of-day curve as the first slice, then auto exposure / eye adaptation) so night is
+      darker than day but readable, which sky-light occlusion's dark caves will also need.
+4. **Sky-light occlusion:** an occlusion term for sky light (caves are as bright as the open
+   meadow).
+5. **Phase 2 showcase and gate checks:** the dense jungle-to-crystal-cavern scene against the
+   spec's target (1440p / 60 FPS within 4 GB of VRAM on the RTX 3080, the M1 Pro as lower tier):
+   slow pans, close approaches, overlapping leaves, thin crystal facets, memory occupancy, and
+   comparison with supersampled images.
 
 ## What comes next
 
 Performance is the open problem for Phase 2: the showcase traces in about 110 ms at 1280x720 on
 an M1 Pro (software broad phase) and 4.4 ms on an RTX 3080 (hardware broad phase), and grass and
 foliage take about 170 DDA steps per pixel, which no broad phase removes. The levers are the
-spec's: footprint LOD (summaries are baked but unused) and SGGX directional summaries, then
-temporal filtering, which can now build on reconstructed motion. Register pressure (128 per thread
-on NVIDIA for the software path, 80 with ray queries) is worth watching with `just shader-stats`
-as traversal grows.
+spec's: footprint LOD (built, opt-in) and SGGX directional summaries, then temporal filtering,
+which can build on reconstructed motion. Register pressure (128 per thread on NVIDIA for the
+software path, 80 with ray queries) is worth watching with `just shader-stats` as traversal grows.
 
 The roadmap, in the spec's order:
 
-- Phase 2: footprint LOD filtering, foliage filtering candidates, anti-aliasing, atmosphere, and
-  an occlusion term for sky light (caves are as bright as the open meadow). The reference GPU is
+- Phase 2: footprint LOD filtering (done, opt-in), foliage filtering candidates (SGGX),
+  anti-aliasing, a physically based atmosphere (scattering LUTs, sun disk, aerial perspective,
+  night sky and moonlight, exposure), and an occlusion term for sky light. The reference GPU is
   the RTX 3080 (Vulkan, hardware broad phase), with the M1 Pro (Metal, software broad phase) as
   the lower tier.
 - Phase 3: wind-driven deformation (Tier 2), tighter motion envelopes, thousands of articulated
