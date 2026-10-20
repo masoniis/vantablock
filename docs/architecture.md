@@ -35,7 +35,8 @@ server: SceneLayout (assets/server/scenes/*.ron) -> replicated WorldObject + Obj
         WorldClock (FixedUpdate) -> ClockSync messages
 
 client: GpuGeometryLibrary (bake every module as a 64-tree and an octree into shared arenas,
-                            pack their pages into storage slabs sized to the device)
+                            pack their pages into storage slabs sized to the device, and
+                            upload the LOD summary records as one binding)
         every frame: objects + clock -> PoseDriver -> SceneSnapshot (frames, instances, BVHs) -> GpuSceneData
                      (+ one box per pose frame where the hardware broad phase applies)
         render: SceneTlas (ray query adapters) -> PrimaryVisibility (compute) -> DirectLighting
@@ -69,7 +70,7 @@ client: GpuGeometryLibrary (bake every module as a 64-tree and an octree into sh
 | Optional hardware broad phase (Vulkan TLAS)     | `ray_query` in `lib/scene.wesl`, `frame_boxes`, `gpu::broad_phase`       |
 | Register, spill, and occupancy profiling        | `crates/game/client/tests/shader_statistics.rs` (`just shader-stats`)    |
 | 16-byte LOD payload                             | `voxel::lod`                                                             |
-| Footprint LOD filtering (CPU reference only)    | `voxel::lod::FootprintFilter`, `tree64::trace_filtered`                  |
+| Footprint LOD filtering (no pass uses it yet)   | `tree64::trace_filtered`, the `footprint_lod` WESL feature               |
 | Exact integer terminal-cell identity            | `VoxelHit::cell`, the visibility buffer's cell target                    |
 | Visibility buffer (`R32G32Uint` + `R32Float`)   | `client::render::gpu::view`, `primary_visibility.wesl`                   |
 | `.vanta` files                                  | `voxel::format`                                                          |
@@ -90,7 +91,9 @@ client: GpuGeometryLibrary (bake every module as a 64-tree and an octree into sh
 - **GPU** shaders (every variant) are validated with naga and run on the real adapter against the
   CPU reference (`crates/game/client/tests/gpu_conformance.rs`, `just test-gpu`): masks
   bit-for-bit; both hierarchies by the reference rules on the single-page, multi-page, and
-  four-slab paths; the stackless experiment bit-identical to the stack; whole-scene traversal on
+  four-slab paths; the stackless experiment bit-identical to the stack; 64-tree footprint LOD
+  filtering on the real assets taking the CPU reference's exact path (hit, level, material, and
+  step count) in both residency layouts; whole-scene traversal on
   the real assets for every organization, hierarchy, and a library split over several slabs; the
   hardware broad phase where the adapter has ray queries; and motion reconstruction across a pose
   change. `WGPU_BACKEND` and `WGPU_ADAPTER_NAME` pick the adapter.

@@ -5,7 +5,9 @@
 import super::super::lib::mask::{prefix_count, child_word_offset};
 import super::super::lib::ray::sanitize_direction;
 import super::super::lib::dda::{VoxelRoot, VoxelHit};
-import super::super::lib::tree64::trace_tree64;
+import super::super::lib::tree64::{trace_tree64, trace_tree64_filtered};
+import super::super::lib::lod::{FootprintFilter, lod_material};
+import super::super::lib::geometry::{lod_record_load, voxel_material};
 import super::super::lib::octree::trace_octree;
 import super::super::lib::scene::{trace_scene, previous_world_position};
 
@@ -43,6 +45,27 @@ struct RootParams {
 @group(2) @binding(3) var<storage, read_write> ray_results: array<RayResult>;
 @group(2) @binding(4) var<uniform> root_params: RootParams;
 @group(2) @binding(5) var<storage, read_write> motion_results: array<vec4<f32>>;
+
+// `voxel::lod::FootprintFilter`, padded for the uniform.
+struct FilterParams {
+    radius: f32,
+    spread: f32,
+    threshold: f32,
+    pad: u32,
+};
+
+struct FilteredRayResult {
+    hit: u32,
+    t: f32,
+    cell: u32,
+    lod: u32,
+    material: u32,
+    steps: u32,
+    pad: vec2<u32>,
+};
+
+@group(2) @binding(6) var<uniform> filter_params: FilterParams;
+@group(2) @binding(7) var<storage, read_write> filtered_results: array<FilteredRayResult>;
 
 @compute @workgroup_size(64, 1, 1)
 fn masks(@builtin(global_invocation_id) id: vec3<u32>) {
@@ -109,4 +132,36 @@ fn scene_motion(@builtin(global_invocation_id) id: vec3<u32>) {
     }
     let p = c.origin + c.dir * hit.t;
     motion_results[id.x] = vec4<f32>(previous_world_position(hit.frame, p), 1.0);
+}
+
+// 64-tree queries with footprint LOD filtering, reporting what `tree64::trace_filtered` does: the
+// level, the material (the voxel's, or the LOD summary's), and the DDA steps.
+@ if(footprint_lod)
+@compute @workgroup_size(64, 1, 1)
+fn filtered_rays(@builtin(global_invocation_id) id: vec3<u32>) {
+    if id.x >= arrayLength(&ray_cases) {
+        return;
+    }
+    let c = ray_cases[id.x];
+    var root: VoxelRoot;
+    root.node = root_params.node;
+    root.levels = root_params.levels;
+    root.page_base = root_params.page_base;
+    root.single_page = (root_params.flags & 1u) != 0u;
+    let cone = FootprintFilter(filter_params.radius, filter_params.spread, filter_params.threshold);
+    let hit = trace_tree64_filtered(root, c.origin, sanitize_direction(c.dir), c.t_min, c.t_max, cone);
+    var result: FilteredRayResult;
+    result.hit = select(0u, 1u, hit.hit);
+    result.steps = hit.steps;
+    if hit.hit {
+        result.t = hit.t;
+        result.cell = hit.cell.x | (hit.cell.y << 10u) | (hit.cell.z << 20u);
+        result.lod = hit.lod;
+        if hit.lod == 0u {
+            result.material = voxel_material(hit.attribute_handle);
+        } else {
+            result.material = lod_material(lod_record_load(hit.attribute_handle));
+        }
+    }
+    filtered_results[id.x] = result;
 }

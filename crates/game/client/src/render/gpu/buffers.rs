@@ -56,6 +56,7 @@ pub fn geometry_layout() -> BindGroupLayoutDescriptor {
                 storage_buffer_read_only_sized(false, None), // attribute slab 1
                 storage_buffer_read_only_sized(false, None), // attribute slab 2
                 storage_buffer_read_only_sized(false, None), // attribute slab 3
+                storage_buffer_read_only_sized(false, None), // LOD summary records
             ),
         ),
     )
@@ -328,7 +329,7 @@ fn create_geometry_bind_group(
     library: Option<&GpuGeometryLibrary>,
 ) -> BindGroup {
     let empty_bvh = [Bvh4Node::default()];
-    let (topology, attributes, materials, bvh, meta) = match library {
+    let (topology, attributes, materials, bvh, meta, lod) = match library {
         Some(l) => (
             slab_buffers(device, "voxel_topology", &l.topology),
             slab_buffers(device, "voxel_attributes", &l.attributes),
@@ -343,6 +344,7 @@ fn create_geometry_bind_group(
                 },
             ),
             GpuGeometryMeta::new(&l.topology_page_entries, &l.attribute_page_entries),
+            storage_init(device, "voxel_lod_records", &l.lod),
         ),
         None => (
             slab_buffers(device, "voxel_topology", &[]),
@@ -350,6 +352,7 @@ fn create_geometry_bind_group(
             storage_init::<[f32; 4]>(device, "voxel_materials", &[]),
             storage_init(device, "voxel_template_bvh", &empty_bvh),
             GpuGeometryMeta::new(&[], &[]),
+            storage_init::<[u32; 4]>(device, "voxel_lod_records", &[]),
         ),
     };
     let meta = device.create_buffer_with_data(&BufferInitDescriptor {
@@ -372,6 +375,7 @@ fn create_geometry_bind_group(
             attributes[1].as_entire_binding(),
             attributes[2].as_entire_binding(),
             attributes[3].as_entire_binding(),
+            lod.as_entire_binding(),
         )),
     )
 }

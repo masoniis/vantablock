@@ -11,7 +11,8 @@
 //! never disagree about which cells the ray passes through (see [`super`]). The traversal mirrors
 //! `assets/client/shader/voxel/lib/tree64.wesl` line for line; keep them in sync.
 //!
-//! [`trace_filtered`] adds footprint LOD filtering to the same loop. It has no shader mirror yet.
+//! [`trace_filtered`] adds footprint LOD filtering to the same loop, mirrored by
+//! `trace_tree64_filtered` in the shader's `footprint_lod` variant.
 
 use super::{
     ATTRIBUTE_MATERIAL_MASK, BakeStats, MAX_TRAVERSAL_STEPS, PageSpan, VoxelHit, entry_cell,

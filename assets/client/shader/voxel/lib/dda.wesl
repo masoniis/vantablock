@@ -25,9 +25,12 @@ struct VoxelHit {
     // index within the hit voxel's aligned 4x4x4 block
     terminal_index: u32,
     face: u32,
-    // logical handle of the hit voxel's attribute word
+    // logical handle of the hit voxel's attribute word, or for a filtered hit (lod > 0) the index
+    // of the LOD record that stood in for the node
     attribute_handle: u32,
     steps: u32,
+    // 0 for an exact voxel, otherwise the level of the filtered node (its cell is 4^lod voxels)
+    lod: u32,
 };
 
 // Resolves a topology handle. Roots whose whole tree lives in one page resolve their page once at

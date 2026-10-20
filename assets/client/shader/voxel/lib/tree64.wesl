@@ -1,9 +1,10 @@
-// The 64-tree hierarchical DDA. Mirrors `trace` in crates/engine/voxel/src/hierarchy/tree64.rs line for
-// line, following the shared rules in dda.wesl: entry cells come from plane distances (never from
-// flooring a reconstructed position), boundary distances are recomputed from integer cells, and
-// ties pick the lowest axis.
+// The 64-tree hierarchical DDA. Mirrors `trace` and `trace_filtered` in
+// crates/engine/voxel/src/hierarchy/tree64.rs line for line, following the shared rules in
+// dda.wesl: entry cells come from plane distances (never from flooring a reconstructed position),
+// boundary distances are recomputed from integer cells, and ties pick the lowest axis.
 
-import super::geometry::topology_load;
+import super::geometry::{topology_load, lod_record_load};
+import super::lod::{FootprintFilter, LOD_INDEX_MASK, LOD_MISSING, exact_footprint, footprint_covers, lod_opacity};
 import super::mask::{prefix_count, child_word_offset, mask_bit};
 import super::ray::slab;
 import super::dda::{VoxelRoot, VoxelHit, MAX_TRAVERSAL_STEPS, node_address, next_boundary, nearest_axis, entry_face};
@@ -71,18 +72,55 @@ fn parent_node(stack: ptr<function, ParentStack>, root: VoxelRoot, path: u32, de
     return node;
 }
 
+// What to do with an occupied child about to be descended into.
+const FOOTPRINT_DESCEND: u32 = 0u;
+// Resolve it from its LOD summary: the ray hits the node's box.
+const FOOTPRINT_OPAQUE: u32 = 1u;
+// Resolve it from its LOD summary: the ray passes through.
+const FOOTPRINT_CLEAR: u32 = 2u;
+
+// The footprint decision for the occupied child whose header is at `address`, with cells `size`
+// voxels on a side, entered at `t`: `(decision, LOD record index)`. Without the `footprint_lod`
+// feature traversal always descends, so the filter costs the exact kernels nothing.
+@ if(footprint_lod)
+fn footprint_decision(cone: FootprintFilter, address: u32, size: i32, t: f32, d: vec3<f32>, voxels_per_unit: f32) -> vec2<u32> {
+    if !footprint_covers(cone, f32(size), t, voxels_per_unit) {
+        return vec2<u32>(FOOTPRINT_DESCEND, 0u);
+    }
+    let index = topology_load(address + 3u) & LOD_INDEX_MASK;
+    if index == LOD_MISSING {
+        return vec2<u32>(FOOTPRINT_DESCEND, 0u);
+    }
+    let opaque = cone.threshold < lod_opacity(lod_record_load(index), d);
+    return vec2<u32>(select(FOOTPRINT_CLEAR, FOOTPRINT_OPAQUE, opaque), index);
+}
+
+@ if(!footprint_lod)
+fn footprint_decision(cone: FootprintFilter, address: u32, size: i32, t: f32, d: vec3<f32>, voxels_per_unit: f32) -> vec2<u32> {
+    return vec2<u32>(FOOTPRINT_DESCEND, 0u);
+}
+
 // Traces a ray in module voxel space. `d` must already be sanitized.
+fn trace_tree64(root: VoxelRoot, o: vec3<f32>, d: vec3<f32>, t_min: f32, t_max: f32) -> VoxelHit {
+    return trace_tree64_filtered(root, o, d, t_min, t_max, exact_footprint());
+}
+
+// `trace_tree64` with footprint LOD filtering (`footprint_lod` builds only; elsewhere it is
+// exact): an occupied node whose cell fits inside the `cone`'s footprint is resolved from its LOD
+// summary instead of being descended. A filtered hit reports the node's aligned corner as `cell`,
+// its level as `lod`, and its LOD record index as `attribute_handle`.
 //
 // The current level lives in registers. The cell taken at every level is packed six bits per
 // level into `path`, a parent's header comes back from `parent_node`, and its origin and boundary
 // distances are recomputed on pop with the same formulas that produced them, so the results are
 // bit-identical to keeping them.
-fn trace_tree64(root: VoxelRoot, o: vec3<f32>, d: vec3<f32>, t_min: f32, t_max: f32) -> VoxelHit {
+fn trace_tree64_filtered(root: VoxelRoot, o: vec3<f32>, d: vec3<f32>, t_min: f32, t_max: f32, cone: FootprintFilter) -> VoxelHit {
     var result: VoxelHit;
     result.hit = false;
     result.steps = 0u;
 
     let inv = 1.0 / d;
+    let voxels_per_unit = length(d);
     let extent = i32(1u << (2u * root.levels));
     let root_t = slab(vec3<f32>(0.0), vec3<f32>(f32(extent)), o, inv);
     let t_start = max(root_t.x, t_min);
@@ -156,16 +194,31 @@ fn trace_tree64(root: VoxelRoot, o: vec3<f32>, d: vec3<f32>, t_min: f32, t_max: 
                 }
             } else {
                 let address = node_address(root, child_ref + child_word_offset(mask, k));
-                push_parent(&parents, depth, mask, child_ref);
-                path = (path & ~(63u << (6u * depth))) | (k << (6u * depth));
-                depth += 1u;
-                size /= 4;
-                origin = lo;
-                mask = vec2<u32>(topology_load(address), topology_load(address + 1u));
-                child_ref = topology_load(address + 2u);
-                cell = entry_cell(origin, size, o, inv, step, max(tt.x, t_start));
-                t_next = next_boundary(origin, cell, size, far, o, inv);
-                continue;
+                let footprint = footprint_decision(cone, address, size, max(tt.x, t_start), d, voxels_per_unit);
+                if footprint.x == FOOTPRINT_DESCEND {
+                    push_parent(&parents, depth, mask, child_ref);
+                    path = (path & ~(63u << (6u * depth))) | (k << (6u * depth));
+                    depth += 1u;
+                    size /= 4;
+                    origin = lo;
+                    mask = vec2<u32>(topology_load(address), topology_load(address + 1u));
+                    child_ref = topology_load(address + 2u);
+                    cell = entry_cell(origin, size, o, inv, step, max(tt.x, t_start));
+                    t_next = next_boundary(origin, cell, size, far, o, inv);
+                    continue;
+                }
+                // the summary stands in for the whole subtree: hit it or pass through it
+                if footprint.x == FOOTPRINT_OPAQUE && tt.x <= tt.y && tt.y >= t_start && tt.x <= t_end {
+                    result.hit = true;
+                    result.t = max(tt.x, t_start);
+                    result.cell = vec3<u32>(lo);
+                    result.terminal_index = k;
+                    result.face = entry_face(lo, size, o, inv, step, tt.x, t_start);
+                    result.attribute_handle = footprint.y;
+                    result.steps = steps;
+                    result.lod = last_level - depth;
+                    return result;
+                }
             }
         }
 

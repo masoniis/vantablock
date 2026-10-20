@@ -20,6 +20,9 @@ import super::types::{Bvh4Node, GeometryMeta};
 @group(0) @binding(8) var<storage, read> attributes_1: array<u32>;
 @group(0) @binding(9) var<storage, read> attributes_2: array<u32>;
 @group(0) @binding(10) var<storage, read> attributes_3: array<u32>;
+// packed LOD summaries (lod.wesl), indexed by a node header's lod_meta; deduplicated and small
+// next to topology, so they live in one binding whatever the residency layout
+@group(0) @binding(11) var<storage, read> lod_records: array<vec4<u32>>;
 
 const WORD_OFFSET_MASK: u32 = 0xFFFFFFu;
 const SLAB_SHIFT: u32 = 30u;
@@ -87,4 +90,8 @@ fn attribute_load(address: u32) -> u32 {
 
 fn voxel_material(attribute_handle: u32) -> u32 {
     return attribute_load(attribute_address(attribute_handle)) & 0xFFFFu;
+}
+
+fn lod_record_load(index: u32) -> vec4<u32> {
+    return lod_records[index];
 }

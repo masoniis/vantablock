@@ -66,7 +66,8 @@ pub struct GpuGeometryLibrary {
     /// The slab address of each logical page's first word.
     pub topology_page_entries: Vec<u32>,
     pub attribute_page_entries: Vec<u32>,
-    /// Packed LOD summaries, indexed by a node's `lod_meta`. Not uploaded yet.
+    /// Packed LOD summaries, indexed by a node's `lod_meta`, uploaded as one binding (only the
+    /// `footprint_lod` shader variants read them).
     pub lod: Vec<[u32; 4]>,
     pub materials: Vec<[f32; 4]>,
     pub template_bvh: Vec<Bvh4Node>,
@@ -162,6 +163,13 @@ impl GpuGeometryLibrary {
         stats.shared_blocks =
             arenas.topology.stats().dedup_hits + arenas.attributes.stats().dedup_hits;
         stats.lod_records = arenas.lod.records().len();
+        let lod_bytes = arenas.lod.records().len() as u64 * 16;
+        if lod_bytes > limits.max_storage_buffer_binding_size {
+            return Err(format!(
+                "{lod_bytes} bytes of LOD records exceed one storage binding ({} bytes)",
+                limits.max_storage_buffer_binding_size
+            ));
+        }
         stats.bake_millis = start.elapsed().as_secs_f32() * 1000.0;
 
         Ok(Self {

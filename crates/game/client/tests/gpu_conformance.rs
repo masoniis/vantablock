@@ -7,6 +7,8 @@
 //!   boundary torture rays, for both the single-page fast path and the multi-page page-table path.
 //! - Whole-scene GPU traversal must find the CPU's nearest hits for every scene organization and
 //!   hierarchy.
+//! - The 64-tree traversal with footprint LOD filtering must take exactly the CPU reference's path
+//!   on the real assets, in both residency layouts.
 //!
 //! GPU checks skip (and say so) when no adapter is available, e.g. on headless CI runners.
 
@@ -36,6 +38,9 @@ const CONFORMANCE_STACKLESS: &str = include_wesl!("voxel_conformance_stackless")
 const PRIMARY_VISIBILITY_RAY_QUERY: &str = include_wesl!("primary_visibility_ray_query");
 const DIRECT_LIGHTING_RAY_QUERY: &str = include_wesl!("direct_lighting_ray_query");
 const CONFORMANCE_RAY_QUERY: &str = include_wesl!("voxel_conformance_ray_query");
+const CONFORMANCE_FOOTPRINT_LOD: &str = include_wesl!("voxel_conformance_footprint_lod");
+const CONFORMANCE_FOOTPRINT_LOD_MULTI_SLAB: &str =
+    include_wesl!("voxel_conformance_footprint_lod_multi_slab");
 
 /// How long any one submission may take before the test fails instead of waiting forever. wgpu's
 /// Metal backend only stops waiting once a command buffer completes, so a faulted one would
@@ -62,13 +67,21 @@ fn shaders_validate() {
         ("primary_visibility_ray_query", PRIMARY_VISIBILITY_RAY_QUERY),
         ("direct_lighting_ray_query", DIRECT_LIGHTING_RAY_QUERY),
         ("voxel_conformance_ray_query", CONFORMANCE_RAY_QUERY),
+        ("voxel_conformance_footprint_lod", CONFORMANCE_FOOTPRINT_LOD),
+        (
+            "voxel_conformance_footprint_lod_multi_slab",
+            CONFORMANCE_FOOTPRINT_LOD_MULTI_SLAB,
+        ),
     ] {
         let module = naga::front::wgsl::parse_str(source)
             .unwrap_or_else(|e| panic!("{name} failed to parse:\n{}", e.emit_to_string(source)));
         naga::valid::Validator::new(
             naga::valid::ValidationFlags::all(),
-            // the hardware broad phase variants need ray queries; the rest use none of this
-            naga::valid::Capabilities::default() | naga::valid::Capabilities::RAY_QUERY,
+            // the hardware broad phase variants need ray queries, and LOD summaries unpack f16
+            // pairs into f32 (`unpack2x16float`, which every native backend has)
+            naga::valid::Capabilities::default()
+                | naga::valid::Capabilities::RAY_QUERY
+                | naga::valid::Capabilities::SHADER_FLOAT16_IN_FLOAT32,
         )
         .validate(&module)
         .unwrap_or_else(|e| panic!("{name} failed validation:\n{}", e.emit_to_string(source)));
@@ -90,6 +103,10 @@ enum Variant {
     Stackless,
     /// The hardware scene broad phase: ray queries over flattened pose groups (single slab).
     RayQuery,
+    /// 64-tree footprint LOD filtering (single slab).
+    FootprintLod,
+    /// 64-tree footprint LOD filtering for geometry spread over several slabs.
+    FootprintLodMultiSlab,
 }
 
 impl Variant {
@@ -107,7 +124,7 @@ struct Gpu {
     device: wgpu::Device,
     queue: wgpu::Queue,
     /// Conformance kernels, indexed by [`Variant`]; `None` where the device can't run them.
-    modules: [Option<wgpu::ShaderModule>; 4],
+    modules: [Option<wgpu::ShaderModule>; 6],
     /// Whether the device has hardware ray queries (and so a [`Variant::RayQuery`] kernel).
     ray_query: bool,
     /// Whether [`Gpu::gpu_ms`] can time dispatches with timestamp queries.
@@ -175,6 +192,16 @@ fn gpu() -> Option<Gpu> {
             "voxel_conformance_ray_query",
             CONFORMANCE_RAY_QUERY,
             ray_query,
+        ),
+        (
+            "voxel_conformance_footprint_lod",
+            CONFORMANCE_FOOTPRINT_LOD,
+            true,
+        ),
+        (
+            "voxel_conformance_footprint_lod_multi_slab",
+            CONFORMANCE_FOOTPRINT_LOD_MULTI_SLAB,
+            true,
         ),
     ]
     .map(|(label, source, supported)| {
@@ -755,6 +782,277 @@ fn gpu_hierarchy_traversal_matches_reference() {
                 check_gpu_traversal(&gpu, &module, &arenas, &root, &rays, &limits, false);
             }
         }
+    }
+}
+
+// INFO: ---------------------------------
+//         footprint filtering kernel
+// ---------------------------------------
+
+/// `voxel::lod::FootprintFilter`, padded for the uniform.
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+struct FilterParams {
+    radius: f32,
+    spread: f32,
+    threshold: f32,
+    pad: u32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+struct FilteredRayResult {
+    hit: u32,
+    t: f32,
+    cell: u32,
+    lod: u32,
+    material: u32,
+    steps: u32,
+    pad: [u32; 2],
+}
+
+/// Slab bindings of one geometry arena at `bindings` (slab 0 first), repeating slab 0 for unused
+/// slabs; single-slab kernels only read slab 0.
+fn slab_bindings(
+    slabs: &[wgpu::Buffer],
+    bindings: [u32; 4],
+) -> Vec<(u32, wgpu::BindingResource<'_>)> {
+    let used = if slabs.len() > 1 { 4 } else { 1 };
+    bindings[..used]
+        .iter()
+        .enumerate()
+        .map(|(slab, &binding)| {
+            (
+                binding,
+                slabs.get(slab).unwrap_or(&slabs[0]).as_entire_binding(),
+            )
+        })
+        .collect()
+}
+
+/// The WGSL 64-tree traversal with footprint LOD filtering must take the CPU reference's path
+/// exactly (`tree64::trace_filtered`): the same hit or miss, cell, level, material, and DDA step
+/// count, on the real assets, for exact, narrow, and wide cones, in both residency layouts.
+#[test]
+fn gpu_footprint_filtering_matches_cpu() {
+    use client::render::geometry::GpuGeometryLibrary;
+    use voxel::{hierarchy::tree64, lod::FootprintFilter};
+
+    let Some(gpu) = gpu() else { return };
+    let workspace = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+    let library = common::world::assets::load_library(
+        &workspace.join("assets/shared/vanta"),
+        &std::env::temp_dir().join("vanta-conformance-cache"),
+    );
+    let unlimited = ResidencyLimits {
+        max_storage_buffer_binding_size: 1 << 30,
+        max_buffer_size: 1 << 30,
+    };
+    let single = GpuGeometryLibrary::build(&library, &unlimited).unwrap();
+    let page_words = 1 << 16;
+    let slab_bytes = (single.stats.topology_bytes / 2)
+        .max(single.stats.attribute_bytes.div_ceil(4))
+        + page_words as u64 * 4;
+    let limits = ResidencyLimits {
+        max_storage_buffer_binding_size: slab_bytes,
+        max_buffer_size: 1 << 30,
+    };
+    let multi = GpuGeometryLibrary::build_with_page_words(&library, &limits, page_words).unwrap();
+    assert!(
+        multi.topology.len() > 1,
+        "the multi-slab layout should split topology"
+    );
+
+    let filters = [
+        // exact: no cell fits a zero cone
+        FootprintFilter {
+            radius: 0.0,
+            spread: 0.0,
+            threshold: 0.5,
+        },
+        // a pixel-like cone: bricks filter only far away
+        FootprintFilter {
+            radius: 0.25,
+            spread: 0.01,
+            threshold: 0.5,
+        },
+        // wide, with a threshold low enough that sparse foliage stays visible (a radius of exactly
+        // 2 would make a brick exactly fit a unit ray at t = 0, a tie `length` can round either way)
+        FootprintFilter {
+            radius: 2.1,
+            spread: 0.05,
+            threshold: 0.1,
+        },
+        // a mid-range, stochastic-style threshold
+        FootprintFilter {
+            radius: 1.0,
+            spread: 0.02,
+            threshold: 0.37,
+        },
+    ];
+
+    for geometry in [single, multi] {
+        let variant = if geometry.multi_slab() {
+            Variant::FootprintLodMultiSlab
+        } else {
+            Variant::FootprintLod
+        };
+        let topology: Vec<wgpu::Buffer> =
+            geometry.topology.iter().map(|s| gpu.storage(s)).collect();
+        let attributes: Vec<wgpu::Buffer> =
+            geometry.attributes.iter().map(|s| gpu.storage(s)).collect();
+        let lod = gpu.storage(&geometry.lod);
+        let meta = gpu.uniform(&GpuGeometryMeta::new(
+            &geometry.topology_page_entries,
+            &geometry.attribute_page_entries,
+        ));
+
+        let mut rng = Rng(23);
+        let mut rays = 0;
+        let mut filtered = [0usize; 4];
+        let mut failures = Vec::new();
+        for (asset, asset_geometry) in library.assets().iter().zip(&geometry.assets) {
+            for module in 0..asset.assembly.modules.len() {
+                let root = asset_geometry.root(module as u16, HierarchyKind::Tree64);
+                let VoxelRoot::Tree64(tree) = root else {
+                    unreachable!("the 64-tree slot holds a 64-tree root")
+                };
+                if tree.bounds.is_empty() {
+                    continue;
+                }
+                let extent = tree.extent() as f32;
+                let module_rays: Vec<Ray> = (0..1024)
+                    .map(|_| {
+                        let target = tree.bounds.min
+                            + (tree.bounds.max - tree.bounds.min)
+                                * Vec3::new(
+                                    rng.range(0.0, 1.0),
+                                    rng.range(0.0, 1.0),
+                                    rng.range(0.0, 1.0),
+                                );
+                        let dir = match rng.below(3) {
+                            0 => [
+                                Vec3::X,
+                                Vec3::NEG_X,
+                                Vec3::Y,
+                                Vec3::NEG_Y,
+                                Vec3::Z,
+                                Vec3::NEG_Z,
+                            ][rng.below(6) as usize],
+                            _ => rng.direction(),
+                        };
+                        // pose frames scale directions into module voxels
+                        let scale = [1.0, 0.5, 3.0][rng.below(3) as usize];
+                        Ray::new(target - dir * rng.range(1.0, extent * 4.0), dir * scale)
+                    })
+                    .collect();
+                rays += module_rays.len();
+                let cases: Vec<RayCase> = module_rays
+                    .iter()
+                    .map(|r| RayCase {
+                        origin: r.origin.to_array(),
+                        t_min: 0.0,
+                        dir: r.dir.to_array(),
+                        t_max: f32::MAX,
+                    })
+                    .collect();
+                let ray_buffer = gpu.storage(&cases);
+                let params = gpu.uniform(&RootParams {
+                    node: root.node().raw(),
+                    levels: root.levels() as u32,
+                    page_base: geometry.root_page_base(root),
+                    flags: root_flags(root),
+                });
+
+                for (f, filter) in filters.iter().enumerate() {
+                    let filter_buffer = gpu.uniform(&FilterParams {
+                        radius: filter.radius,
+                        spread: filter.spread,
+                        threshold: filter.threshold,
+                        pad: 0,
+                    });
+                    let output =
+                        gpu.output((cases.len() * std::mem::size_of::<FilteredRayResult>()) as u64);
+                    let mut group0 = slab_bindings(&topology, [0, 5, 6, 7]);
+                    group0.extend(slab_bindings(&attributes, [1, 8, 9, 10]));
+                    group0.push((4, meta.as_entire_binding()));
+                    group0.push((11, lod.as_entire_binding()));
+                    let results: Vec<FilteredRayResult> = gpu.run_variant(
+                        "filtered_rays",
+                        variant,
+                        cases.len() as u32,
+                        &[
+                            (0, group0),
+                            (1, vec![]),
+                            (
+                                2,
+                                vec![
+                                    (2, ray_buffer.as_entire_binding()),
+                                    (4, params.as_entire_binding()),
+                                    (6, filter_buffer.as_entire_binding()),
+                                    (7, output.as_entire_binding()),
+                                ],
+                            ),
+                        ],
+                        &output,
+                    );
+
+                    for (ray, result) in module_rays.iter().zip(&results) {
+                        let (cpu, cpu_steps) =
+                            tree64::trace_filtered(&geometry, tree, ray, 0.0, f32::MAX, filter);
+                        let cpu = cpu.map(|h| {
+                            (
+                                h.cell.x | h.cell.y << 10 | h.cell.z << 20,
+                                h.lod,
+                                h.material as u32,
+                                h.t,
+                            )
+                        });
+                        let gpu_hit = (result.hit != 0).then_some((
+                            result.cell,
+                            result.lod,
+                            result.material,
+                            result.t,
+                        ));
+                        let same = match (cpu, gpu_hit) {
+                            (None, None) => true,
+                            (Some(c), Some(g)) => {
+                                (c.0, c.1, c.2) == (g.0, g.1, g.2)
+                                    && (c.3 - g.3).abs() <= 1e-4 * c.3.abs().max(1.0)
+                            }
+                            _ => false,
+                        };
+                        if !same || cpu_steps != result.steps {
+                            failures.push(format!(
+                                "{} module {module}, filter {f}: CPU {cpu:?} in {cpu_steps} steps, GPU {gpu_hit:?} in {} steps\n  ray {ray:?}",
+                                asset.assembly.name, result.steps
+                            ));
+                        }
+                        if cpu.is_some_and(|c| c.1 > 0) {
+                            filtered[f] += 1;
+                        }
+                    }
+                }
+            }
+        }
+        eprintln!(
+            "  {variant:?}, {} topology / {} attribute slab(s): {rays} rays per filter, filtered hits per filter {filtered:?}, {} mismatches",
+            geometry.topology.len(),
+            geometry.attributes.len(),
+            failures.len()
+        );
+        assert_eq!(filtered[0], 0, "a zero cone must never filter");
+        assert!(
+            filtered[2] > rays / 20,
+            "the wide cone should filter ({} of {rays})",
+            filtered[2]
+        );
+        assert!(
+            failures.is_empty(),
+            "{} filtered traversal mismatches, first:\n{}",
+            failures.len(),
+            failures[0]
+        );
     }
 }
 

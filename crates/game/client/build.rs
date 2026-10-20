@@ -46,6 +46,7 @@ fn main() {
                     ("multi_slab", multi_slab),
                     ("stackless", false),
                     ("ray_query", false),
+                    ("footprint_lod", false),
                 ],
             );
         }
@@ -60,8 +61,24 @@ fn main() {
             ("multi_slab", false),
             ("stackless", true),
             ("ray_query", false),
+            ("footprint_lod", false),
         ],
     );
+
+    // 64-tree footprint LOD filtering, held to the CPU reference (`tree64::trace_filtered`) by the
+    // conformance tests in both residency layouts; no pass uses it yet
+    for (multi_slab, suffix) in [(false, ""), (true, "_multi_slab")] {
+        build(
+            "package::voxel::tests::conformance",
+            &format!("voxel_conformance_footprint_lod{suffix}"),
+            &[
+                ("multi_slab", multi_slab),
+                ("stackless", false),
+                ("ray_query", false),
+                ("footprint_lod", true),
+            ],
+        );
+    }
 
     // the optional hardware scene broad phase (ray queries over flattened pose groups): the
     // renderer's default on capable adapters, held to the same conformance tests and benchmarked
@@ -87,6 +104,7 @@ fn main() {
                 ("multi_slab", false),
                 ("stackless", false),
                 ("ray_query", true),
+                ("footprint_lod", false),
             ],
         );
     }

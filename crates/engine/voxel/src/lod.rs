@@ -12,8 +12,8 @@
 //! Axis coverage is the exact fraction of the node's face covered by its projected geometry
 //! along that axis, computed from full-resolution bitmaps at bake time. Using it as directional
 //! opacity is an approximation (see spec section 3.4); the normal and material are approximations
-//! too. [`crate::hierarchy::tree64::trace_filtered`] reads them through a [`FootprintFilter`]; the
-//! shaders don't yet.
+//! too. [`crate::hierarchy::tree64::trace_filtered`] reads them through a [`FootprintFilter`], as
+//! does its mirror in `assets/client/shader/voxel/lib/lod.wesl` and `tree64.wesl`.
 
 use crate::module::MaterialId;
 use glam::{Vec2, Vec3};
