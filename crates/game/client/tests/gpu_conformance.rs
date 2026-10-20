@@ -44,6 +44,12 @@ const PRIMARY_VISIBILITY_FOOTPRINT_LOD_MULTI_SLAB: &str =
     include_wesl!("primary_visibility_footprint_lod_multi_slab");
 const PRIMARY_VISIBILITY_FOOTPRINT_LOD_RAY_QUERY: &str =
     include_wesl!("primary_visibility_footprint_lod_ray_query");
+const PRIMARY_VISIBILITY_FOOTPRINT_TRANSMISSION: &str =
+    include_wesl!("primary_visibility_footprint_transmission");
+const PRIMARY_VISIBILITY_FOOTPRINT_TRANSMISSION_MULTI_SLAB: &str =
+    include_wesl!("primary_visibility_footprint_transmission_multi_slab");
+const PRIMARY_VISIBILITY_FOOTPRINT_TRANSMISSION_RAY_QUERY: &str =
+    include_wesl!("primary_visibility_footprint_transmission_ray_query");
 const CONFORMANCE_FOOTPRINT_LOD: &str = include_wesl!("voxel_conformance_footprint_lod");
 const CONFORMANCE_FOOTPRINT_LOD_MULTI_SLAB: &str =
     include_wesl!("voxel_conformance_footprint_lod_multi_slab");
@@ -86,6 +92,18 @@ fn shaders_validate() {
         (
             "primary_visibility_footprint_lod_ray_query",
             PRIMARY_VISIBILITY_FOOTPRINT_LOD_RAY_QUERY,
+        ),
+        (
+            "primary_visibility_footprint_transmission",
+            PRIMARY_VISIBILITY_FOOTPRINT_TRANSMISSION,
+        ),
+        (
+            "primary_visibility_footprint_transmission_multi_slab",
+            PRIMARY_VISIBILITY_FOOTPRINT_TRANSMISSION_MULTI_SLAB,
+        ),
+        (
+            "primary_visibility_footprint_transmission_ray_query",
+            PRIMARY_VISIBILITY_FOOTPRINT_TRANSMISSION_RAY_QUERY,
         ),
         ("voxel_conformance_footprint_lod", CONFORMANCE_FOOTPRINT_LOD),
         (
@@ -2379,7 +2397,8 @@ fn gpu_primary_visibility_cost() {
     }
     let (library, geometry, templates) = single_slab_library();
 
-    // `(broad phase, uses the TLAS, exact build, footprint LOD build)` of the production pass
+    // `(broad phase, uses the TLAS, exact build, footprint LOD build, footprint transmission
+    // build)` of the production pass
     let module = |label: &str, source: &str| {
         gpu.device
             .create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -2395,6 +2414,10 @@ fn gpu_primary_visibility_cost() {
             "primary_visibility_footprint_lod",
             PRIMARY_VISIBILITY_FOOTPRINT_LOD,
         ),
+        module(
+            "primary_visibility_footprint_transmission",
+            PRIMARY_VISIBILITY_FOOTPRINT_TRANSMISSION,
+        ),
     )];
     if gpu.ray_query {
         kernels.insert(
@@ -2406,6 +2429,10 @@ fn gpu_primary_visibility_cost() {
                 module(
                     "primary_visibility_footprint_lod_ray_query",
                     PRIMARY_VISIBILITY_FOOTPRINT_LOD_RAY_QUERY,
+                ),
+                module(
+                    "primary_visibility_footprint_transmission_ray_query",
+                    PRIMARY_VISIBILITY_FOOTPRINT_TRANSMISSION_RAY_QUERY,
                 ),
             ),
         );
@@ -2443,19 +2470,23 @@ fn gpu_primary_visibility_cost() {
             let width = (target_width as f32 * render_scale) as u32;
             let height = (target_height as f32 * render_scale) as u32;
             let texture = |format| gpu.texture_2d(width, height, format);
-            let vis = texture(wgpu::TextureFormat::Rg32Uint);
-            let depth = texture(wgpu::TextureFormat::R32Float);
-            let cell = texture(wgpu::TextureFormat::R32Uint);
+            let vis = texture(wgpu::TextureFormat::Rgba32Uint);
+            let depth = texture(wgpu::TextureFormat::Rgba32Float);
+            let cell = texture(wgpu::TextureFormat::Rg32Uint);
             let stats = texture(wgpu::TextureFormat::R32Uint);
             let [vis_view, depth_view, cell_view, stats_view] =
                 [&vis, &depth, &cell, &stats].map(|t| t.create_view(&Default::default()));
 
-            for (kernel_name, hardware, exact, filtered) in &kernels {
-                // `(label, footprint scale)`: `None` is the exact build
-                for (cone, scale) in [
-                    ("exact", None),
-                    ("1 px cone", Some(1.0)),
-                    ("4 px cone", Some(4.0)),
+            for (kernel_name, hardware, exact, filtered, transmitting) in &kernels {
+                // `(label, footprint scale, transmission's opaque cutoff)`: no scale is the exact
+                // build, a cutoff the footprint transmission build
+                for (cone, scale, transmission) in [
+                    ("exact", None, None),
+                    ("1 px cone", Some(1.0), None),
+                    ("2 px cone", Some(2.0), None),
+                    ("2 px cone, transmission", Some(2.0), Some(0.9)),
+                    ("4 px cone", Some(4.0), None),
+                    ("4 px cone, transmission", Some(4.0), Some(0.9)),
                 ] {
                     let clip_from_world = Mat4::perspective_infinite_reverse_rh(
                         60f32.to_radians(),
@@ -2471,6 +2502,7 @@ fn gpu_primary_visibility_cost() {
                         target_to_grid: render_scale,
                         footprint_threshold: 0.5,
                         footprint_scale: scale.unwrap_or(1.0),
+                        transmission_opaque: transmission.unwrap_or(1.0),
                         ..Default::default()
                     });
                     let mut groups = scene_groups(
@@ -2492,7 +2524,11 @@ fn gpu_primary_visibility_cost() {
                         (3, wgpu::BindingResource::TextureView(&cell_view)),
                         (4, wgpu::BindingResource::TextureView(&stats_view)),
                     ];
-                    let module = if scale.is_some() { filtered } else { exact };
+                    let module = match (scale, transmission) {
+                        (None, _) => exact,
+                        (Some(_), None) => filtered,
+                        (Some(_), Some(_)) => transmitting,
+                    };
                     let (pipeline, bind_groups) = gpu.bind_module(module, "main", &groups);
                     let workgroups = [width.div_ceil(8), height.div_ceil(8), 1];
                     // warm up (pipeline creation, caches), then time
@@ -2503,21 +2539,25 @@ fn gpu_primary_visibility_cost() {
 
                     // the last dispatch's outputs: DDA steps and filtered hits per pixel
                     let stats_texels: Vec<u32> = gpu.read_texture(&stats);
-                    let vis_texels: Vec<u32> = gpu.read_texture(&vis);
+                    let vis_texels: Vec<[u32; 4]> = gpu.read_texture(&vis);
+                    let depth_texels: Vec<[f32; 4]> = gpu.read_texture(&depth);
                     let pixels = (width * height) as f64;
                     let steps: u64 = stats_texels.iter().map(|s| (s >> 16) as u64).sum();
                     let (mut hits, mut filtered_hits) = (0u32, 0u32);
-                    for texel in vis_texels.chunks(2) {
+                    for texel in &vis_texels {
                         if texel[0] != u32::MAX {
                             hits += 1;
                             filtered_hits += (texel[0] >> 9 & 7 != 0) as u32;
                         }
                     }
+                    // pixels whose front record transmits, so a second trace ran
+                    let transmitting = depth_texels.iter().filter(|d| d[2] < 1.0).count();
                     eprintln!(
-                        "    {width}x{height} (scale {render_scale}), {kernel_name}, {cone}: {ms:.3} ms GPU, {:.1} DDA steps/px, {:.1}% hit, {:.2}% of hits filtered",
+                        "    {width}x{height} (scale {render_scale}), {kernel_name}, {cone}: {ms:.3} ms GPU, {:.1} DDA steps/px, {:.1}% hit, {:.2}% of hits filtered, {:.2}% of pixels transmit",
                         steps as f64 / pixels,
                         hits as f64 / pixels * 100.0,
                         filtered_hits as f64 / hits.max(1) as f64 * 100.0,
+                        transmitting as f64 / pixels * 100.0,
                     );
                 }
             }
@@ -2678,7 +2718,8 @@ fn write_png(path: &std::path::Path, width: u32, height: u32, rgba: &[u8]) {
 /// sun at mid-morning, tonemapped in the shader) at 4x4 times the traced resolution and box
 /// averaged in linear color, then traced once per pixel exactly and with one-, two-, and
 /// four-pixel cones, each with the fixed `0.5` threshold and with stochastic per-pixel thresholds
-/// (`VIEW_STOCHASTIC_FOOTPRINT`). Reports, against the reference: mean absolute display-space
+/// (`VIEW_STOCHASTIC_FOOTPRINT`), and through the footprint transmission builds (filtered hits
+/// blended with a second record behind them, coverage counted fractionally). Reports, against the reference: mean absolute display-space
 /// color error per pixel and after a 3x3 box filter (what an averaging resolve would leave), the
 /// coverage bias (hit pixels minus reference coverage, so silhouette dilation is positive), the
 /// mean per-pixel coverage error, and the share of hits that were filtered. Writes every frame as
@@ -2704,16 +2745,18 @@ fn gpu_footprint_lod_quality() {
     // the production passes, on the hardware broad phase where the adapter has it (both broad
     // phases find the same hits)
     let hardware = gpu.ray_query;
-    let (exact_source, filtered_source, lighting_source) = if hardware {
+    let (exact_source, filtered_source, transmission_source, lighting_source) = if hardware {
         (
             PRIMARY_VISIBILITY_RAY_QUERY,
             PRIMARY_VISIBILITY_FOOTPRINT_LOD_RAY_QUERY,
+            PRIMARY_VISIBILITY_FOOTPRINT_TRANSMISSION_RAY_QUERY,
             DIRECT_LIGHTING_RAY_QUERY,
         )
     } else {
         (
             PRIMARY_VISIBILITY,
             PRIMARY_VISIBILITY_FOOTPRINT_LOD,
+            PRIMARY_VISIBILITY_FOOTPRINT_TRANSMISSION,
             DIRECT_LIGHTING,
         )
     };
@@ -2735,7 +2778,11 @@ fn gpu_footprint_lod_quality() {
                 cache: None,
             })
     };
-    let (exact_pipeline, filtered_pipeline) = (compute(exact_source), compute(filtered_source));
+    let (exact_pipeline, filtered_pipeline, transmission_pipeline) = (
+        compute(exact_source),
+        compute(filtered_source),
+        compute(transmission_source),
+    );
     let color_format = wgpu::TextureFormat::Rgba8UnormSrgb;
     let lighting_module = module(lighting_source);
     let lighting_pipeline = gpu
@@ -2774,15 +2821,19 @@ fn gpu_footprint_lod_quality() {
     let environment = gpu.uniform(&environment_at(0.4, 0.0));
     let unused = gpu.output(16);
 
-    // `(label, (footprint scale, stochastic thresholds))`: `None` is the exact build
+    // `(label, (footprint scale, stochastic thresholds, transmission's opaque cutoff))`:
+    // `None` is the exact build
     let configs = [
         ("exact", None),
-        ("1 px", Some((1.0, false))),
-        ("1 px stochastic", Some((1.0, true))),
-        ("2 px", Some((2.0, false))),
-        ("2 px stochastic", Some((2.0, true))),
-        ("4 px", Some((4.0, false))),
-        ("4 px stochastic", Some((4.0, true))),
+        ("1 px", Some((1.0, false, None))),
+        ("1 px stochastic", Some((1.0, true, None))),
+        ("1 px transmission", Some((1.0, false, Some(0.9)))),
+        ("2 px", Some((2.0, false, None))),
+        ("2 px stochastic", Some((2.0, true, None))),
+        ("2 px transmission", Some((2.0, false, Some(0.9)))),
+        ("4 px", Some((4.0, false, None))),
+        ("4 px stochastic", Some((4.0, true, None))),
+        ("4 px transmission", Some((4.0, false, Some(0.9)))),
     ];
 
     for (scene_name, view_name, snapshot, eye, target) in primary_views(&showcase, &grove) {
@@ -2806,128 +2857,142 @@ fn gpu_footprint_lod_quality() {
         };
 
         // one frame of both passes, `width`x`height` traced and shaded pixels
-        let render = |width: u32, height: u32, footprint: Option<(f32, bool)>| -> ShadedFrame {
-            let vis = gpu.texture_2d(width, height, wgpu::TextureFormat::Rg32Uint);
-            let depth = gpu.texture_2d(width, height, wgpu::TextureFormat::R32Float);
-            let cell = gpu.texture_2d(width, height, wgpu::TextureFormat::R32Uint);
-            let stats = gpu.texture_2d(width, height, wgpu::TextureFormat::R32Uint);
-            let color = gpu.texture_2d(width, height, color_format);
-            let [vis_view, depth_view, cell_view, stats_view, color_view] =
-                [&vis, &depth, &cell, &stats, &color].map(|t| t.create_view(&Default::default()));
+        let render =
+            |width: u32, height: u32, footprint: Option<(f32, bool, Option<f32>)>| -> ShadedFrame {
+                let vis = gpu.texture_2d(width, height, wgpu::TextureFormat::Rgba32Uint);
+                let depth = gpu.texture_2d(width, height, wgpu::TextureFormat::Rgba32Float);
+                let cell = gpu.texture_2d(width, height, wgpu::TextureFormat::Rg32Uint);
+                let stats = gpu.texture_2d(width, height, wgpu::TextureFormat::R32Uint);
+                let color = gpu.texture_2d(width, height, color_format);
+                let [vis_view, depth_view, cell_view, stats_view, color_view] =
+                    [&vis, &depth, &cell, &stats, &color]
+                        .map(|t| t.create_view(&Default::default()));
 
-            let clip_from_world = Mat4::perspective_infinite_reverse_rh(
-                60f32.to_radians(),
-                width as f32 / height as f32,
-                0.05,
-            ) * Mat4::look_at_rh(eye, target, Vec3::Y);
-            let (footprint_scale, stochastic) = footprint.unwrap_or((1.0, false));
-            let view = gpu.uniform(&GpuViewUniform {
-                world_from_clip: clip_from_world.inverse().to_cols_array(),
-                clip_from_world: clip_from_world.to_cols_array(),
-                prev_clip_from_world: clip_from_world.to_cols_array(),
-                camera_position: eye.to_array(),
-                viewport: [width as f32, height as f32],
-                flags: VIEW_TONEMAP_IN_SHADER
-                    | if stochastic {
-                        VIEW_STOCHASTIC_FOOTPRINT
-                    } else {
-                        0
-                    },
-                target_to_grid: 1.0,
-                footprint_threshold: 0.5,
-                footprint_scale,
-                ..Default::default()
-            });
-
-            let visibility_pipeline = if footprint.is_some() {
-                &filtered_pipeline
-            } else {
-                &exact_pipeline
-            };
-            let mut visibility_groups = groups();
-            if footprint.is_some() {
-                visibility_groups[0].1.push((11, lod.as_entire_binding()));
-            }
-            visibility_groups[2].1 = vec![
-                (0, view.as_entire_binding()),
-                (1, wgpu::BindingResource::TextureView(&vis_view)),
-                (2, wgpu::BindingResource::TextureView(&depth_view)),
-                (3, wgpu::BindingResource::TextureView(&cell_view)),
-                (4, wgpu::BindingResource::TextureView(&stats_view)),
-            ];
-            let visibility_bind_groups = gpu.bind_groups(
-                |i| visibility_pipeline.get_bind_group_layout(i),
-                &visibility_groups,
-            );
-            let mut lighting_groups = groups();
-            lighting_groups[0].1.extend([
-                (1, attributes.as_entire_binding()),
-                (2, materials.as_entire_binding()),
-                (11, lod.as_entire_binding()),
-            ]);
-            lighting_groups[2].1 = vec![
-                (0, view.as_entire_binding()),
-                (1, environment.as_entire_binding()),
-                (2, wgpu::BindingResource::TextureView(&vis_view)),
-                (3, wgpu::BindingResource::TextureView(&depth_view)),
-                (4, wgpu::BindingResource::TextureView(&cell_view)),
-                (5, wgpu::BindingResource::TextureView(&stats_view)),
-            ];
-            let lighting_bind_groups = gpu.bind_groups(
-                |i| lighting_pipeline.get_bind_group_layout(i),
-                &lighting_groups,
-            );
-
-            let mut encoder = gpu.device.create_command_encoder(&Default::default());
-            {
-                let mut pass = encoder.begin_compute_pass(&Default::default());
-                pass.set_pipeline(visibility_pipeline);
-                for (index, group) in &visibility_bind_groups {
-                    pass.set_bind_group(*index, group, &[]);
-                }
-                pass.dispatch_workgroups(width.div_ceil(8), height.div_ceil(8), 1);
-            }
-            {
-                let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: None,
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: &color_view,
-                        depth_slice: None,
-                        resolve_target: None,
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                            store: wgpu::StoreOp::Store,
+                let clip_from_world = Mat4::perspective_infinite_reverse_rh(
+                    60f32.to_radians(),
+                    width as f32 / height as f32,
+                    0.05,
+                ) * Mat4::look_at_rh(eye, target, Vec3::Y);
+                let (footprint_scale, stochastic, transmission) =
+                    footprint.unwrap_or((1.0, false, None));
+                let view = gpu.uniform(&GpuViewUniform {
+                    world_from_clip: clip_from_world.inverse().to_cols_array(),
+                    clip_from_world: clip_from_world.to_cols_array(),
+                    prev_clip_from_world: clip_from_world.to_cols_array(),
+                    camera_position: eye.to_array(),
+                    viewport: [width as f32, height as f32],
+                    flags: VIEW_TONEMAP_IN_SHADER
+                        | if stochastic {
+                            VIEW_STOCHASTIC_FOOTPRINT
+                        } else {
+                            0
                         },
-                    })],
+                    target_to_grid: 1.0,
+                    footprint_threshold: 0.5,
+                    footprint_scale,
+                    transmission_opaque: transmission.unwrap_or(1.0),
                     ..Default::default()
                 });
-                pass.set_pipeline(&lighting_pipeline);
-                for (index, group) in &lighting_bind_groups {
-                    pass.set_bind_group(*index, group, &[]);
-                }
-                pass.draw(0..3, 0..1);
-            }
-            gpu.queue.submit([encoder.finish()]);
 
-            let vis_texels: Vec<[u32; 2]> = gpu.read_texture(&vis);
-            let color_texels: Vec<[u8; 4]> = gpu.read_texture(&color);
-            ShadedFrame {
-                width,
-                height,
-                color: color_texels
-                    .iter()
-                    .map(|c| [0, 1, 2].map(|i| srgb_to_linear(c[i] as f32 / 255.0)))
-                    .collect(),
-                hit: vis_texels
-                    .iter()
-                    .map(|v| if v[0] != u32::MAX { 1.0 } else { 0.0 })
-                    .collect(),
-                filtered: vis_texels
-                    .iter()
-                    .map(|v| v[0] != u32::MAX && (v[0] >> 9) & 7 != 0)
-                    .collect(),
-            }
-        };
+                let visibility_pipeline = match footprint {
+                    None => &exact_pipeline,
+                    Some((_, _, None)) => &filtered_pipeline,
+                    Some((_, _, Some(_))) => &transmission_pipeline,
+                };
+                let mut visibility_groups = groups();
+                if footprint.is_some() {
+                    visibility_groups[0].1.push((11, lod.as_entire_binding()));
+                }
+                visibility_groups[2].1 = vec![
+                    (0, view.as_entire_binding()),
+                    (1, wgpu::BindingResource::TextureView(&vis_view)),
+                    (2, wgpu::BindingResource::TextureView(&depth_view)),
+                    (3, wgpu::BindingResource::TextureView(&cell_view)),
+                    (4, wgpu::BindingResource::TextureView(&stats_view)),
+                ];
+                let visibility_bind_groups = gpu.bind_groups(
+                    |i| visibility_pipeline.get_bind_group_layout(i),
+                    &visibility_groups,
+                );
+                let mut lighting_groups = groups();
+                lighting_groups[0].1.extend([
+                    (1, attributes.as_entire_binding()),
+                    (2, materials.as_entire_binding()),
+                    (11, lod.as_entire_binding()),
+                ]);
+                lighting_groups[2].1 = vec![
+                    (0, view.as_entire_binding()),
+                    (1, environment.as_entire_binding()),
+                    (2, wgpu::BindingResource::TextureView(&vis_view)),
+                    (3, wgpu::BindingResource::TextureView(&depth_view)),
+                    (4, wgpu::BindingResource::TextureView(&cell_view)),
+                    (5, wgpu::BindingResource::TextureView(&stats_view)),
+                ];
+                let lighting_bind_groups = gpu.bind_groups(
+                    |i| lighting_pipeline.get_bind_group_layout(i),
+                    &lighting_groups,
+                );
+
+                let mut encoder = gpu.device.create_command_encoder(&Default::default());
+                {
+                    let mut pass = encoder.begin_compute_pass(&Default::default());
+                    pass.set_pipeline(visibility_pipeline);
+                    for (index, group) in &visibility_bind_groups {
+                        pass.set_bind_group(*index, group, &[]);
+                    }
+                    pass.dispatch_workgroups(width.div_ceil(8), height.div_ceil(8), 1);
+                }
+                {
+                    let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                        label: None,
+                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                            view: &color_view,
+                            depth_slice: None,
+                            resolve_target: None,
+                            ops: wgpu::Operations {
+                                load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                                store: wgpu::StoreOp::Store,
+                            },
+                        })],
+                        ..Default::default()
+                    });
+                    pass.set_pipeline(&lighting_pipeline);
+                    for (index, group) in &lighting_bind_groups {
+                        pass.set_bind_group(*index, group, &[]);
+                    }
+                    pass.draw(0..3, 0..1);
+                }
+                gpu.queue.submit([encoder.finish()]);
+
+                let vis_texels: Vec<[u32; 4]> = gpu.read_texture(&vis);
+                let depth_texels: Vec<[f32; 4]> = gpu.read_texture(&depth);
+                let color_texels: Vec<[u8; 4]> = gpu.read_texture(&color);
+                ShadedFrame {
+                    width,
+                    height,
+                    color: color_texels
+                        .iter()
+                        .map(|c| [0, 1, 2].map(|i| srgb_to_linear(c[i] as f32 / 255.0)))
+                        .collect(),
+                    // a transmitting front record covers its share `a`, the record behind the rest
+                    hit: vis_texels
+                        .iter()
+                        .zip(&depth_texels)
+                        .map(|(v, d)| {
+                            let behind = if v[2] != u32::MAX { 1.0 } else { 0.0 };
+                            if v[0] != u32::MAX {
+                                d[2] + (1.0 - d[2]) * behind
+                            } else {
+                                0.0
+                            }
+                        })
+                        .collect(),
+                    filtered: vis_texels
+                        .iter()
+                        .map(|v| v[0] != u32::MAX && (v[0] >> 9) & 7 != 0)
+                        .collect(),
+                }
+            };
 
         eprintln!("  {scene_name}, {view_name} view");
         for (width, height) in [(640u32, 360u32), (1280, 720)] {
@@ -2998,7 +3063,9 @@ fn gpu_footprint_lod_quality() {
                     blurred_error * 100.0,
                     (hits / pixels - reference_coverage) * 100.0,
                     coverage_error * 100.0,
-                    filtered / hits.max(1.0) * 100.0,
+                    // of the pixels whose front record hit
+                    filtered / (frame.hit.iter().filter(|&&h| h > 0.0).count() as f64).max(1.0)
+                        * 100.0,
                     filtered_error / filtered.max(1.0) * 100.0,
                     exact_error / filtered.max(1.0) * 100.0,
                 );

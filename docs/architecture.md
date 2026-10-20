@@ -42,7 +42,8 @@ client: GpuGeometryLibrary (bake every module as a 64-tree and an octree into sh
         render: SceneTlas (ray query adapters) -> PrimaryVisibility (compute) -> DirectLighting
                 (fullscreen) in Bevy's Core3d graph, each in a single-slab, multi-slab, or
                 hardware broad phase shader variant; primary visibility also has footprint LOD
-                forms of all three (`RenderSettings::footprint_lod`)
+                and footprint transmission forms of all three (`RenderSettings::footprint_lod`,
+                `footprint_transmission`)
 ```
 
 ## Spec concepts in code
@@ -73,8 +74,9 @@ client: GpuGeometryLibrary (bake every module as a 64-tree and an octree into sh
 | 16-byte LOD payload (fitted SGGX, box, material) | `voxel::lod`, the bake-time fit in `voxel::angular::BakeSetup`           |
 | Directional LOD candidates (axis, SGGX) study   | `voxel::angular`, `crates/engine/baker/tests/directional_lod.rs`         |
 | Footprint LOD filtering (primary rays, opt-in)  | `tree64::trace_filtered`, `VoxelRoot::trace_filtered`, `trace_scene_filtered`, the `footprint_lod` WESL feature, `pixel_footprint` in `primary_visibility.wesl` |
+| Partial transmission of filtered hits (opt-in)  | the `transmission` WESL feature (`trace_pixel`, `continuation` in `primary_visibility.wesl`), the blend in `direct_lighting.wesl` `shade` |
 | Exact integer terminal-cell identity            | `VoxelHit::cell`, the visibility buffer's cell target                    |
-| Visibility buffer (`R32G32Uint` + `R32Float`)   | `client::render::gpu::view`, `primary_visibility.wesl`                   |
+| Visibility buffer (front + behind records: `Rgba32Uint`, `Rgba32Float`, `Rg32Uint`) | `client::render::gpu::view`, `primary_visibility.wesl`                   |
 | `.vanta` files                                  | `voxel::format`                                                          |
 
 ## Correctness contracts and how they are enforced

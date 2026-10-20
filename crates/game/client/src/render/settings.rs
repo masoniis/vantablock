@@ -122,6 +122,14 @@ pub struct RenderSettings {
     /// The width of a pixel's ray cone in traced pixels (`1` is one pixel); larger values filter
     /// nearer and coarser.
     pub footprint_scale: f32,
+    /// With `footprint_lod`, let filtered hits transmit: a hit covers its pixel by its summary's
+    /// opacity `a`, and primary visibility traces what lies behind its occupied box, which
+    /// lighting blends in with weight `1 - a`, instead of treating the summary as opaque or empty.
+    /// Off: it brings filtered pixels close to exact ones but costs more than exact traversal.
+    pub footprint_transmission: bool,
+    /// With `footprint_transmission`, the opacity from which a filtered hit counts as opaque, so
+    /// nothing is traced behind it.
+    pub transmission_opaque: f32,
 }
 
 impl Default for RenderSettings {
@@ -136,6 +144,8 @@ impl Default for RenderSettings {
             footprint_threshold: 0.5,
             footprint_stochastic: false,
             footprint_scale: 1.0,
+            footprint_transmission: false,
+            transmission_opaque: 0.9,
         }
     }
 }

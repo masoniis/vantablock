@@ -199,7 +199,10 @@ pub struct GpuViewUniform {
     /// threshold, and the width of a pixel's ray cone in traced pixels.
     pub footprint_threshold: f32,
     pub footprint_scale: f32,
-    pub _pad: [u32; 2],
+    /// The footprint transmission variants (`RenderSettings::footprint_transmission`): the opacity
+    /// from which a filtered hit counts as opaque and nothing is traced behind it.
+    pub transmission_opaque: f32,
+    pub _pad: u32,
 }
 const _: () = assert!(std::mem::size_of::<GpuViewUniform>() == 240);
 

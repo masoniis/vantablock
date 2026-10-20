@@ -8,8 +8,10 @@ use crate::render::{
     shaders::{
         PRIMARY_VISIBILITY_FOOTPRINT_LOD_MULTI_SLAB_SHADER,
         PRIMARY_VISIBILITY_FOOTPRINT_LOD_RAY_QUERY_SHADER, PRIMARY_VISIBILITY_FOOTPRINT_LOD_SHADER,
-        PRIMARY_VISIBILITY_MULTI_SLAB_SHADER, PRIMARY_VISIBILITY_RAY_QUERY_SHADER,
-        PRIMARY_VISIBILITY_SHADER,
+        PRIMARY_VISIBILITY_FOOTPRINT_TRANSMISSION_MULTI_SLAB_SHADER,
+        PRIMARY_VISIBILITY_FOOTPRINT_TRANSMISSION_RAY_QUERY_SHADER,
+        PRIMARY_VISIBILITY_FOOTPRINT_TRANSMISSION_SHADER, PRIMARY_VISIBILITY_MULTI_SLAB_SHADER,
+        PRIMARY_VISIBILITY_RAY_QUERY_SHADER, PRIMARY_VISIBILITY_SHADER,
     },
 };
 use bevy::{
@@ -44,11 +46,13 @@ impl PrimaryVisibilityVariants {
     }
 }
 
-/// The exact pass and the footprint LOD filtering pass (`RenderSettings::footprint_lod`).
+/// The exact pass, the footprint LOD filtering pass (`RenderSettings::footprint_lod`), and the
+/// footprint LOD pass whose filtered hits transmit (`RenderSettings::footprint_transmission`).
 #[derive(Resource)]
 pub struct PrimaryVisibilityPipeline {
     pub exact: PrimaryVisibilityVariants,
     pub footprint_lod: PrimaryVisibilityVariants,
+    pub footprint_transmission: PrimaryVisibilityVariants,
 }
 
 impl FromWorld for PrimaryVisibilityPipeline {
@@ -105,6 +109,25 @@ impl FromWorld for PrimaryVisibilityPipeline {
                     )
                 }),
             },
+            footprint_transmission: PrimaryVisibilityVariants {
+                single_slab: queue(
+                    "voxel_primary_visibility_footprint_transmission",
+                    scene_layout(),
+                    PRIMARY_VISIBILITY_FOOTPRINT_TRANSMISSION_SHADER,
+                ),
+                multi_slab: queue(
+                    "voxel_primary_visibility_footprint_transmission_multi_slab",
+                    scene_layout(),
+                    PRIMARY_VISIBILITY_FOOTPRINT_TRANSMISSION_MULTI_SLAB_SHADER,
+                ),
+                ray_query: ray_query.then(|| {
+                    queue(
+                        "voxel_primary_visibility_footprint_transmission_ray_query",
+                        scene_ray_query_layout(),
+                        PRIMARY_VISIBILITY_FOOTPRINT_TRANSMISSION_RAY_QUERY_SHADER,
+                    )
+                }),
+            },
         }
     }
 }
@@ -120,10 +143,10 @@ pub fn primary_visibility_pass(
     mut ctx: RenderContext,
 ) {
     let (targets, bind_groups) = view.into_inner();
-    let variants = if settings.is_some_and(|s| s.footprint_lod) {
-        &pipelines.footprint_lod
-    } else {
-        &pipelines.exact
+    let variants = match settings.as_deref() {
+        Some(s) if s.footprint_lod && s.footprint_transmission => &pipelines.footprint_transmission,
+        Some(s) if s.footprint_lod => &pipelines.footprint_lod,
+        _ => &pipelines.exact,
     };
     let pipeline_id = variants.select(&resources);
     let Some(pipeline) = pipeline_cache.get_compute_pipeline(pipeline_id) else {

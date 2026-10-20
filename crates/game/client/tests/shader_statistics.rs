@@ -41,6 +41,16 @@ const KERNELS: &[(&str, &str, &str)] = &[
         "main",
     ),
     (
+        "primary_visibility (footprint transmission)",
+        include_wesl!("primary_visibility_footprint_transmission"),
+        "main",
+    ),
+    (
+        "primary_visibility (footprint transmission, ray query)",
+        include_wesl!("primary_visibility_footprint_transmission_ray_query"),
+        "main",
+    ),
+    (
         "scene_rays",
         include_wesl!("voxel_conformance"),
         "scene_rays",

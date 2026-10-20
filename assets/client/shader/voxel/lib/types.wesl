@@ -67,8 +67,10 @@ struct ViewUniform {
     // cone's width in traced pixels
     footprint_threshold: f32,
     footprint_scale: f32,
+    // `transmission` builds: the opacity from which a filtered hit is treated as opaque (nothing
+    // is traced behind it)
+    transmission_opaque: f32,
     pad0: u32,
-    pad1: u32,
 };
 
 struct Environment {

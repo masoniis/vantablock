@@ -47,6 +47,7 @@ fn main() {
                     ("stackless", false),
                     ("ray_query", false),
                     ("footprint_lod", false),
+                    ("transmission", false),
                 ],
             );
         }
@@ -62,6 +63,7 @@ fn main() {
             ("stackless", true),
             ("ray_query", false),
             ("footprint_lod", false),
+            ("transmission", false),
         ],
     );
 
@@ -93,9 +95,24 @@ fn main() {
                     ("stackless", false),
                     ("ray_query", ray_query),
                     ("footprint_lod", true),
+                    ("transmission", false),
                 ],
             );
         }
+        // footprint LOD filtering whose filtered hits transmit (`RenderSettings::
+        // footprint_transmission`): a second trace behind them. Its own variant, since a second
+        // trace in the footprint LOD kernels cost them 40 registers even when it never ran
+        build(
+            "package::voxel::primary_visibility",
+            &format!("primary_visibility_footprint_transmission{suffix}"),
+            &[
+                ("multi_slab", multi_slab),
+                ("stackless", false),
+                ("ray_query", ray_query),
+                ("footprint_lod", true),
+                ("transmission", true),
+            ],
+        );
     }
 
     // the optional hardware scene broad phase (ray queries over flattened pose groups): the
@@ -123,6 +140,7 @@ fn main() {
                 ("stackless", false),
                 ("ray_query", true),
                 ("footprint_lod", false),
+                ("transmission", false),
             ],
         );
     }

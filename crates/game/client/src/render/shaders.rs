@@ -24,6 +24,14 @@ pub const PRIMARY_VISIBILITY_FOOTPRINT_LOD_MULTI_SLAB_SHADER: Handle<Shader> =
     uuid_handle!("51d7b08e-c2a4-4f39-9e16-0b83f4a6c2d7");
 pub const PRIMARY_VISIBILITY_FOOTPRINT_LOD_RAY_QUERY_SHADER: Handle<Shader> =
     uuid_handle!("e83f6a25-7b19-4c0e-8d42-a6c95e1f07b3");
+/// Primary visibility with footprint LOD filtering whose filtered hits transmit, in the same three
+/// forms.
+pub const PRIMARY_VISIBILITY_FOOTPRINT_TRANSMISSION_SHADER: Handle<Shader> =
+    uuid_handle!("3c8d1f47-a20e-4b95-9f63-d4e71b0a5c28");
+pub const PRIMARY_VISIBILITY_FOOTPRINT_TRANSMISSION_MULTI_SLAB_SHADER: Handle<Shader> =
+    uuid_handle!("a6f20b93-4e5c-47d1-8b0a-1c39e7d4f685");
+pub const PRIMARY_VISIBILITY_FOOTPRINT_TRANSMISSION_RAY_QUERY_SHADER: Handle<Shader> =
+    uuid_handle!("f17e4a08-9d3b-4c62-a5e8-62b0c9d31e74");
 
 // INFO: ---------------------------
 //         plugin definition
@@ -34,8 +42,8 @@ use bevy::prelude::*;
 use wesl_core::include_wesl;
 
 /// A plugin that registers the WESL shaders (compiled to WGSL by `build.rs`), each in a
-/// single-slab, a multi-slab, and a hardware broad phase variant, plus the footprint LOD forms of
-/// primary visibility.
+/// single-slab, a multi-slab, and a hardware broad phase variant, plus the footprint LOD and
+/// footprint transmission forms of primary visibility.
 pub struct VantablockShaderPlugin;
 
 impl Plugin for VantablockShaderPlugin {
@@ -103,6 +111,27 @@ impl Plugin for VantablockShaderPlugin {
             Shader::from_wgsl(
                 include_wesl!("primary_visibility_footprint_lod_ray_query"),
                 "voxel/primary_visibility.wesl (footprint lod, ray query)",
+            ),
+        );
+        let _ = shaders.insert(
+            &PRIMARY_VISIBILITY_FOOTPRINT_TRANSMISSION_SHADER,
+            Shader::from_wgsl(
+                include_wesl!("primary_visibility_footprint_transmission"),
+                "voxel/primary_visibility.wesl (footprint transmission)",
+            ),
+        );
+        let _ = shaders.insert(
+            &PRIMARY_VISIBILITY_FOOTPRINT_TRANSMISSION_MULTI_SLAB_SHADER,
+            Shader::from_wgsl(
+                include_wesl!("primary_visibility_footprint_transmission_multi_slab"),
+                "voxel/primary_visibility.wesl (footprint transmission, multi slab)",
+            ),
+        );
+        let _ = shaders.insert(
+            &PRIMARY_VISIBILITY_FOOTPRINT_TRANSMISSION_RAY_QUERY_SHADER,
+            Shader::from_wgsl(
+                include_wesl!("primary_visibility_footprint_transmission_ray_query"),
+                "voxel/primary_visibility.wesl (footprint transmission, ray query)",
             ),
         );
     }

@@ -15,7 +15,12 @@ Phase 2 is under way. Footprint LOD filtering is done as an opt-in path
 target in most views; see [Phase 2 results](#phase-2-results)). Directional summaries: the CPU
 comparison showed the spec's `L1` axis proxy overestimates angular coverage everywhere; every LOD
 record now holds an SGGX tensor fitted at bake time to measured coverage, which filtered hits
-evaluate. It cut coverage bias in frames only slightly, so partial transmission is next.
+evaluate. It cut coverage bias in frames only slightly. Partial transmission (filtered hits blend
+with a second record traced behind them) is built as a further opt-in
+(`RenderSettings::footprint_transmission`): it improves every filtered frame and meets the
+"filtered pixels no worse than exact" target with a two-pixel cone at half scale, but its second
+trace costs more than exact traversal, so footprint LOD stays off by default. Anti-aliasing is
+next.
 
 ## Known issues
 
@@ -236,6 +241,8 @@ off by default.
   stochastic thresholds) with a 4x4 supersampled exact reference: per-pixel and 3x3-filtered color
   error, coverage bias, and the error on just the filtered pixels next to the exact frame's on the
   same pixels. Frames are written as PNGs under the temp directory's `vanta-footprint-quality`.
+  Both also run the footprint transmission variants (see "Partial transmission"), and the cost
+  benchmark reports the share of pixels that traced a second record.
 - **Tests:** the CPU reference (`tree64` units,
   `footprint_filtering_reports_aligned_occupied_regions`,
   `filtered_scene_traces_match_exhaustive_search_in_world_units`) and the GPU conformance tests
@@ -298,9 +305,8 @@ material (0.01 to 0.04). The occupied box with node-relative coverage cut covera
   low-frequency error the 3x3 filter doesn't remove. The fitted SGGX tensor removed only 0.01 to
   0.2 points of it, so the remaining bias isn't the opacity estimate but its use as a hit/pass
   decision.
-- **Partial transmission:** an opaque box covers its whole projection, so a pixel that should mix
-  background with a partly covered node shows the node alone. Blending a hit of opacity `a` with
-  what lies behind (a second visibility record) is the next lever.
+- **Partial transmission:** built and measured, see "Partial transmission of filtered hits": it
+  closes much of the quality gap but costs more than it saves.
 - **Grove hardware-path cost:** small occupied boxes leave the hardware broad phase saving -5 to
   +1% on the grove, against -18 to -28% on the software BVH4.
 - The footprint rule (cell edge vs. cone diameter) is untuned, and the 4x4 reference is itself
@@ -391,18 +397,84 @@ to +0.42) and 3x3 error up to 0.05 points; per-pixel frame error moves within +-
 opacities sit near 0 or 1, so the better estimate flips few hit/pass decisions: the remaining
 error is the binary decision, not the estimate. Primary visibility cost is unchanged within noise.
 
+### Partial transmission of filtered hits
+
+**Done (opt-in, off).** With `RenderSettings::footprint_transmission` (and `footprint_lod`), a
+filtered hit is no longer all or nothing: it covers its pixel by its summary's opacity `a` (the
+fitted SGGX value along the ray), and the ray continues past the node's occupied box to a second
+visibility record, which lighting blends in with weight `1 - a`.
+
+- **Primary visibility:** the `transmission` WESL feature (three more primary visibility builds:
+  single slab, multi slab, ray query; `PrimaryVisibilityPipeline::footprint_transmission`). The
+  front trace uses threshold `0`, so every summary the cone covers with any opacity becomes the
+  front record (`0` and `0.25` measured identically). `continuation` computes `a` and the exit of
+  the clipped occupied box in the frame's local ray; if `a < transmission_opaque` (`0.9`,
+  `ViewUniform`), a second `trace_scene_filtered` starts just past the exit (`1e-5` relative, so
+  the same node can't be hit again) with the pixel's own `0.5` threshold. Both traces share one
+  call site in a two-iteration loop with only the packed front record live across it
+  (`trace_pixel`).
+- **Visibility buffer:** every target holds a second record: `vis` is `Rgba32Uint` (front, behind
+  identity and handle), `depth` `Rgba32Float` (front t, behind t, coverage `a`, 1 for opaque and
+  exact hits), `cell` `Rg32Uint`. Exact and footprint LOD kernels write `a = 1` and a missing
+  record behind, and keep their register counts (128 / 80 exact, 128 / 96 footprint LOD).
+- **Lighting:** `shade` shades both records with `shade_record` (each with its own shadow ray and
+  fog) and mixes them by `a`; a missing record behind is the sky. Debug views show the front
+  record.
+- **Why a separate variant:** any second trace site in the footprint LOD kernel (two calls or the
+  loop) raised it from 128 to 168 registers (96 to 128 with ray queries; the driver moves the
+  private stacks from local memory into registers) and cost the plain filtered path about ten
+  points of its savings even with the second trace never taken.
+
+Quality (`gpu_footprint_lod_quality`, hardware broad phase), `per pixel / 3x3 / coverage bias` and
+filtered pixels' error vs. the exact frame's on the same pixels, transmission vs. the opaque
+decision (the `exact` frames are in the "Footprint LOD filtering" table):
+
+| View, grid         | 2 px opaque         | 2 px transmission   | 4 px opaque         | 4 px transmission   | Filtered px, 2 px / 4 px transmission |
+| ------------------ | ------------------- | ------------------- | ------------------- | ------------------- | ------------------------------------- |
+| street, 640x360    | 3.76 / 1.70 / +0.38 | 3.67 / 1.64 / +0.27 | 4.20 / 2.22 / +0.93 | 3.89 / 2.00 / +0.66 | 5.48 vs. 5.86 / 5.01 vs. 4.53         |
+| street, 1280x720   | 2.32 / 1.18 / +0.01 | 2.32 / 1.18 / +0.01 | 2.50 / 1.37 / +0.38 | 2.43 / 1.30 / +0.26 | 3.21 vs. 3.02 / 5.47 vs. 4.05         |
+| grass, 640x360     | 2.17 / 1.19 / +0.28 | 2.10 / 1.15 / +0.21 | 2.46 / 1.52 / +0.60 | 2.31 / 1.40 / +0.45 | 4.80 vs. 5.22 / 4.58 vs. 3.78         |
+| overview, 640x360  | 4.71 / 1.87 / +0.41 | 3.83 / 1.57 / +0.27 | 4.83 / 2.12 / +0.42 | 3.72 / 1.68 / +0.33 | 5.04 vs. 6.82 / 5.17 vs. 6.78         |
+| overview, 1280x720 | 3.70 / 1.36 / +0.03 | 3.65 / 1.34 / +0.02 | 4.26 / 2.03 / +0.40 | 3.53 / 1.64 / +0.27 | 3.56 vs. 4.43 / 4.98 vs. 5.27         |
+| grove, 640x360     | 3.15 / 1.42 / +0.31 | 3.05 / 1.37 / +0.24 | 3.85 / 2.18 / +1.09 | 3.44 / 1.89 / +0.83 | 4.19 vs. 4.38 / 4.75 vs. 4.17         |
+| grove, 1280x720    | 2.01 / 0.98 / +0.03 | 2.01 / 0.97 / +0.02 | 2.22 / 1.18 / +0.29 | 2.14 / 1.12 / +0.21 | 3.38 vs. 3.19 / 3.90 vs. 3.08         |
+
+Cost (`gpu_primary_visibility_cost`, 640x360, hardware / software, against exact): 2 px
+transmission +1% / +16% (street), +34% / +33% (grass), +83% / +44% (overview), +44% / +35%
+(grove); 4 px transmission +25% / +19%, +45% / +52%, +78% / +46%, +59% / +61%, where the opaque
+4 px cone saves 34% / 26% on the street. 5 to 9% of pixels trace a second record at 2 px (47% in
+the overview), 15 to 59% at 4 px. Opaque cutoffs of `0.995` and `0.75` instead of `0.9` changed
+quality by +0.0 / -0.1 points and time by +10% / -20%.
+
+What it says: transmission improves every filtered frame, per pixel, after the 3x3 filter, and in
+coverage bias (by a quarter to a third), and the overview's 4 px frame beats the exact one by 1.15
+points. At 2 px and half scale filtered pixels beat exact ones in every view, the target; at 4 px
+they still trail by 0.5 to 0.8 points in the street, grass, and grove views, and at 2 px and full
+scale by 0.2 on the few filtered street and grove pixels. But the second trace restarts scene
+search from the camera and diverges within warps, so every transmission configuration costs more
+than exact traversal: footprint LOD with transmission is a quality fix, not a speed-up.
+
+**Decisions:** `footprint_transmission` ships off (`transmission_opaque` `0.9`), and
+`footprint_lod` stays off by default: the opaque decision is the fast path, transmission the
+accurate one, and neither is both. Stochastic thresholds stay as they were (biased low and noisy;
+see "Footprint LOD filtering").
+
+**Open issues:** the remaining 4 px gap and dilation (+0.2 to +0.8 points) are what a single
+summary per node can't express (a node partly covering the cone; the cone rule itself is
+untuned). The cost lever, if transmission is revisited, is to trace the records behind in a
+second, compacted dispatch (only transmitting pixels, resuming from the front frame instead of
+the scene root) rather than in the primary kernel.
+
 ## Next steps, one per session
 
-1. **Partial transmission for filtered hits:** blend a filtered hit of opacity `a` with what lies
-   behind it instead of treating it as opaque (for example, continue the primary ray past the
-   occupied box and keep a second visibility record, or the stochastic threshold plus a spatial
-   resolve), opt-in behind a `RenderSettings` flag. Measure with `gpu_footprint_lod_quality` and
-   `gpu_primary_visibility_cost` (`--release`, one at a time) against the SGGX table in "Footprint
-   LOD filtering"; the target is filtered pixels no worse than exact in the street, grass, and
-   grove views. If it misses, record it as a dead end and keep `footprint_lod` opt-in.
-2. **Anti-aliasing:** the exact one-ray frame is 2 to 5% from the supersampled reference, so
-   `gpu_footprint_lod_quality` doubles as its yardstick.
-3. **Atmosphere.** Today the sky is a horizon/zenith gradient with `pow()` sun and moon lobes
+1. **Anti-aliasing:** the exact one-ray frame is 2 to 5% per pixel from the 4x4 supersampled
+   reference (`gpu_footprint_lod_quality`'s `exact` rows, mostly grass and foliage aliasing), so
+   that benchmark is the yardstick. First slice: decide between jittered primary rays with a
+   temporal resolve (reconstructed motion exists: the `Motion` debug view) and a spatial filter
+   over the visibility buffer, measure the chosen one against the reference at both grids, and
+   keep it behind a `RenderSettings` flag until it beats the one-ray frame. Check it in game with
+   BRP screenshots (moving camera and animated rotors, so ghosting shows).
+2. **Atmosphere.** Today the sky is a horizon/zenith gradient with `pow()` sun and moon lobes
    (`lib/view.wesl` `sky_color`, colors hand-tuned in `render/environment.rs`), fog is a flat mix,
    and night is nearly black (a weak moon, `NIGHT_AMBIENT`, no exposure control). Each step is
    verified with BRP screenshots at noon, sunset, twilight, and midnight:
@@ -415,9 +487,9 @@ error is the binary decision, not the estimate. Primary visibility cost is uncha
    3. Night and exposure: stars and a moon that actually lights the scene, and exposure (a
       time-of-day curve as the first slice, then auto exposure / eye adaptation) so night is
       darker than day but readable, which sky-light occlusion's dark caves will also need.
-4. **Sky-light occlusion:** an occlusion term for sky light (caves are as bright as the open
+3. **Sky-light occlusion:** an occlusion term for sky light (caves are as bright as the open
    meadow).
-5. **Phase 2 showcase and gate checks:** the dense jungle-to-crystal-cavern scene against the
+4. **Phase 2 showcase and gate checks:** the dense jungle-to-crystal-cavern scene against the
    spec's target (1440p / 60 FPS within 4 GB of VRAM on the RTX 3080, the M1 Pro as lower tier):
    slow pans, close approaches, overlapping leaves, thin crystal facets, memory occupancy, and
    comparison with supersampled images.
@@ -434,7 +506,7 @@ software path, 80 with ray queries) is worth watching with `just shader-stats` a
 The roadmap, in the spec's order:
 
 - Phase 2: footprint LOD filtering (done, opt-in), foliage filtering candidates (fitted SGGX
-  baked and evaluated; partial transmission next),
+  baked and evaluated; partial transmission built, opt-in),
   anti-aliasing, a physically based atmosphere (scattering LUTs, sun disk, aerial perspective,
   night sky and moonlight, exposure), and an occlusion term for sky light. The reference GPU is
   the RTX 3080 (Vulkan, hardware broad phase), with the M1 Pro (Metal, software broad phase) as

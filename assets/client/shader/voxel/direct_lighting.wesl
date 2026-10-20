@@ -1,5 +1,7 @@
 // DirectLighting: shades the visibility buffer with sun/sky light, shadow rays through the same
-// scene, emission, and simple aerial perspective. Also renders the debug views.
+// scene, emission, and simple aerial perspective. Also renders the debug views. A pixel whose
+// front record transmits (coverage `a < 1`, see primary_visibility.wesl) blends it with the record
+// behind it (or the sky) by `a`; debug views show the front record alone.
 
 import super::lib::types::{ViewUniform, Environment, VISIBILITY_MISS, VIEW_TONEMAP_IN_SHADER};
 import super::lib::geometry::{materials, voxel_material, lod_record_load};
@@ -87,9 +89,28 @@ fn filtered_face_light(to_world: mat3x3<f32>, d: vec3<f32>, coverage: vec3<f32>,
     return sum;
 }
 
+// One visibility record: identity and handle, world t, and packed cell.
+struct Record {
+    vis: vec2<u32>,
+    t: f32,
+    cell: u32,
+};
+
 fn shade(pixel: vec2<i32>, dir: vec3<f32>) -> vec3<f32> {
-    let vis = textureLoad(vis_tex, pixel, 0).xy;
+    let vis = textureLoad(vis_tex, pixel, 0);
+    let depth = textureLoad(depth_tex, pixel, 0);
+    let cell = textureLoad(cell_tex, pixel, 0).xy;
     let stats = textureLoad(stats_tex, pixel, 0).x;
+    let front = shade_record(Record(vis.xy, depth.x, cell.x), stats, dir);
+    let a = depth.z;
+    if a >= 1.0 || view.debug_view != DEBUG_SHADED {
+        return front;
+    }
+    return mix(shade_record(Record(vis.zw, depth.y, cell.y), stats, dir), front, a);
+}
+
+fn shade_record(record: Record, stats: u32, dir: vec3<f32>) -> vec3<f32> {
+    let vis = record.vis;
 
     if view.debug_view == DEBUG_TRAVERSAL_STEPS {
         return heatmap(f32(stats >> 16u) / 256.0);
@@ -108,7 +129,7 @@ fn shade(pixel: vec2<i32>, dir: vec3<f32>) -> vec3<f32> {
     let lod = (vis.x >> 9u) & 7u;
     let face = vis.x & 7u;
     let frame = frames[frame_id];
-    let t = textureLoad(depth_tex, pixel, 0).x;
+    let t = record.t;
 
     // local normals reach world space through the inverse-transpose: the rows of world_to_local
     // as columns
@@ -141,7 +162,7 @@ fn shade(pixel: vec2<i32>, dir: vec3<f32>) -> vec3<f32> {
             return id_color(frame_id);
         }
         case DEBUG_VOXEL_CELLS: {
-            let c = textureLoad(cell_tex, pixel, 0).x;
+            let c = record.cell;
             let cell = vec3<u32>(c & 0x3FFu, (c >> 10u) & 0x3FFu, c >> 20u);
             return id_color((cell.x * 73856093u) ^ (cell.y * 19349663u) ^ (cell.z * 83492791u)) * 0.8 + 0.2;
         }
@@ -178,7 +199,7 @@ fn shade(pixel: vec2<i32>, dir: vec3<f32>) -> vec3<f32> {
     if n_dot_l > 0.0 {
         var origin = position + face_n * voxel_size * 0.5;
         if lod > 0u {
-            let c = textureLoad(cell_tex, pixel, 0).x;
+            let c = record.cell;
             let corner = vec3<u32>(c & 0x3FFu, (c >> 10u) & 0x3FFu, c >> 20u);
             let filtered = lod_filtered_box(lod_record_load(vis.y), vec3<f32>(corner), f32(1u << (2u * lod)));
             let lo = max(filtered[0], vec3<f32>(frame.local_bounds_min));

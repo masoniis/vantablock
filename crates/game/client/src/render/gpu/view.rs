@@ -1,9 +1,12 @@
 //! Per-view state: the visibility buffer targets, the view uniform, and the view bind groups.
 //!
 //! The visibility buffer is the spec's opaque-hit record: resolved pose-frame identity and the
-//! hit voxel's attribute handle (`Rg32Uint`), world-ray distance (`R32Float`), the exact integer
-//! group-local cell (`R32Uint`, kept separately because a DAG handle does not identify a spatial
-//! occurrence), and per-pixel traversal counters (`R32Uint`).
+//! hit voxel's attribute handle (`Rgba32Uint`), world-ray distance (`Rgba32Float`), the exact
+//! integer group-local cell (`Rg32Uint`, kept separately because a DAG handle does not identify a
+//! spatial occurrence), and per-pixel traversal counters (`R32Uint`). Each texture holds a second
+//! record after the first, for the surface behind a footprint-filtered hit that transmits
+//! (`RenderSettings::footprint_transmission`), and the depth texture's third channel holds the
+//! front record's coverage (see `primary_visibility.wesl`).
 
 use crate::render::{
     VoxelCamera, environment::ExtractedEnvironment, gpu::layout::*, settings::RenderSettings,
@@ -26,9 +29,9 @@ use bevy::{
     },
 };
 
-pub const VISIBILITY_FORMAT: TextureFormat = TextureFormat::Rg32Uint;
-pub const DEPTH_FORMAT: TextureFormat = TextureFormat::R32Float;
-pub const CELL_FORMAT: TextureFormat = TextureFormat::R32Uint;
+pub const VISIBILITY_FORMAT: TextureFormat = TextureFormat::Rgba32Uint;
+pub const DEPTH_FORMAT: TextureFormat = TextureFormat::Rgba32Float;
+pub const CELL_FORMAT: TextureFormat = TextureFormat::Rg32Uint;
 pub const STATS_FORMAT: TextureFormat = TextureFormat::R32Uint;
 
 pub fn visibility_view_layout() -> BindGroupLayoutDescriptor {
@@ -144,9 +147,14 @@ pub fn prepare_view_bind_groups(
     views: Query<(Entity, &ExtractedView, &ExtractedCamera, &VisibilityTargets), With<VoxelCamera>>,
 ) {
     let debug_view = settings.as_ref().map_or(0, |s| s.debug_view.index());
-    let (footprint_threshold, footprint_scale) = settings
-        .as_ref()
-        .map_or((0.5, 1.0), |s| (s.footprint_threshold, s.footprint_scale));
+    let (footprint_threshold, footprint_scale, transmission_opaque) =
+        settings.as_ref().map_or((0.5, 1.0, 1.0), |s| {
+            (
+                s.footprint_threshold,
+                s.footprint_scale,
+                s.transmission_opaque,
+            )
+        });
     let stochastic = if settings.as_ref().is_some_and(|s| s.footprint_stochastic) {
         VIEW_STOCHASTIC_FOOTPRINT
     } else {
@@ -182,7 +190,8 @@ pub fn prepare_view_bind_groups(
             target_to_grid: targets.size.x as f32 / targets.target.x as f32,
             footprint_threshold,
             footprint_scale,
-            _pad: [0; 2],
+            transmission_opaque,
+            _pad: 0,
         };
         let view_buffer = device.create_buffer_with_data(&BufferInitDescriptor {
             label: Some("voxel_view_uniform"),
