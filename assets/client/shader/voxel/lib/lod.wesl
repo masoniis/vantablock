@@ -25,20 +25,42 @@ fn footprint_covers(cone: FootprintFilter, size: f32, t: f32, voxels_per_unit: f
     return size <= 2.0 * (cone.radius + cone.spread * t) * voxels_per_unit;
 }
 
-// `clamp(sum(|d_axis| * coverage_axis), 0, 1)` with `d` normalized (`LodSummary::opacity`). Word
-// 0 holds volume and X coverage, word 1 Y and Z coverage, all as f16.
+// `clamp(sum(|d_axis| * coverage_axis), 0, 1)` with `d` normalized (`LodSummary::opacity`): the
+// chance of a hit for a ray entering the summary's occupied box.
 fn lod_opacity(record: vec4<u32>, d: vec3<f32>) -> f32 {
     return clamp(dot(abs(normalize(d)), lod_coverage(record)), 0.0, 1.0);
 }
 
-// The summary's projected coverage along X, Y, and Z.
+// The summary's projected coverage of its occupied box's faces along X, Y, and Z: f16s in word 0
+// and the low half of word 1.
 fn lod_coverage(record: vec4<u32>) -> vec3<f32> {
-    return vec3<f32>(unpack2x16float(record.x).y, unpack2x16float(record.y));
+    return vec3<f32>(unpack2x16float(record.x), unpack2x16float(record.y).x);
 }
 
-// The summary's representative material (palette index).
+// The summary's projected coverage of the node's faces (the spec's axis coverage): the box faces'
+// coverage times their share of the node's faces.
+fn lod_node_coverage(record: vec4<u32>) -> vec3<f32> {
+    let w = record.w;
+    let q_lo = vec3<f32>(vec3<u32>(w, w >> 4u, w >> 8u) & vec3<u32>(0xFu));
+    let q_hi = vec3<f32>(vec3<u32>(w >> 12u, w >> 16u, w >> 20u) & vec3<u32>(0xFu)) + 1.0;
+    let e = (q_hi - q_lo) / 16.0;
+    return lod_coverage(record) * vec3<f32>(e.y * e.z, e.x * e.z, e.x * e.y);
+}
+
+// The summary's representative material (palette index): the high half of word 1.
 fn lod_material(record: vec4<u32>) -> u32 {
-    return record.w & 0xFFFFu;
+    return record.y >> 16u;
+}
+
+// The box a filtered hit fills (`LodSummary::filtered_box`): the occupied box of the node whose
+// minimum corner is `lo`, `size` voxels on a side. Word 3 holds the box's corners in sixteenths
+// of the node's edge, 4 bits each (minimum x, y, z, then maximum minus one).
+fn lod_filtered_box(record: vec4<u32>, lo: vec3<f32>, size: f32) -> array<vec3<f32>, 2> {
+    let w = record.w;
+    let q_lo = vec3<f32>(vec3<u32>(w, w >> 4u, w >> 8u) & vec3<u32>(0xFu));
+    let q_hi = vec3<f32>(vec3<u32>(w >> 12u, w >> 16u, w >> 20u) & vec3<u32>(0xFu)) + 1.0;
+    let scale = size / 16.0;
+    return array<vec3<f32>, 2>(lo + q_lo * scale, lo + q_hi * scale);
 }
 
 // The summary's mean outward normal in module space (`LodSummary::unpack`): word 2 holds a 12+12

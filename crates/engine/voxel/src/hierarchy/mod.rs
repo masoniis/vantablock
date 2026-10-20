@@ -308,11 +308,23 @@ pub(crate) fn entry_face(
     te: f32,
     t_start: f32,
 ) -> HitFace {
+    entry_face_box(lo.as_vec3(), hi.as_vec3(), ray, step, te, t_start)
+}
+
+/// [`entry_face`] for a box with non-integer corners (a filtered node's occupied box).
+pub(crate) fn entry_face_box(
+    lo: Vec3,
+    hi: Vec3,
+    ray: &Ray,
+    step: IVec3,
+    te: f32,
+    t_start: f32,
+) -> HitFace {
     if te < t_start {
         return HitFace::Inside;
     }
-    let t0 = (lo.as_vec3() - ray.origin) * ray.inv_dir;
-    let t1 = (hi.as_vec3() - ray.origin) * ray.inv_dir;
+    let t0 = (lo - ray.origin) * ray.inv_dir;
+    let t1 = (hi - ray.origin) * ray.inv_dir;
     let near = t0.min(t1);
     let axis = if near.x >= near.y && near.x >= near.z {
         0

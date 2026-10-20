@@ -244,7 +244,7 @@ fn hierarchies_agree_with_each_other() {
 }
 
 /// Footprint filtering is exact with a zero-width cone, and with a wide cone every filtered hit
-/// names an aligned, occupied region at the distance the ray enters it.
+/// names an aligned, occupied region at the distance the ray enters its occupied box.
 #[test]
 fn footprint_filtering_reports_aligned_occupied_regions() {
     let mut rng = Rng(7);
@@ -263,7 +263,7 @@ fn footprint_filtering_reports_aligned_occupied_regions() {
         threshold: 0.1,
     };
     let mut filtered = 0;
-    for _ in 0..1500 {
+    for _ in 0..4000 {
         let dir = rng.direction();
         let target = Vec3::new(
             rng.range(0.0, extent),
@@ -284,18 +284,27 @@ fn footprint_filtering_reports_aligned_occupied_regions() {
         filtered += 1;
         let size = 4u32.pow(hit.lod);
         assert_eq!(hit.cell % size, UVec3::ZERO, "ray {ray:?}");
-        // the hit is the entry of the node's box clipped to the occupied bounds
-        let lo = hit.cell.as_vec3().max(root.bounds.min);
-        let hi = (hit.cell.as_vec3() + Vec3::splat(size as f32)).min(root.bounds.max);
+        // the hit is the entry of the node's occupied voxels' box (rounded outward to sixteenths
+        // of the node) clipped to the module's occupied bounds
+        let (mut vlo, mut vhi) = (UVec3::splat(size), UVec3::ZERO);
+        for i in 0..size.pow(3) {
+            let local = UVec3::new(i % size, i / size % size, i / size / size);
+            if module.get(hit.cell + local) != 0 {
+                vlo = vlo.min(local);
+                vhi = vhi.max(local + 1);
+            }
+        }
+        assert!(vlo.cmplt(vhi).all(), "ray {ray:?} hit an empty region");
+        let sixteenth = size as f32 / 16.0;
+        let lo = (hit.cell.as_vec3() + (vlo.as_vec3() / sixteenth).floor() * sixteenth)
+            .max(root.bounds.min);
+        let hi = (hit.cell.as_vec3() + (vhi.as_vec3() / sixteenth).ceil() * sixteenth)
+            .min(root.bounds.max);
         let (te, tx) = voxel::math::slab(lo, hi, &ray);
         assert!(
             te <= tx && (hit.t - te.max(0.0)).abs() < 1e-3,
             "ray {ray:?}"
         );
-        let occupied = (0..size.pow(3)).any(|i| {
-            module.get(hit.cell + UVec3::new(i % size, i / size % size, i / size / size)) != 0
-        });
-        assert!(occupied, "ray {ray:?} hit an empty region");
     }
     assert!(
         filtered > 50,

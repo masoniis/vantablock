@@ -62,11 +62,16 @@ fn nearest_axis(t: vec3<f32>) -> vec3<i32> {
 }
 
 fn entry_face(lo: vec3<i32>, hi: vec3<i32>, o: vec3<f32>, inv: vec3<f32>, step: vec3<i32>, te: f32, t_start: f32) -> u32 {
+    return entry_face_box(vec3<f32>(lo), vec3<f32>(hi), o, inv, step, te, t_start);
+}
+
+// `entry_face` for a box with non-integer corners (a filtered node's occupied box).
+fn entry_face_box(lo: vec3<f32>, hi: vec3<f32>, o: vec3<f32>, inv: vec3<f32>, step: vec3<i32>, te: f32, t_start: f32) -> u32 {
     if te < t_start {
         return FACE_INSIDE;
     }
-    let t0 = (vec3<f32>(lo) - o) * inv;
-    let t1 = (vec3<f32>(hi) - o) * inv;
+    let t0 = (lo - o) * inv;
+    let t1 = (hi - o) * inv;
     let near = min(t0, t1);
     // stepping up enters through the min face, whose outward normal points down the axis
     let down = step < vec3<i32>(0);

@@ -16,13 +16,13 @@
 
 use super::{
     ATTRIBUTE_MATERIAL_MASK, BakeStats, MAX_TRAVERSAL_STEPS, PageSpan, VoxelHit, entry_cell,
-    entry_face, nearest_axis, step_of,
+    entry_face, entry_face_box, nearest_axis, step_of,
 };
 use crate::{
     arena::ArenaError,
     geometry::{GeometryArenas, GeometrySource},
     handle::ArenaHandle,
-    lod::{FootprintFilter, LodSummary},
+    lod::{FootprintFilter, LodSummary, OCCUPIED_STEPS},
     mask::{Mask64, cell_index},
     math::{Aabb, Ray, slab},
     module::{BRICK_VOXELS, Brick, EMPTY, MAX_LEVELS, MaterialId, VoxelModule},
@@ -198,6 +198,9 @@ struct Summary {
     /// Each material's weight: `(exposed faces, voxels)`, compared in that order, so the material
     /// a summary shades with is the one covering most of the node's surface, not its interior.
     materials: Vec<(MaterialId, MaterialWeight)>,
+    /// The occupied voxels' bounding box within the node, in voxels (`hi` exclusive).
+    lo: UVec3,
+    hi: UVec3,
 }
 
 type MaterialWeight = (u64, u64);
@@ -210,6 +213,8 @@ impl Summary {
             projections: std::array::from_fn(|_| Bitmap::new(extent)),
             faces: [0; 6],
             materials: Vec::new(),
+            lo: UVec3::splat(extent),
+            hi: UVec3::ZERO,
         }
     }
 
@@ -232,6 +237,8 @@ impl Summary {
             }
             let (x, y, z) = (k & 3, (k >> 2) & 3, k >> 4);
             s.voxels += 1;
+            s.lo = s.lo.min(UVec3::new(x, y, z));
+            s.hi = s.hi.max(UVec3::new(x, y, z) + 1);
             s.projections[0].set(y, z);
             s.projections[1].set(x, z);
             s.projections[2].set(x, y);
@@ -260,6 +267,9 @@ impl Summary {
         let (cx, cy, cz) = (k & 3, (k >> 2) & 3, k >> 4);
         let c = child_extent;
         self.voxels += child.voxels;
+        let corner = UVec3::new(cx, cy, cz) * c;
+        self.lo = self.lo.min(corner + child.lo);
+        self.hi = self.hi.max(corner + child.hi);
         self.projections[0].or_at(&child.projections[0], cy * c, cz * c);
         self.projections[1].or_at(&child.projections[1], cx * c, cz * c);
         self.projections[2].or_at(&child.projections[2], cx * c, cy * c);
@@ -278,7 +288,14 @@ impl Summary {
     }
 
     fn lod(&self) -> LodSummary {
-        let area = (self.extent as f64).powi(2);
+        // the occupied box in sixteenths of the node's edge, rounded outward, as the record
+        // stores it; coverage is relative to its faces
+        let sixteenth = self.extent as f64 / OCCUPIED_STEPS as f64;
+        let box_lo = self.lo.as_dvec3() / sixteenth;
+        let box_hi = self.hi.as_dvec3() / sixteenth;
+        let (box_lo, box_hi) = (box_lo.floor(), box_hi.ceil());
+        let ext = (box_hi - box_lo) * sixteenth;
+        let faces = [ext.y * ext.z, ext.x * ext.z, ext.x * ext.y];
         let f = self.faces.map(|c| c as f32);
         let normal = Vec3::new(f[1] - f[0], f[3] - f[2], f[5] - f[4]);
         let total: f32 = f.iter().sum();
@@ -294,13 +311,20 @@ impl Summary {
             .map_or(EMPTY, |m| m.0);
         LodSummary {
             volume: (self.voxels as f64 / (self.extent as f64).powi(3)) as f32,
-            coverage: self
-                .projections
-                .each_ref()
-                .map(|p| (p.count() as f64 / area) as f32),
+            coverage: std::array::from_fn(|axis| {
+                if faces[axis] > 0.0 {
+                    (self.projections[axis].count() as f64 / faces[axis]).min(1.0) as f32
+                } else {
+                    0.0
+                }
+            }),
             normal,
             spread,
             material,
+            occupied: [
+                (box_lo / OCCUPIED_STEPS as f64).as_vec3(),
+                (box_hi / OCCUPIED_STEPS as f64).as_vec3(),
+            ],
         }
     }
 }
@@ -397,8 +421,9 @@ pub fn trace_counted(
 /// ray cone's footprint is resolved from its LOD summary instead of being descended (see
 /// [`FootprintFilter`]). A filtered hit reports the node's aligned corner as `cell`, its index in
 /// the parent as `terminal_index`, its level as `lod`, and the summary's material. The hit is
-/// where the ray enters the node's box clipped to the root's occupied `bounds` (the bounds scene
-/// search culls frames with), and a ray that misses the clipped box passes through. Nodes without
+/// where the ray enters the summary's occupied box ([`LodSummary::filtered_box`]) clipped to the
+/// root's occupied `bounds` (the bounds scene search culls frames with), and a ray that misses
+/// the clipped box passes through. Nodes without
 /// a summary are always descended, and the root is never filtered.
 pub fn trace_filtered(
     geometry: &impl GeometrySource,
@@ -516,9 +541,10 @@ fn trace_impl(
                     // Its box is clipped to the module's occupied bounds, which scene search culls
                     // with, so a filtered surface never sticks out of its frame's bounds.
                     let summary = LodSummary::unpack(geometry.lod_record(index));
-                    let clip_lo = lo.max(root.bounds.min.as_ivec3());
-                    let clip_hi = (lo + IVec3::splat(size)).min(root.bounds.max.as_ivec3());
-                    let (ce, cx) = slab(clip_lo.as_vec3(), clip_hi.as_vec3(), ray);
+                    let (box_lo, box_hi) = summary.filtered_box(lo.as_vec3(), size as f32);
+                    let clip_lo = box_lo.max(root.bounds.min);
+                    let clip_hi = box_hi.min(root.bounds.max);
+                    let (ce, cx) = slab(clip_lo, clip_hi, ray);
                     if ce <= cx
                         && cx >= t_start
                         && ce <= t_end
@@ -528,7 +554,7 @@ fn trace_impl(
                             t: ce.max(t_start),
                             cell: lo.as_uvec3(),
                             terminal_index: k,
-                            face: entry_face(clip_lo, clip_hi, ray, step, ce, t_start),
+                            face: entry_face_box(clip_lo, clip_hi, ray, step, ce, t_start),
                             attribute: ArenaHandle::INVALID,
                             material: summary.material,
                             lod: (levels - 1 - depth) as u32,
@@ -669,7 +695,8 @@ mod tests {
 
     #[test]
     fn lod_summaries_describe_their_subtree() {
-        // a full 4x4 slab one voxel thick in z: half coverage along x/y, full along z
+        // a full 4x4 slab one voxel thick in z: its occupied box is the slab, which it covers
+        // from every axis
         let mut module = VoxelModule::new(1);
         for x in 0..4 {
             for y in 0..4 {
@@ -680,9 +707,10 @@ mod tests {
         let (root, _) = arenas.bake_tree64(&module).unwrap();
         let header = read_node(&arenas, root.node);
         let lod = arenas.lod.get(header.lod_index().unwrap());
-        assert_eq!(lod.volume, 0.25);
-        assert_eq!(lod.coverage, [0.25, 0.25, 1.0]);
+        assert!((lod.volume - 0.25).abs() < 1.0 / 255.0, "{}", lod.volume);
+        assert_eq!(lod.coverage, [1.0, 1.0, 1.0]);
         assert_eq!(lod.material, 3);
+        assert_eq!(lod.occupied, [Vec3::ZERO, Vec3::new(1.0, 1.0, 0.25)]);
     }
 
     #[test]
@@ -708,7 +736,9 @@ mod tests {
                 .offset(root_header.child_mask.child_word_offset(child)),
         );
         let lod = arenas.lod.get(header.lod_index().unwrap());
-        assert_eq!(lod.volume, 0.5);
+        assert!((lod.volume - 0.5).abs() < 1.0 / 255.0, "{}", lod.volume);
+        // the brick's top two rows are empty
+        assert_eq!(lod.occupied, [Vec3::ZERO, Vec3::new(1.0, 0.5, 1.0)]);
         assert!(lod.normal.dot(Vec3::Y) > 0.999, "{:?}", lod.normal);
         assert!(lod.spread < 0.01, "{}", lod.spread);
     }
@@ -753,14 +783,17 @@ mod tests {
 
     #[test]
     fn sparse_summaries_pass_rays_below_the_threshold() {
+        // two voxels at opposite corners: the occupied box is the whole brick, and each axis'
+        // projection covers 2/16 of its face
         let mut module = VoxelModule::new(2);
-        module.set(UVec3::new(5, 1, 1), 2);
+        module.set(UVec3::new(4, 0, 0), 2);
+        module.set(UVec3::new(7, 3, 3), 2);
         filled_brick(&mut module, UVec3::new(8, 0, 0), 5);
         let mut arenas = GeometryArenas::default();
         let (root, _) = arenas.bake_tree64(&module).unwrap();
         let ray = Ray::new(Vec3::new(-10.0, 1.5, 1.5), Vec3::X);
 
-        // one voxel covers 1/16 of the brick's face: a 0.5 cutoff sees through it
+        // a 0.5 cutoff sees through it
         let hit = trace_filtered(&arenas, &root, &ray, 0.0, f32::MAX, &filter(2.0, 0.5))
             .0
             .unwrap();
@@ -776,8 +809,36 @@ mod tests {
             (hit.cell, hit.lod, hit.material),
             (UVec3::new(4, 0, 0), 1, 2)
         );
-        let hit = trace(&arenas, &root, &ray, 0.0, f32::MAX).unwrap();
-        assert_eq!((hit.cell, hit.lod), (UVec3::new(5, 1, 1), 0));
+        assert!((hit.t - 14.0).abs() < 1e-4, "t = {}", hit.t);
+        assert_eq!(trace(&arenas, &root, &ray, 0.0, f32::MAX).unwrap().lod, 0);
+    }
+
+    #[test]
+    fn filtered_hits_fill_only_the_occupied_box() {
+        // one voxel at (5, 1, 1) in the brick at (4, 0, 0): its summary is that voxel's box,
+        // which it covers fully, so the summary stands exactly where the voxel does
+        let mut module = VoxelModule::new(2);
+        module.set(UVec3::new(5, 1, 1), 2);
+        module.set(UVec3::new(15, 15, 15), 1);
+        let mut arenas = GeometryArenas::default();
+        let (root, _) = arenas.bake_tree64(&module).unwrap();
+        let wide = filter(2.0, 0.5);
+
+        let ray = Ray::new(Vec3::new(-10.0, 1.5, 1.5), Vec3::X);
+        let hit = trace_filtered(&arenas, &root, &ray, 0.0, f32::MAX, &wide)
+            .0
+            .unwrap();
+        assert_eq!(
+            (hit.cell, hit.lod, hit.face, hit.material),
+            (UVec3::new(4, 0, 0), 1, HitFace::NegX, 2)
+        );
+        assert!((hit.t - 15.0).abs() < 1e-4, "t = {}", hit.t);
+        // through the brick beside the voxel: no surface
+        let beside = Ray::new(Vec3::new(-10.0, 2.5, 1.5), Vec3::X);
+        assert_eq!(
+            trace_filtered(&arenas, &root, &beside, 0.0, f32::MAX, &wide).0,
+            None
+        );
     }
 
     #[test]

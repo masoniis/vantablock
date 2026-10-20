@@ -3,7 +3,7 @@
 
 import super::lib::types::{ViewUniform, Environment, VISIBILITY_MISS, VIEW_TONEMAP_IN_SHADER};
 import super::lib::geometry::{materials, voxel_material, lod_record_load};
-import super::lib::lod::{lod_material, lod_coverage};
+import super::lib::lod::{lod_material, lod_node_coverage, lod_filtered_box};
 import super::lib::scene::{frames, trace_scene, previous_world_position};
 import super::lib::view::{camera_ray_direction, sky_color, tonemap, id_color, heatmap};
 import super::lib::ray::{sanitize_direction, slab, transform_point, transform_vector};
@@ -66,8 +66,9 @@ fn face_light(n: vec3<f32>, light: vec3<f32>) -> FaceLight {
 
 // A footprint-filtered hit stands for every voxel face the camera sees inside its node. Seen along
 // local direction `d`, the faces of axis `a` that face the camera cover `|d_a| * coverage_a` of
-// the view (the terms of the opacity proxy), so the hit averages the three camera-facing axis
-// faces' lighting with those weights, as the voxels' own faces would average over the footprint.
+// the view (`coverage` is relative to the node's faces, `lod_node_coverage`), so the hit averages
+// the three camera-facing axis faces' lighting with those weights, as the voxels' own faces would
+// average over the footprint.
 fn filtered_face_light(to_world: mat3x3<f32>, d: vec3<f32>, coverage: vec3<f32>, light: vec3<f32>, fallback: vec3<f32>) -> FaceLight {
     let w = abs(d) * coverage;
     let total = w.x + w.y + w.z;
@@ -128,7 +129,7 @@ fn shade(pixel: vec2<i32>, dir: vec3<f32>) -> vec3<f32> {
         let record = lod_record_load(vis.y);
         material_index = lod_material(record);
         let local_d = transform_vector(frame.world_to_local, dir);
-        surface = filtered_face_light(to_world, local_d, lod_coverage(record), light, face_n);
+        surface = filtered_face_light(to_world, local_d, lod_node_coverage(record), light, face_n);
     }
     let normal = surface.normal;
 
@@ -179,8 +180,9 @@ fn shade(pixel: vec2<i32>, dir: vec3<f32>) -> vec3<f32> {
         if lod > 0u {
             let c = textureLoad(cell_tex, pixel, 0).x;
             let corner = vec3<u32>(c & 0x3FFu, (c >> 10u) & 0x3FFu, c >> 20u);
-            let lo = vec3<f32>(max(corner, frame.local_bounds_min));
-            let hi = vec3<f32>(min(corner + vec3<u32>(1u << (2u * lod)), frame.local_bounds_max));
+            let filtered = lod_filtered_box(lod_record_load(vis.y), vec3<f32>(corner), f32(1u << (2u * lod)));
+            let lo = max(filtered[0], vec3<f32>(frame.local_bounds_min));
+            let hi = min(filtered[1], vec3<f32>(frame.local_bounds_max));
             // leave the filtered node toward the light, so its own voxels can't shadow the box
             let local_o = transform_point(frame.world_to_local, position);
             let local_l = sanitize_direction(transform_vector(frame.world_to_local, light));

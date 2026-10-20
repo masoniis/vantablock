@@ -4,10 +4,10 @@
 // boundary distances are recomputed from integer cells, and ties pick the lowest axis.
 
 import super::geometry::{topology_load, lod_record_load};
-import super::lod::{FootprintFilter, LOD_INDEX_MASK, LOD_MISSING, exact_footprint, footprint_covers, lod_opacity};
+import super::lod::{FootprintFilter, LOD_INDEX_MASK, LOD_MISSING, exact_footprint, footprint_covers, lod_opacity, lod_filtered_box};
 import super::mask::{prefix_count, child_word_offset, mask_bit};
 import super::ray::slab;
-import super::dda::{VoxelRoot, VoxelHit, MAX_TRAVERSAL_STEPS, node_address, next_boundary, nearest_axis, entry_face};
+import super::dda::{VoxelRoot, VoxelHit, MAX_TRAVERSAL_STEPS, node_address, next_boundary, nearest_axis, entry_face, entry_face_box};
 
 const MAX_LEVELS: u32 = 5u;
 
@@ -100,6 +100,19 @@ fn footprint_decision(cone: FootprintFilter, address: u32, size: i32, t: f32, d:
     return vec2<u32>(FOOTPRINT_DESCEND, 0u);
 }
 
+// The box a filtered hit fills, for the node with minimum corner `lo`, `size` voxels on a side,
+// and LOD record `index`: the summary's occupied box. Only `footprint_lod` builds filter, so
+// elsewhere it is never reached and doesn't read the LOD records.
+@ if(footprint_lod)
+fn footprint_box(index: u32, lo: vec3<i32>, size: i32) -> array<vec3<f32>, 2> {
+    return lod_filtered_box(lod_record_load(index), vec3<f32>(lo), f32(size));
+}
+
+@ if(!footprint_lod)
+fn footprint_box(index: u32, lo: vec3<i32>, size: i32) -> array<vec3<f32>, 2> {
+    return array<vec3<f32>, 2>(vec3<f32>(lo), vec3<f32>(lo + vec3<i32>(size)));
+}
+
 // Traces a ray in module voxel space. `d` must already be sanitized.
 fn trace_tree64(root: VoxelRoot, o: vec3<f32>, d: vec3<f32>, t_min: f32, t_max: f32) -> VoxelHit {
     return trace_tree64_filtered(root, o, d, t_min, t_max, exact_footprint());
@@ -109,7 +122,7 @@ fn trace_tree64(root: VoxelRoot, o: vec3<f32>, d: vec3<f32>, t_min: f32, t_max: 
 // exact): an occupied node whose cell fits inside the `cone`'s footprint is resolved from its LOD
 // summary instead of being descended. A filtered hit reports the node's aligned corner as `cell`,
 // its level as `lod`, and its LOD record index as `attribute_handle`; it lies where the ray enters
-// the node's box clipped to `root.bounds_min..bounds_max`.
+// the summary's occupied box (`lod_filtered_box`) clipped to `root.bounds_min..bounds_max`.
 //
 // The current level lives in registers. The cell taken at every level is packed six bits per
 // level into `path`, a parent's header comes back from `parent_node`, and its origin and boundary
@@ -208,17 +221,19 @@ fn trace_tree64_filtered(root: VoxelRoot, o: vec3<f32>, d: vec3<f32>, t_min: f32
                     t_next = next_boundary(origin, cell, size, far, o, inv);
                     continue;
                 }
-                // the summary stands in for the whole subtree: hit it or pass through it. Its box
-                // is clipped to the root's occupied bounds, which scene search culls with.
-                let clip_lo = max(lo, root.bounds_min);
-                let clip_hi = min(lo + vec3<i32>(size), root.bounds_max);
-                let ct = slab(vec3<f32>(clip_lo), vec3<f32>(clip_hi), o, inv);
+                // the summary stands in for the whole subtree: hit its occupied box or pass through
+                // it. The box is clipped to the root's occupied bounds, which scene search culls
+                // with.
+                let filtered = footprint_box(footprint.y, lo, size);
+                let clip_lo = max(filtered[0], vec3<f32>(root.bounds_min));
+                let clip_hi = min(filtered[1], vec3<f32>(root.bounds_max));
+                let ct = slab(clip_lo, clip_hi, o, inv);
                 if footprint.x == FOOTPRINT_OPAQUE && ct.x <= ct.y && ct.y >= t_start && ct.x <= t_end {
                     result.hit = true;
                     result.t = max(ct.x, t_start);
                     result.cell = vec3<u32>(lo);
                     result.terminal_index = k;
-                    result.face = entry_face(clip_lo, clip_hi, o, inv, step, ct.x, t_start);
+                    result.face = entry_face_box(clip_lo, clip_hi, o, inv, step, ct.x, t_start);
                     result.attribute_handle = footprint.y;
                     result.steps = steps;
                     result.lod = last_level - depth;

@@ -2,15 +2,21 @@
 //!
 //! Each summary packs into four `u32` words (the proposed 16-byte payload):
 //!
-//! | Word | Contents                                                      |
-//! | ---- | ------------------------------------------------------------- |
-//! | 0    | `f16` solid volume fraction + `f16` axis-X projected coverage |
-//! | 1    | `f16` axis-Y coverage + `f16` axis-Z coverage                 |
-//! | 2    | 12+12 bit octahedral mean normal + 8 bit normal spread        |
-//! | 3    | representative material (low 16 bits), high 16 reserved      |
+//! | Word | Contents                                                                   |
+//! | ---- | -------------------------------------------------------------------------- |
+//! | 0    | `f16` axis-X projected coverage + `f16` axis-Y coverage                    |
+//! | 1    | `f16` axis-Z coverage + representative material (high 16 bits)            |
+//! | 2    | 12+12 bit octahedral mean normal + 8 bit normal spread                     |
+//! | 3    | occupied box, 4 bits per bound (24 bits) + 8 bit unorm solid volume fraction |
 //!
-//! Axis coverage is the exact fraction of the node's face covered by its projected geometry
-//! along that axis, computed from full-resolution bitmaps at bake time. Using it as directional
+//! The occupied box bounds the node's voxels in sixteenths of its edge (rounded outward: exact
+//! for nodes up to 16 voxels on a side), so a filtered hit fills only the part of the node its
+//! voxels reach (low 12 bits: the minimum corner's x, y, z; next 12: the maximum corner's, minus
+//! one). Axis coverage is the exact fraction of the occupied box's face covered by the node's
+//! projected geometry along that axis, computed from full-resolution bitmaps at bake time, so the
+//! opacity proxy is the chance of a hit given that the ray enters the box. (The spec's coverage
+//! is relative to the node's face; that fraction is `coverage` times the box face's share of the
+//! node face, which shading uses.) Using it as directional
 //! opacity is an approximation (see spec section 3.4); the normal and material are approximations
 //! too. [`crate::hierarchy::tree64::trace_filtered`] reads them through a [`FootprintFilter`], as
 //! does its mirror in `assets/client/shader/voxel/lib/lod.wesl` and `tree64.wesl`.
@@ -23,34 +29,52 @@ use std::collections::HashMap;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct LodSummary {
     pub volume: f32,
+    /// Projected coverage of the occupied box's face along X, Y, and Z.
     pub coverage: [f32; 3],
     /// Mean outward surface normal (zero when the node has no exposed faces).
     pub normal: Vec3,
     /// `0` when every exposed face agrees with `normal`, `1` when they cancel out.
     pub spread: f32,
     pub material: MaterialId,
+    /// The occupied box's minimum and maximum corners as fractions of the node's edge, in
+    /// sixteenths (packing rounds outward).
+    pub occupied: [Vec3; 2],
 }
+
+/// The occupied box's resolution: sixteenths of a node's edge.
+pub const OCCUPIED_STEPS: f32 = 16.0;
 
 impl LodSummary {
     pub fn pack(&self) -> [u32; 4] {
-        let w0 = f32_to_f16(self.volume) as u32 | (f32_to_f16(self.coverage[0]) as u32) << 16;
-        let w1 = f32_to_f16(self.coverage[1]) as u32 | (f32_to_f16(self.coverage[2]) as u32) << 16;
+        let w0 = f32_to_f16(self.coverage[0]) as u32 | (f32_to_f16(self.coverage[1]) as u32) << 16;
+        let w1 = f32_to_f16(self.coverage[2]) as u32 | (self.material as u32) << 16;
         let oct = octahedral_encode(self.normal);
         let q = |v: f32| (((v * 0.5 + 0.5).clamp(0.0, 1.0) * 4095.0).round() as u32) & 0xFFF;
         let spread = (self.spread.clamp(0.0, 1.0) * 255.0).round() as u32;
         let w2 = q(oct.x) | q(oct.y) << 12 | spread << 24;
-        [w0, w1, w2, self.material as u32]
+        let lo = (self.occupied[0] * OCCUPIED_STEPS)
+            .floor()
+            .clamp(Vec3::ZERO, Vec3::splat(15.0))
+            .as_uvec3();
+        let hi = ((self.occupied[1] * OCCUPIED_STEPS).ceil() - 1.0)
+            .clamp(Vec3::ZERO, Vec3::splat(15.0))
+            .as_uvec3()
+            .max(lo);
+        let volume = (self.volume.clamp(0.0, 1.0) * 255.0).round() as u32;
+        let w3 = lo.x | lo.y << 4 | lo.z << 8 | hi.x << 12 | hi.y << 16 | hi.z << 20 | volume << 24;
+        [w0, w1, w2, w3]
     }
 
     pub fn unpack(words: [u32; 4]) -> Self {
         let dq = |v: u32| (v & 0xFFF) as f32 / 4095.0 * 2.0 - 1.0;
         let spread = (words[2] >> 24) as f32 / 255.0;
+        let nibble = |shift: u32| ((words[3] >> shift) & 0xF) as f32;
         Self {
-            volume: f16_to_f32(words[0] as u16),
+            volume: (words[3] >> 24) as f32 / 255.0,
             coverage: [
+                f16_to_f32(words[0] as u16),
                 f16_to_f32((words[0] >> 16) as u16),
                 f16_to_f32(words[1] as u16),
-                f16_to_f32((words[1] >> 16) as u16),
             ],
             normal: if spread >= 1.0 {
                 Vec3::ZERO
@@ -58,13 +82,23 @@ impl LodSummary {
                 octahedral_decode(Vec2::new(dq(words[2]), dq(words[2] >> 12)))
             },
             spread,
-            material: words[3] as MaterialId,
+            material: (words[1] >> 16) as MaterialId,
+            occupied: [
+                Vec3::new(nibble(0), nibble(4), nibble(8)) / OCCUPIED_STEPS,
+                (Vec3::new(nibble(12), nibble(16), nibble(20)) + 1.0) / OCCUPIED_STEPS,
+            ],
         }
+    }
+
+    /// The box a filtered hit fills: the occupied box of a node whose minimum corner is `lo`,
+    /// `size` voxels on a side. Exact in `f32` (sizes are powers of four).
+    pub fn filtered_box(&self, lo: Vec3, size: f32) -> (Vec3, Vec3) {
+        (lo + self.occupied[0] * size, lo + self.occupied[1] * size)
     }
 }
 
 impl LodSummary {
-    /// The axis-coverage opacity proxy for a ray along `dir`:
+    /// The axis-coverage opacity proxy for a ray along `dir` that enters the occupied box:
     /// `clamp(sum(|dir_axis| * coverage_axis), 0, 1)` with `dir` normalized. A low-cost
     /// approximation (spec section 3.4), not exact arbitrary-angle coverage.
     pub fn opacity(&self, dir: Vec3) -> f32 {
@@ -79,8 +113,9 @@ impl LodSummary {
 ///
 /// The cone's footprint radius at distance `t` is `radius + spread * t` in world units. Traversal
 /// stops descending into an occupied node whose cell edge fits inside the footprint's diameter and
-/// treats the node's [`LodSummary`] as a surface: the ray hits it when `threshold` falls below the
-/// summary's [`opacity`](LodSummary::opacity), and passes through it otherwise. A `threshold` of
+/// treats the node's [`LodSummary`] as a surface filling its occupied box: a ray entering the box
+/// hits it when `threshold` falls below the summary's [`opacity`](LodSummary::opacity), and passes
+/// through it otherwise. A `threshold` of
 /// `0.5` is a deterministic cutoff; a spatially and temporally stable random value in `[0, 1)`
 /// gives stochastic transmission.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -244,11 +279,17 @@ mod tests {
             normal: Vec3::new(0.3, -0.8, 0.52).normalize(),
             spread: 0.4,
             material: 42,
+            occupied: [Vec3::new(0.0, 0.25, 0.5), Vec3::new(1.0, 0.3, 0.5625)],
         };
         let back = LodSummary::unpack(s.pack());
-        assert_eq!(back.volume, 0.25);
+        assert!((back.volume - 0.25).abs() < 0.5 / 255.0);
         assert_eq!(back.coverage, [0.5, 0.75, 1.0]);
         assert_eq!(back.material, 42);
+        // exact sixteenths survive, others round outward
+        assert_eq!(
+            back.occupied,
+            [Vec3::new(0.0, 0.25, 0.5), Vec3::new(1.0, 0.3125, 0.5625)]
+        );
         assert!((back.spread - 0.4).abs() < 0.01);
         assert!(back.normal.dot(s.normal) > 0.999);
     }
