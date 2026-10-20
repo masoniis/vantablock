@@ -947,10 +947,10 @@ struct FilteredRayResult {
     steps: u32,
     /// The hit frame, for whole-scene queries.
     frame: u32,
-    /// A filtered hit's LOD record index and the summary normal the shader decoded from it
+    /// A filtered hit's LOD record index and the SGGX correlations the shader decoded from it
     /// (bare 64-tree queries only).
     record: u32,
-    normal: [f32; 3],
+    correlation: [f32; 3],
     pad: u32,
 }
 
@@ -1172,15 +1172,21 @@ fn gpu_footprint_filtering_matches_cpu() {
                         if cpu.is_some_and(|c| c.1 > 0) {
                             filtered[f] += 1;
                         }
-                        // `lod_normal` must decode the summary normal as `LodSummary::unpack`
-                        // does
+                        // `lod_correlation` must decode the tensor's correlations as
+                        // `LodSummary::unpack` does
                         if result.hit != 0 && result.lod > 0 {
-                            let cpu_normal =
-                                LodSummary::unpack(geometry.lod[result.record as usize]).normal;
-                            if (cpu_normal - Vec3::from(result.normal)).abs().max_element() > 1e-5 {
+                            let cpu_correlation = Vec3::from(
+                                LodSummary::unpack(geometry.lod[result.record as usize])
+                                    .correlation,
+                            );
+                            if (cpu_correlation - Vec3::from(result.correlation))
+                                .abs()
+                                .max_element()
+                                > 1e-6
+                            {
                                 failures.push(format!(
-                                    "{} module {module}, filter {f}: record {} decodes to {cpu_normal} on the CPU, {:?} on the GPU",
-                                    asset.assembly.name, result.record, result.normal
+                                    "{} module {module}, filter {f}: record {} decodes to {cpu_correlation} on the CPU, {:?} on the GPU",
+                                    asset.assembly.name, result.record, result.correlation
                                 ));
                             }
                         }

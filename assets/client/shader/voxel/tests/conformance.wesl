@@ -6,7 +6,7 @@ import super::super::lib::mask::{prefix_count, child_word_offset};
 import super::super::lib::ray::sanitize_direction;
 import super::super::lib::dda::{VoxelRoot, VoxelHit};
 import super::super::lib::tree64::{trace_tree64, trace_tree64_filtered};
-import super::super::lib::lod::{FootprintFilter, lod_material, lod_normal};
+import super::super::lib::lod::{FootprintFilter, lod_correlation, lod_material};
 import super::super::lib::geometry::{lod_record_load, voxel_material};
 import super::super::lib::octree::trace_octree;
 import super::super::lib::scene::{trace_scene, trace_scene_filtered, previous_world_position};
@@ -68,9 +68,9 @@ struct FilteredRayResult {
     steps: u32,
     // the hit frame, for whole-scene queries
     frame: u32,
-    // a filtered hit's LOD record index and its decoded summary normal (bare 64-tree queries)
+    // a filtered hit's LOD record index and its decoded SGGX correlations (bare 64-tree queries)
     record: u32,
-    normal: vec3<f32>,
+    correlation: vec3<f32>,
     pad: u32,
 };
 
@@ -175,7 +175,7 @@ fn filtered_rays(@builtin(global_invocation_id) id: vec3<u32>) {
             let record = lod_record_load(hit.attribute_handle);
             result.material = lod_material(record);
             result.record = hit.attribute_handle;
-            result.normal = lod_normal(record);
+            result.correlation = lod_correlation(record);
         }
     }
     filtered_results[id.x] = result;

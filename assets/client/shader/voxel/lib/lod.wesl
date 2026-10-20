@@ -1,5 +1,5 @@
 // Footprint LOD filtering. Mirrors crates/engine/voxel/src/lod.rs: the packed summary record, the
-// axis-coverage opacity proxy, and the footprint rule. The traversal that uses them is
+// fitted SGGX opacity, and the footprint rule. The traversal that uses them is
 // `trace_tree64_filtered` in tree64.wesl, compiled in only with the `footprint_lod` feature.
 
 // Low 31 bits of a node header's `lod_meta`, and the index meaning "no summary baked".
@@ -25,20 +25,24 @@ fn footprint_covers(cone: FootprintFilter, size: f32, t: f32, voxels_per_unit: f
     return size <= 2.0 * (cone.radius + cone.spread * t) * voxels_per_unit;
 }
 
-// `min(sqrt(sum(d_axis^2 * coverage_axis^2)), 1)` with `d` normalized (`LodSummary::opacity`):
-// the chance of a hit for a ray entering the summary's occupied box.
+// The fitted SGGX tensor's `min(sqrt(max(w^T S w, 0)), 1)` with `w = normalize(d)`,
+// `S_aa = c_a^2`, and `S_ab = r_ab c_a c_b` (`LodSummary::opacity`): the chance of a hit for a ray
+// entering the summary's occupied box.
 fn lod_opacity(record: vec4<u32>, d: vec3<f32>) -> f32 {
-    return min(length(normalize(d) * lod_coverage(record)), 1.0);
+    let a = normalize(d) * lod_coverage(record);
+    let r = lod_correlation(record);
+    let q = dot(a, a) + 2.0 * (a.x * a.y * r.x + a.x * a.z * r.y + a.y * a.z * r.z);
+    return min(sqrt(max(q, 0.0)), 1.0);
 }
 
-// The summary's projected coverage of its occupied box's faces along X, Y, and Z: f16s in word 0
-// and the low half of word 1.
+// The fitted tensor's coverage of the summary's occupied box along X, Y, and Z (`sqrt(S_aa)`):
+// f16s in word 0 and the low half of word 1.
 fn lod_coverage(record: vec4<u32>) -> vec3<f32> {
     return vec3<f32>(unpack2x16float(record.x), unpack2x16float(record.y).x);
 }
 
-// The summary's projected coverage of the node's faces (the spec's axis coverage): the box faces'
-// coverage times their share of the node's faces.
+// The fitted tensor's coverage of the node's faces along X, Y, and Z (the spec's axis coverage):
+// the box faces' coverage times their share of the node's faces.
 fn lod_node_coverage(record: vec4<u32>) -> vec3<f32> {
     let w = record.w;
     let q_lo = vec3<f32>(vec3<u32>(w, w >> 4u, w >> 8u) & vec3<u32>(0xFu));
@@ -63,20 +67,9 @@ fn lod_filtered_box(record: vec4<u32>, lo: vec3<f32>, size: f32) -> array<vec3<f
     return array<vec3<f32>, 2>(lo + q_lo * scale, lo + q_hi * scale);
 }
 
-// The summary's mean outward normal in module space (`LodSummary::unpack`): word 2 holds a 12+12
-// bit octahedral encoding and the 8 bit normal spread. Zero when the exposed faces cancel out
-// (full spread). Shading doesn't use it: `filtered_face_light` in direct_lighting.wesl averages
-// the camera-facing axis faces by coverage, which the mean normal can't describe.
-fn lod_normal(record: vec4<u32>) -> vec3<f32> {
-    if (record.z >> 24u) == 255u {
-        return vec3<f32>(0.0);
-    }
-    let e = vec2<f32>(f32(record.z & 0xFFFu), f32((record.z >> 12u) & 0xFFFu)) / 4095.0 * 2.0 - 1.0;
-    // `e` is never zero (4095 is odd), so the sign is never ambiguous
-    let z = 1.0 - abs(e.x) - abs(e.y);
-    var xy = e;
-    if z < 0.0 {
-        xy = (vec2<f32>(1.0) - abs(e.yx)) * select(vec2<f32>(-1.0), vec2<f32>(1.0), e >= vec2<f32>(0.0));
-    }
-    return normalize(vec3<f32>(xy, z));
+// The fitted tensor's correlations `r_xy`, `r_xz`, `r_yz` (`S_ab / sqrt(S_aa S_bb)`): word 2
+// holds them as 10 bit offset snorms.
+fn lod_correlation(record: vec4<u32>) -> vec3<f32> {
+    let q = vec3<u32>(record.z, record.z >> 10u, record.z >> 20u) & vec3<u32>(0x3FFu);
+    return (vec3<f32>(q) - 511.0) / 511.0;
 }

@@ -6,7 +6,13 @@
 
 use glam::{UVec3, Vec3};
 use std::{collections::BTreeSet, time::Instant};
-use voxel::angular::{EvenPoly4, NodeVoxels, Sggx, axis_opacity, hemisphere_directions};
+use voxel::{
+    angular::{
+        BAKE_MEASUREMENT, BakeMeasurement, BakeSetup, EvenPoly4, NodeVoxels, Sggx, axis_opacity,
+        hemisphere_directions,
+    },
+    lod::stored_tensor,
+};
 
 /// Directions the bake-time fits see, and the disjoint set every candidate is scored on.
 const FIT_DIRECTIONS: usize = 48;
@@ -50,17 +56,41 @@ fn sample_nodes(assembly: &voxel::CanonicalAssembly, size: u32) -> Vec<NodeVoxel
 struct NodeResult {
     truth: Vec<f32>,
     candidates: [Vec<f32>; CANDIDATES],
+    /// Seconds the bake's own measurement and fit took.
+    bake_seconds: f64,
 }
 
-const CANDIDATES: usize = 4;
+const CANDIDATES: usize = 6;
 const NAMES: [&str; CANDIDATES] = [
     "axis proxy (L1)",
     "diagonal SGGX (L2)",
     "fitted SGGX (f16)",
+    "axis-fixed SGGX",
+    "baked SGGX",
     "quartic (15 coef)",
 ];
 
-fn measure(node: &NodeVoxels, fit_dirs: &[Vec3], eval_dirs: &[Vec3]) -> NodeResult {
+/// The bake's measurement, overridable for exploration with `VANTA_BAKE_DIRECTIONS` and
+/// `VANTA_BAKE_SAMPLES`.
+fn bake_measurement() -> BakeMeasurement {
+    let var = |name: &str| std::env::var(name).ok().and_then(|v| v.parse().ok());
+    BakeMeasurement {
+        directions: var("VANTA_BAKE_DIRECTIONS").unwrap_or(BAKE_MEASUREMENT.directions),
+        samples: var("VANTA_BAKE_SAMPLES")
+            .map(|v: usize| v as u32)
+            .unwrap_or(BAKE_MEASUREMENT.samples),
+        brick_grid: var("VANTA_BAKE_BRICK_GRID")
+            .map(|v: usize| v as u32)
+            .unwrap_or(BAKE_MEASUREMENT.brick_grid),
+    }
+}
+
+fn measure(
+    node: &NodeVoxels,
+    fit_dirs: &[Vec3],
+    eval_dirs: &[Vec3],
+    bake: &BakeSetup,
+) -> NodeResult {
     let fit: Vec<f32> = fit_dirs
         .iter()
         .map(|&w| node.coverage(w, SAMPLES))
@@ -72,6 +102,10 @@ fn measure(node: &NodeVoxels, fit_dirs: &[Vec3], eval_dirs: &[Vec3]) -> NodeResu
     let axis = node.axis_coverage();
     let diagonal = Sggx::from_axis_coverage(axis);
     let sggx = Sggx::fit(fit_dirs, &fit).quantized();
+    let axis_fixed = stored_tensor(Sggx::fit_with_axes(axis, fit_dirs, &fit));
+    let start = Instant::now();
+    let baked = stored_tensor(bake.tensor(node));
+    let bake_seconds = start.elapsed().as_secs_f64();
     let quartic = EvenPoly4::fit(fit_dirs, &fit);
     let eval = |f: &dyn Fn(Vec3) -> f32| eval_dirs.iter().map(|&w| f(w)).collect::<Vec<_>>();
     NodeResult {
@@ -80,24 +114,28 @@ fn measure(node: &NodeVoxels, fit_dirs: &[Vec3], eval_dirs: &[Vec3]) -> NodeResu
             eval(&|w| axis_opacity(axis, w)),
             eval(&|w| diagonal.opacity(w)),
             eval(&|w| sggx.opacity(w)),
+            eval(&|w| axis_fixed.opacity(w)),
+            eval(&|w| baked.opacity(w)),
             eval(&|w| quartic.opacity(w)),
         ],
+        bake_seconds,
     }
 }
 
 fn measure_all(nodes: &[NodeVoxels]) -> Vec<NodeResult> {
     let fit_dirs = hemisphere_directions(FIT_DIRECTIONS, 0.0);
     let eval_dirs = hemisphere_directions(EVAL_DIRECTIONS, 1.234);
+    let bake = BakeSetup::new(bake_measurement());
     let threads = std::thread::available_parallelism().map_or(4, |n| n.get());
     let chunk = nodes.len().div_ceil(threads).max(1);
     std::thread::scope(|scope| {
         let handles: Vec<_> = nodes
             .chunks(chunk)
             .map(|part| {
-                let (fit_dirs, eval_dirs) = (&fit_dirs, &eval_dirs);
+                let (fit_dirs, eval_dirs, bake) = (&fit_dirs, &eval_dirs, &bake);
                 scope.spawn(move || {
                     part.iter()
-                        .map(|n| measure(n, fit_dirs, eval_dirs))
+                        .map(|n| measure(n, fit_dirs, eval_dirs, bake))
                         .collect::<Vec<_>>()
                 })
             })
@@ -130,11 +168,12 @@ fn report(label: &str, nodes: &[NodeVoxels]) {
     let mean_truth = results.iter().flat_map(|r| &r.truth).sum::<f32>()
         / (results.len() * EVAL_DIRECTIONS) as f32;
     println!(
-        "  {label}: {} nodes ({} anisotropic), mean coverage {:.3}, {:.1} ms per node",
+        "  {label}: {} nodes ({} anisotropic), mean coverage {:.3}, {:.1} ms per node, bake fit {:.1} us per node",
         results.len(),
         anisotropic,
         mean_truth,
-        elapsed.as_secs_f64() * 1000.0 / results.len() as f64
+        elapsed.as_secs_f64() * 1000.0 / results.len() as f64,
+        results.iter().map(|r| r.bake_seconds).sum::<f64>() * 1e6 / results.len() as f64
     );
     for (c, name) in NAMES.iter().enumerate() {
         let mut errors: Vec<f32> = Vec::new();
@@ -164,6 +203,11 @@ fn report(label: &str, nodes: &[NodeVoxels]) {
 #[test]
 #[ignore = "measurement: run with --release --ignored --nocapture"]
 fn directional_lod_comparison() {
+    let bake = bake_measurement();
+    println!(
+        "baked SGGX: {} directions, {}x{} rays each ({}x{} brick lines)",
+        bake.directions, bake.samples, bake.samples, bake.brick_grid, bake.brick_grid
+    );
     println!("synthetic:");
     let leaf = |size: u32| {
         NodeVoxels::from_fn(size, move |p| {

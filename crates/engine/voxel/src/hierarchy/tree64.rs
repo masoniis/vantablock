@@ -19,6 +19,7 @@ use super::{
     entry_face, entry_face_box, nearest_axis, step_of,
 };
 use crate::{
+    angular::{NodeVoxels, Sggx, bake_setup},
     arena::ArenaError,
     geometry::{GeometryArenas, GeometrySource},
     handle::ArenaHandle,
@@ -29,6 +30,10 @@ use crate::{
     node::{NODE_WORDS, Node64},
 };
 use glam::{IVec3, UVec3, Vec3};
+use std::{
+    collections::HashMap,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 
 /// A baked, immutable 64-tree root.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -79,6 +84,7 @@ pub fn bake(
         levels,
         pages: PageSpan::default(),
         stats: BakeStats::default(),
+        tensors: NodeTensors::measure(&bricks, levels),
     };
 
     let root_header = if bricks.is_empty() {
@@ -135,6 +141,7 @@ struct Builder<'a> {
     levels: u32,
     pages: PageSpan,
     stats: BakeStats,
+    tensors: NodeTensors,
 }
 
 impl Builder<'_> {
@@ -154,7 +161,8 @@ impl Builder<'_> {
                 .map(|k| brick.materials[k as usize] as u32)
                 .collect();
             let summary = Summary::of_brick(brick, coord, self.module);
-            let lod = self.arenas.lod.push(summary.lod().pack());
+            let tensor = self.tensors.bricks[&mask.to_u64()];
+            let lod = self.arenas.lod.push(summary.lod(tensor).pack());
             let handle = self.arenas.attributes.alloc_dedup(&attributes)?;
             self.stats.terminal_nodes += 1;
             self.stats.voxels += attributes.len() as u64;
@@ -179,24 +187,125 @@ impl Builder<'_> {
             start = end;
         }
 
-        let lod = self.arenas.lod.push(summary.lod().pack());
+        let tensor = self.tensors.nodes[&(depth, node_prefix(bricks[0].0, depth, self.levels))];
+        let lod = self.arenas.lod.push(summary.lod(tensor).pack());
         let handle = self.arenas.topology.alloc_dedup(&headers)?;
         self.pages.include(handle.untyped());
         Ok((Node64::internal(mask, handle.untyped(), Some(lod)), summary))
     }
 }
 
+/// Every node's fitted directional tensor ([`crate::angular::BakeSetup::tensor`]), measured
+/// before the build on all cores: the measurement dominates the bake.
+struct NodeTensors {
+    /// By brick occupancy: bricks repeat, and a brick's tensor depends only on its voxels.
+    bricks: HashMap<u64, Sggx>,
+    /// Internal nodes by depth and [`node_prefix`].
+    nodes: HashMap<(u32, u32), Sggx>,
+}
+
+/// A node to measure: a distinct brick mask, or an internal node at a depth over a run of the
+/// sorted bricks.
+enum Measure {
+    Brick(u64),
+    Node(u32, usize, usize),
+}
+
+impl NodeTensors {
+    fn measure(bricks: &[(u32, UVec3, &Brick)], levels: u32) -> Self {
+        let mut jobs = Vec::new();
+        for depth in 0..levels.saturating_sub(1) {
+            let mut start = 0;
+            while start < bricks.len() {
+                let prefix = node_prefix(bricks[start].0, depth, levels);
+                let mut end = start + 1;
+                while end < bricks.len() && node_prefix(bricks[end].0, depth, levels) == prefix {
+                    end += 1;
+                }
+                jobs.push(Measure::Node(depth, start, end));
+                start = end;
+            }
+        }
+        let mut masks: Vec<u64> = bricks.iter().map(|b| b.2.occupancy().to_u64()).collect();
+        masks.sort_unstable();
+        masks.dedup();
+        jobs.extend(masks.into_iter().map(Measure::Brick));
+
+        let setup = bake_setup();
+        let measure = |job: &Measure| {
+            match *job {
+                Measure::Brick(mask) => NodeVoxels::from_brick_mask(mask),
+                Measure::Node(depth, start, end) => {
+                    let extent = 4u32.pow(levels - depth);
+                    let corner = bricks[start].1 / (extent / 4) * (extent / 4);
+                    NodeVoxels::from_bricks(
+                        extent,
+                        bricks[start..end]
+                            .iter()
+                            .map(|(_, coord, brick)| (coord - corner, brick.occupancy().to_u64())),
+                    )
+                }
+            }
+            .map_or(Sggx([0.0; 6]), |node| setup.tensor(&node))
+        };
+
+        // largest nodes first, so no thread is left with one at the end
+        let next = AtomicUsize::new(0);
+        let threads = std::thread::available_parallelism().map_or(4, |n| n.get());
+        let mut tensors = vec![Sggx([0.0; 6]); jobs.len()];
+        std::thread::scope(|scope| {
+            let workers: Vec<_> = (0..threads.min(jobs.len()))
+                .map(|_| {
+                    scope.spawn(|| {
+                        let mut out = Vec::new();
+                        loop {
+                            let i = next.fetch_add(1, Ordering::Relaxed);
+                            let Some(job) = jobs.get(i) else { break out };
+                            out.push((i, measure(job)));
+                        }
+                    })
+                })
+                .collect();
+            for worker in workers {
+                for (i, tensor) in worker.join().expect("tensor measurement panicked") {
+                    tensors[i] = tensor;
+                }
+            }
+        });
+
+        let mut out = Self {
+            bricks: HashMap::new(),
+            nodes: HashMap::new(),
+        };
+        for (job, tensor) in jobs.iter().zip(tensors) {
+            match *job {
+                Measure::Brick(mask) => {
+                    out.bricks.insert(mask, tensor);
+                }
+                Measure::Node(depth, start, _) => {
+                    out.nodes
+                        .insert((depth, node_prefix(bricks[start].0, depth, levels)), tensor);
+                }
+            }
+        }
+        out
+    }
+}
+
+/// The child digits above `depth` of a brick's sort key: the same for every brick of the node at
+/// that depth.
+fn node_prefix(key: u32, depth: u32, levels: u32) -> u32 {
+    key.checked_shr(6 * (levels - 1 - depth)).unwrap_or(0)
+}
+
 /// Bake-time aggregates used to fill a node's LOD record.
 struct Summary {
     extent: u32,
     voxels: u64,
-    /// Projections along X (onto y,z), Y (onto x,z), and Z (onto x,y).
-    projections: [Bitmap; 3],
-    /// Exposed face counts in `HitFace` order: faces whose neighbor voxel in the module is empty
-    /// (neighbors in other bricks included, so a node's faces don't cancel out at its borders).
-    faces: [u64; 6],
     /// Each material's weight: `(exposed faces, voxels)`, compared in that order, so the material
     /// a summary shades with is the one covering most of the node's surface, not its interior.
+    /// Faces are exposed when their neighbor voxel in the module is empty (neighbors in other
+    /// bricks included).
     materials: Vec<(MaterialId, MaterialWeight)>,
     /// The occupied voxels' bounding box within the node, in voxels (`hi` exclusive).
     lo: UVec3,
@@ -210,8 +319,6 @@ impl Summary {
         Self {
             extent,
             voxels: 0,
-            projections: std::array::from_fn(|_| Bitmap::new(extent)),
-            faces: [0; 6],
             materials: Vec::new(),
             lo: UVec3::splat(extent),
             hi: UVec3::ZERO,
@@ -239,9 +346,6 @@ impl Summary {
             s.voxels += 1;
             s.lo = s.lo.min(UVec3::new(x, y, z));
             s.hi = s.hi.max(UVec3::new(x, y, z) + 1);
-            s.projections[0].set(y, z);
-            s.projections[1].set(x, z);
-            s.projections[2].set(x, y);
             let (xi, yi, zi) = (x as i32, y as i32, z as i32);
             let neighbors = [
                 (xi - 1, yi, zi),
@@ -251,13 +355,10 @@ impl Summary {
                 (xi, yi, zi - 1),
                 (xi, yi, zi + 1),
             ];
-            let mut exposed = 0;
-            for (face, (nx, ny, nz)) in neighbors.into_iter().enumerate() {
-                if !occupied(nx, ny, nz) {
-                    s.faces[face] += 1;
-                    exposed += 1;
-                }
-            }
+            let exposed = neighbors
+                .into_iter()
+                .filter(|&(nx, ny, nz)| !occupied(nx, ny, nz))
+                .count() as u64;
             add_material(&mut s.materials, material, (exposed, 1));
         }
         s
@@ -270,12 +371,6 @@ impl Summary {
         let corner = UVec3::new(cx, cy, cz) * c;
         self.lo = self.lo.min(corner + child.lo);
         self.hi = self.hi.max(corner + child.hi);
-        self.projections[0].or_at(&child.projections[0], cy * c, cz * c);
-        self.projections[1].or_at(&child.projections[1], cx * c, cz * c);
-        self.projections[2].or_at(&child.projections[2], cx * c, cy * c);
-        for (total, f) in self.faces.iter_mut().zip(child.faces) {
-            *total += f;
-        }
         for &(material, weight) in &child.materials {
             add_material(&mut self.materials, material, weight);
         }
@@ -287,23 +382,15 @@ impl Summary {
         }
     }
 
-    fn lod(&self) -> LodSummary {
+    /// The node's record, with `tensor` its fitted directional coverage (relative to the occupied
+    /// box, see [`crate::angular`]).
+    fn lod(&self, tensor: Sggx) -> LodSummary {
         // the occupied box in sixteenths of the node's edge, rounded outward, as the record
-        // stores it; coverage is relative to its faces
+        // stores it
         let sixteenth = self.extent as f64 / OCCUPIED_STEPS as f64;
         let box_lo = self.lo.as_dvec3() / sixteenth;
         let box_hi = self.hi.as_dvec3() / sixteenth;
         let (box_lo, box_hi) = (box_lo.floor(), box_hi.ceil());
-        let ext = (box_hi - box_lo) * sixteenth;
-        let faces = [ext.y * ext.z, ext.x * ext.z, ext.x * ext.y];
-        let f = self.faces.map(|c| c as f32);
-        let normal = Vec3::new(f[1] - f[0], f[3] - f[2], f[5] - f[4]);
-        let total: f32 = f.iter().sum();
-        let (normal, spread) = if total > 0.0 {
-            (normal.normalize_or_zero(), 1.0 - normal.length() / total)
-        } else {
-            (Vec3::ZERO, 1.0)
-        };
         let material = self
             .materials
             .iter()
@@ -311,15 +398,8 @@ impl Summary {
             .map_or(EMPTY, |m| m.0);
         LodSummary {
             volume: (self.voxels as f64 / (self.extent as f64).powi(3)) as f32,
-            coverage: std::array::from_fn(|axis| {
-                if faces[axis] > 0.0 {
-                    (self.projections[axis].count() as f64 / faces[axis]).min(1.0) as f32
-                } else {
-                    0.0
-                }
-            }),
-            normal,
-            spread,
+            coverage: std::array::from_fn(|axis| tensor.0[axis].max(0.0).sqrt()),
+            correlation: tensor.correlations(),
             material,
             occupied: [
                 (box_lo / OCCUPIED_STEPS as f64).as_vec3(),
@@ -337,41 +417,6 @@ fn add_material(
     match list.iter_mut().find(|(m, _)| *m == material) {
         Some(entry) => entry.1 = (entry.1.0 + weight.0, entry.1.1 + weight.1),
         None => list.push((material, weight)),
-    }
-}
-
-/// A square bitmap of `size x size` bits, row-major.
-struct Bitmap {
-    size: u32,
-    words: Vec<u64>,
-}
-
-impl Bitmap {
-    fn new(size: u32) -> Self {
-        Self {
-            size,
-            words: vec![0; (size as usize * size as usize).div_ceil(64)],
-        }
-    }
-
-    fn set(&mut self, u: u32, v: u32) {
-        let i = (v * self.size + u) as usize;
-        self.words[i / 64] |= 1 << (i % 64);
-    }
-
-    fn count(&self) -> u64 {
-        self.words.iter().map(|w| w.count_ones() as u64).sum()
-    }
-
-    fn or_at(&mut self, child: &Bitmap, du: u32, dv: u32) {
-        for (wi, &word) in child.words.iter().enumerate() {
-            let mut bits = word;
-            while bits != 0 {
-                let i = wi as u32 * 64 + bits.trailing_zeros();
-                bits &= bits - 1;
-                self.set(du + i % child.size, dv + i / child.size);
-            }
-        }
     }
 }
 
@@ -708,14 +753,16 @@ mod tests {
         let header = read_node(&arenas, root.node);
         let lod = arenas.lod.get(header.lod_index().unwrap());
         assert!((lod.volume - 0.25).abs() < 1.0 / 255.0, "{}", lod.volume);
-        assert_eq!(lod.coverage, [1.0, 1.0, 1.0]);
+        for c in lod.coverage {
+            assert!((c - 1.0).abs() < 1e-3, "{lod:?}");
+        }
         assert_eq!(lod.material, 3);
         assert_eq!(lod.occupied, [Vec3::ZERO, Vec3::new(1.0, 1.0, 0.25)]);
     }
 
     #[test]
-    fn angular_axis_coverage_matches_the_baked_summary() {
-        // the directional LOD study's axis proxy must be the record the renderer reads
+    fn baked_tensors_match_the_directional_study() {
+        // the directional LOD study's baked SGGX must be the record the renderer reads
         let mut module = VoxelModule::new(2);
         for x in 0..16u32 {
             for z in 0..16u32 {
@@ -732,15 +779,53 @@ mod tests {
         let node = crate::angular::NodeVoxels::from_module(&module, UVec3::ZERO, 16).unwrap();
         let (lo, hi) = node.occupied_box();
         assert_eq!(lod.occupied, [lo / 16.0, hi / 16.0]);
-        for (baked, measured) in lod.coverage.iter().zip(node.axis_coverage()) {
-            assert!((baked - measured).abs() < 1e-3, "{baked} vs {measured}");
+        let study = crate::lod::stored_tensor(crate::angular::bake_setup().tensor(&node));
+        for (baked, measured) in lod.tensor().0.iter().zip(study.0) {
+            assert!((baked - measured).abs() < 1e-6, "{baked} vs {measured}");
+        }
+        // the fit stays near the exact axis coverage
+        for (baked, exact) in lod.coverage.iter().zip(node.axis_coverage()) {
+            assert!((baked - exact).abs() < 0.15, "{baked} vs {exact}");
         }
     }
 
     #[test]
-    fn lod_normals_see_neighbor_bricks() {
-        // a ground layer six voxels thick across the whole module: a brick inside it exposes only
-        // its top faces, so its summary faces up instead of cancelling at the brick's borders
+    fn baked_tensors_tell_diagonal_leaves_apart() {
+        // two bricks, each a leaf along one diagonal: the axis coverages agree, the correlations
+        // and so the opacities edge on and face on don't
+        let mut module = VoxelModule::new(2);
+        for i in 0..4 {
+            for z in 0..4 {
+                module.set(UVec3::new(i, i, z), 1);
+                module.set(UVec3::new(4 + i, 3 - i, z), 1);
+            }
+        }
+        let mut arenas = GeometryArenas::default();
+        let (root, _) = arenas.bake_tree64(&module).unwrap();
+        let root_header = read_node(&arenas, root.node);
+        let brick = |k: u32| {
+            let header = read_node(
+                &arenas,
+                root_header
+                    .child_ref()
+                    .offset(root_header.child_mask.child_word_offset(k)),
+            );
+            arenas.lod.get(header.lod_index().unwrap())
+        };
+        let (a, b) = (brick(cell_index(0, 0, 0)), brick(cell_index(1, 0, 0)));
+        let (along, across) = (Vec3::new(1.0, 1.0, 0.0), Vec3::new(1.0, -1.0, 0.0));
+        assert!(
+            a.correlation[0] < -0.2 && b.correlation[0] > 0.2,
+            "{a:?} {b:?}"
+        );
+        assert!(a.opacity(along) + 0.3 < a.opacity(across), "{a:?}");
+        assert!(b.opacity(across) + 0.3 < b.opacity(along), "{b:?}");
+    }
+
+    #[test]
+    fn lod_boxes_see_partial_bricks() {
+        // a ground layer six voxels thick across the whole module: a brick at its top is half
+        // full, and its occupied box is its bottom half
         let mut module = VoxelModule::new(2);
         for x in 0..16 {
             for y in 0..6 {
@@ -761,10 +846,11 @@ mod tests {
         );
         let lod = arenas.lod.get(header.lod_index().unwrap());
         assert!((lod.volume - 0.5).abs() < 1.0 / 255.0, "{}", lod.volume);
-        // the brick's top two rows are empty
+        // the brick's top two rows are empty, and it fills its box from every direction
         assert_eq!(lod.occupied, [Vec3::ZERO, Vec3::new(1.0, 0.5, 1.0)]);
-        assert!(lod.normal.dot(Vec3::Y) > 0.999, "{:?}", lod.normal);
-        assert!(lod.spread < 0.01, "{}", lod.spread);
+        for w in [Vec3::X, Vec3::Y, Vec3::ONE, Vec3::new(1.0, -2.0, 0.5)] {
+            assert!((lod.opacity(w) - 1.0).abs() < 1e-3, "{w}: {lod:?}");
+        }
     }
 
     fn filled_brick(module: &mut VoxelModule, corner: UVec3, material: MaterialId) {

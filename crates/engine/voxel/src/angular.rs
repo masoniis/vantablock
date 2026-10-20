@@ -7,16 +7,22 @@
 //! it is symmetric in `w`. [`NodeVoxels::coverage`] measures it with stratified parallel rays.
 //! The candidates, all derived from the same voxels:
 //!
-//! - **Axis proxy** (the spec's): `clamp(sum(|w_a| * c_a), 0, 1)` over the box-relative axis
-//!   coverages [`NodeVoxels::axis_coverage`] (the baked [`crate::lod::LodSummary::coverage`]).
+//! - **Axis proxy** (the spec's): `clamp(sum(|w_a| * c_a), 0, 1)` over the exact box-relative
+//!   axis coverages [`NodeVoxels::axis_coverage`].
 //! - **SGGX tensor** ([`Sggx`]): a symmetric positive-semidefinite `S` with
 //!   `sigma(w) = sqrt(max(0, w^T S w))`, six coefficients (12 bytes as `f16`). Built from the
 //!   node's exposed faces (the usual surface construction, `S = sum(area * n n^T)`), it is diagonal
 //!   for voxels, whose faces are axis aligned, and can't tell a leaf along one diagonal from a
 //!   leaf along the other, so it is fitted here to measured coverage instead: least squares on
 //!   `sigma^2 = coverage^2` over a fixed direction set, then projected onto the PSD cone. The
-//!   diagonal tensor `diag(c_a^2)` is the axis coverages combined in `L2` instead of `L1`, the
-//!   proxy [`crate::lod::LodSummary::opacity`] evaluates.
+//!   diagonal tensor `diag(c_a^2)` is the axis coverages combined in `L2` instead of `L1`; fixing
+//!   the fit's diagonal to it ([`Sggx::fit_with_axes`]) keeps most of the axis proxy's bias, so
+//!   the bake fits all six terms.
+//!
+//! The bake ([`BakeSetup`], [`bake_setup`]) stores the fitted tensor in every LOD record
+//! ([`crate::lod::LodSummary::tensor`]) from a cheaper measurement than the study's: 16
+//! directions, bricks through precomputed line sets ([`BrickRays`]) and larger nodes with
+//! `8 x 8` rays per direction.
 //! - **Degree-4 even polynomial** ([`EvenPoly4`]): coverage fitted by the 15 homogeneous quartic
 //!   monomials (spherical harmonic bands 0, 2, and 4), the richer reference representation.
 //!
@@ -25,15 +31,22 @@
 
 use crate::{
     lod::{OCCUPIED_STEPS, f16_to_f32, f32_to_f16},
-    module::{EMPTY, VoxelModule},
+    mask::{Mask64, cell_coords, cell_index},
+    module::VoxelModule,
 };
 use glam::{IVec3, UVec3, Vec3};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::OnceLock,
+};
 
-/// The occupied voxels of one node, `size` voxels on a side.
+/// The occupied voxels of one node, `size` voxels on a side, stored sparsely as the occupancy
+/// masks of its `4^3` bricks (bit [`crate::mask::cell_index`]).
 #[derive(Clone, Debug)]
 pub struct NodeVoxels {
     size: u32,
-    bits: Vec<u64>,
+    /// Occupancy by brick coordinate within the node; only nonempty bricks.
+    bricks: HashMap<UVec3, u64>,
     /// The voxels' bounding box within the node (`hi` exclusive).
     lo: UVec3,
     hi: UVec3,
@@ -58,40 +71,56 @@ impl NodeVoxels {
     /// The node of `module` with minimum corner `corner`, `size` voxels on a side (a multiple of
     /// the 4-voxel brick, `corner` aligned to it); `None` when it is empty.
     pub fn from_module(module: &VoxelModule, corner: UVec3, size: u32) -> Option<Self> {
-        let mut node = Self::empty(size);
         let bricks = size.div_ceil(4);
+        let mut found = Vec::new();
         for bz in 0..bricks {
             for by in 0..bricks {
                 for bx in 0..bricks {
-                    let local = UVec3::new(bx, by, bz) * 4;
-                    let Some(brick) = module.bricks().get(&((corner + local) / 4)) else {
-                        continue;
-                    };
-                    for (k, &material) in brick.materials.iter().enumerate() {
-                        let k = k as u32;
-                        let p = local + UVec3::new(k & 3, (k >> 2) & 3, k >> 4);
-                        if material != EMPTY && p.max_element() < size {
-                            node.set(p);
-                        }
+                    let local = UVec3::new(bx, by, bz);
+                    if let Some(brick) = module.bricks().get(&(corner / 4 + local)) {
+                        found.push((local, brick.occupancy().to_u64()));
                     }
                 }
             }
         }
+        Self::from_bricks(size, found)
+    }
+
+    /// The node `size` voxels on a side made of `bricks`: occupancy masks by brick coordinate
+    /// within the node. `None` when every mask is empty.
+    pub fn from_bricks(size: u32, bricks: impl IntoIterator<Item = (UVec3, u64)>) -> Option<Self> {
+        let mut node = Self::empty(size);
+        for (coord, mask) in bricks {
+            if mask == 0 {
+                continue;
+            }
+            for k in Mask64::from_u64(mask).iter() {
+                let (x, y, z) = cell_coords(k);
+                let p = coord * 4 + UVec3::new(x, y, z);
+                node.lo = node.lo.min(p);
+                node.hi = node.hi.max(p + 1);
+            }
+            *node.bricks.entry(coord).or_default() |= mask;
+        }
         node.finish()
+    }
+
+    /// The brick whose occupancy is `mask`; `None` when it is empty.
+    pub fn from_brick_mask(mask: u64) -> Option<Self> {
+        Self::from_bricks(4, [(UVec3::ZERO, mask)])
     }
 
     fn empty(size: u32) -> Self {
         Self {
             size,
-            bits: vec![0; (size as usize).pow(3).div_ceil(64)],
+            bricks: HashMap::new(),
             lo: UVec3::splat(size),
             hi: UVec3::ZERO,
         }
     }
 
     fn set(&mut self, p: UVec3) {
-        let i = self.index(p);
-        self.bits[i / 64] |= 1 << (i % 64);
+        *self.bricks.entry(p / 4).or_default() |= 1 << brick_bit(p);
         self.lo = self.lo.min(p);
         self.hi = self.hi.max(p + 1);
     }
@@ -100,24 +129,20 @@ impl NodeVoxels {
         (self.lo.x < self.hi.x).then_some(self)
     }
 
-    fn index(&self, p: UVec3) -> usize {
-        let s = self.size as usize;
-        (p.z as usize * s + p.y as usize) * s + p.x as usize
-    }
-
     pub fn size(&self) -> u32 {
         self.size
     }
 
     pub fn voxels(&self) -> u64 {
-        self.bits.iter().map(|w| w.count_ones() as u64).sum()
+        self.bricks.values().map(|m| m.count_ones() as u64).sum()
     }
 
     pub fn get(&self, p: UVec3) -> bool {
-        p.max_element() < self.size && {
-            let i = self.index(p);
-            self.bits[i / 64] & 1 << (i % 64) != 0
-        }
+        p.max_element() < self.size
+            && self
+                .bricks
+                .get(&(p / 4))
+                .is_some_and(|m| m >> brick_bit(p) & 1 != 0)
     }
 
     /// The occupied box in voxels, rounded outward to sixteenths of the node's edge exactly as the
@@ -129,30 +154,23 @@ impl NodeVoxels {
         (lo.as_vec3(), hi.as_vec3())
     }
 
-    /// The fraction of the occupied box's face along each axis covered by the node's projection,
-    /// as the bake computes [`crate::lod::LodSummary::coverage`].
+    /// The fraction of the occupied box's face along each axis covered by the node's projection
+    /// (exact: the measured coverage along the axes).
     pub fn axis_coverage(&self) -> [f32; 3] {
         let (lo, hi) = self.occupied_box();
         let ext = (hi - lo).as_dvec3();
         let faces = [ext.y * ext.z, ext.x * ext.z, ext.x * ext.y];
-        let s = self.size as usize;
-        let mut projections = [vec![false; s * s], vec![false; s * s], vec![false; s * s]];
-        for z in self.lo.z..self.hi.z {
-            for y in self.lo.y..self.hi.y {
-                for x in self.lo.x..self.hi.x {
-                    if self.get(UVec3::new(x, y, z)) {
-                        let (x, y, z) = (x as usize, y as usize, z as usize);
-                        projections[0][z * s + y] = true;
-                        projections[1][z * s + x] = true;
-                        projections[2][y * s + x] = true;
-                    }
-                }
+        let mut projections = [HashSet::new(), HashSet::new(), HashSet::new()];
+        for (&coord, &mask) in &self.bricks {
+            for k in Mask64::from_u64(mask).iter() {
+                let (x, y, z) = cell_coords(k);
+                let p = coord * 4 + UVec3::new(x, y, z);
+                projections[0].insert((p.y, p.z));
+                projections[1].insert((p.x, p.z));
+                projections[2].insert((p.x, p.y));
             }
         }
-        std::array::from_fn(|axis| {
-            let count = projections[axis].iter().filter(|&&b| b).count() as f64;
-            (count / faces[axis]).min(1.0) as f32
-        })
+        std::array::from_fn(|axis| (projections[axis].len() as f64 / faces[axis]).min(1.0) as f32)
     }
 
     /// The measured angular coverage along `dir`: the share of `samples x samples` stratified
@@ -193,44 +211,71 @@ impl NodeVoxels {
         }
     }
 
-    /// Whether the segment `[t_enter, t_exit]` of the ray hits a voxel inside the box (a plain
-    /// DDA: a measurement, not a traversal that reports identity).
+    /// Whether the segment `[t_enter, t_exit]` of the ray hits a voxel inside the box: a voxel DDA
+    /// that jumps over empty bricks (a measurement, not a traversal that reports identity).
     fn march(&self, origin: Vec3, w: Vec3, t_enter: f32, t_exit: f32, lo: Vec3, hi: Vec3) -> bool {
         let (lo, hi) = (lo.as_ivec3(), hi.as_ivec3());
-        let start = origin + w * (t_enter + (t_exit - t_enter) * 1e-4);
-        let mut cell = start.floor().as_ivec3().clamp(lo, hi - 1);
         let step = IVec3::new(sign(w.x), sign(w.y), sign(w.z));
-        let delta = w.abs().recip();
+        let inv = w.recip();
+        let delta = inv.abs();
         let next = |cell: IVec3, axis: usize| {
             if w[axis] == 0.0 {
                 f32::INFINITY
             } else {
                 let plane = cell[axis] + (step[axis] > 0) as i32;
-                (plane as f32 - origin[axis]) / w[axis]
+                (plane as f32 - origin[axis]) * inv[axis]
             }
         };
-        let mut t_next = Vec3::new(next(cell, 0), next(cell, 1), next(cell, 2));
+        let mut t = t_enter + (t_exit - t_enter) * 1e-4;
         loop {
-            if self.get(cell.as_uvec3()) {
-                return true;
+            let mut cell = (origin + w * t).floor().as_ivec3().clamp(lo, hi - 1);
+            let mut t_next = Vec3::new(next(cell, 0), next(cell, 1), next(cell, 2));
+            loop {
+                let brick: IVec3 = cell >> 2;
+                let Some(&mask) = self.bricks.get(&brick.as_uvec3()) else {
+                    // leave the empty brick and resume from where the ray exits it
+                    let b_lo = (brick * 4).as_vec3();
+                    let t0 = (b_lo - origin) * inv;
+                    let t1 = (b_lo + 4.0 - origin) * inv;
+                    let t_out = t0.max(t1).min_element();
+                    if t_out >= t_exit {
+                        return false;
+                    }
+                    t = t.max(t_out) + 1e-3;
+                    break;
+                };
+                // step through the brick's voxels
+                loop {
+                    if mask >> brick_bit(cell.as_uvec3()) & 1 != 0 {
+                        return true;
+                    }
+                    let axis = if t_next.x <= t_next.y && t_next.x <= t_next.z {
+                        0
+                    } else if t_next.y <= t_next.z {
+                        1
+                    } else {
+                        2
+                    };
+                    if t_next[axis] > t_exit {
+                        return false;
+                    }
+                    cell[axis] += step[axis];
+                    if cell[axis] < lo[axis] || cell[axis] >= hi[axis] {
+                        return false;
+                    }
+                    t_next[axis] += delta[axis];
+                    if (cell >> 2) != brick {
+                        break;
+                    }
+                }
             }
-            let axis = if t_next.x <= t_next.y && t_next.x <= t_next.z {
-                0
-            } else if t_next.y <= t_next.z {
-                1
-            } else {
-                2
-            };
-            if t_next[axis] > t_exit {
-                return false;
-            }
-            cell[axis] += step[axis];
-            if cell[axis] < lo[axis] || cell[axis] >= hi[axis] {
-                return false;
-            }
-            t_next[axis] += delta[axis];
         }
     }
+}
+
+/// The bit of voxel `p` in its brick's occupancy mask.
+fn brick_bit(p: UVec3) -> u32 {
+    cell_index(p.x & 3, p.y & 3, p.z & 3)
 }
 
 fn sign(v: f32) -> i32 {
@@ -272,13 +317,168 @@ pub fn hemisphere_directions(n: usize, phase: f32) -> Vec<Vec3> {
         .collect()
 }
 
-/// The spec's `L1` axis-coverage opacity proxy (the renderer now uses the `L2` combination,
-/// [`Sggx::from_axis_coverage`]).
+/// The spec's `L1` axis-coverage opacity proxy (the renderer evaluates the fitted tensor,
+/// [`crate::lod::LodSummary::opacity`]).
 pub fn axis_opacity(coverage: [f32; 3], dir: Vec3) -> f32 {
     dir.normalize_or_zero()
         .abs()
         .dot(Vec3::from(coverage))
         .clamp(0.0, 1.0)
+}
+
+/// How the bake measures directional coverage for a node's fitted tensor: `directions` over the
+/// hemisphere, `samples x samples` stratified rays each.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BakeMeasurement {
+    pub directions: usize,
+    pub samples: u32,
+    /// [`BrickRays`]' lines per direction: `brick_grid x brick_grid`.
+    pub brick_grid: u32,
+}
+
+/// The measurement the bake uses ([`bake_setup`]).
+pub const BAKE_MEASUREMENT: BakeMeasurement = BakeMeasurement {
+    directions: 16,
+    samples: 8,
+    brick_grid: 64,
+};
+
+/// A [`BakeMeasurement`] ready to measure nodes: its directions and brick line sets.
+pub struct BakeSetup {
+    pub measurement: BakeMeasurement,
+    pub directions: Vec<Vec3>,
+    pub bricks: BrickRays,
+}
+
+impl BakeSetup {
+    pub fn new(measurement: BakeMeasurement) -> Self {
+        let directions = hemisphere_directions(measurement.directions, 0.0);
+        Self {
+            measurement,
+            bricks: BrickRays::new(&directions, measurement.brick_grid),
+            directions,
+        }
+    }
+
+    /// The tensor the bake stores for `node`: its coverage measured at [`Self::directions`] and
+    /// fitted ([`Sggx::fit`]). Bricks are measured through [`BrickRays`], larger nodes with
+    /// `samples x samples` rays per direction ([`NodeVoxels::coverage`]).
+    pub fn tensor(&self, node: &NodeVoxels) -> Sggx {
+        let coverage: Vec<f32> = if node.size == 4 {
+            let mask = node.bricks.get(&UVec3::ZERO).copied().unwrap_or(0);
+            self.bricks.coverage(mask, node.lo, node.hi)
+        } else {
+            self.directions
+                .iter()
+                .map(|&w| node.coverage(w, self.measurement.samples))
+                .collect()
+        };
+        Sggx::fit(&self.directions, &coverage)
+    }
+}
+
+/// The setup of [`BAKE_MEASUREMENT`], built once per process.
+pub fn bake_setup() -> &'static BakeSetup {
+    static SETUP: OnceLock<BakeSetup> = OnceLock::new();
+    SETUP.get_or_init(|| BakeSetup::new(BAKE_MEASUREMENT))
+}
+
+/// Every distinct set of brick voxels a line along each direction passes through, weighted by
+/// the share of the brick's projection whose lines pass through exactly that set. A brick's
+/// coverage along a direction is then a weighted count of the sets it intersects, so measuring a
+/// brick costs a few hundred mask tests per direction instead of a DDA per ray.
+pub struct BrickRays {
+    /// Per direction: `(voxel mask, weight)`, nonempty masks only.
+    sets: Vec<Vec<(u64, u32)>>,
+}
+
+impl BrickRays {
+    /// The sets of `dirs`, from `grid x grid` jittered lines over the brick's projection.
+    pub fn new(dirs: &[Vec3], grid: u32) -> Self {
+        let sets = dirs
+            .iter()
+            .map(|&dir| {
+                let w = dir.normalize();
+                let center = Vec3::splat(2.0);
+                let u = w.any_orthonormal_vector();
+                let v = w.cross(u);
+                let half = Vec3::splat(2.0);
+                let (eu, ev) = (half.dot(u.abs()), half.dot(v.abs()));
+                let mut counts = std::collections::HashMap::<u64, u32>::new();
+                for j in 0..grid {
+                    for i in 0..grid {
+                        let (ju, jv) = jitter(i, j);
+                        let a = (2.0 * (i as f32 + ju) / grid as f32 - 1.0) * eu;
+                        let b = (2.0 * (j as f32 + jv) / grid as f32 - 1.0) * ev;
+                        let mask = line_voxels(center + u * a + v * b, w);
+                        if mask != 0 {
+                            *counts.entry(mask).or_default() += 1;
+                        }
+                    }
+                }
+                let mut sets: Vec<(u64, u32)> = counts.into_iter().collect();
+                sets.sort_unstable();
+                sets
+            })
+            .collect();
+        Self { sets }
+    }
+
+    /// The number of sets over every direction (the cost of measuring one brick).
+    pub fn len(&self) -> usize {
+        self.sets.iter().map(Vec::len).sum()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// The coverage per direction of the brick whose occupancy is `mask`, with voxel bounds
+    /// `lo..hi` (its occupied box).
+    fn coverage(&self, mask: u64, lo: UVec3, hi: UVec3) -> Vec<f32> {
+        let mut bounds = 0u64;
+        for z in lo.z..hi.z {
+            for y in lo.y..hi.y {
+                for x in lo.x..hi.x {
+                    bounds |= 1 << (x + 4 * y + 16 * z);
+                }
+            }
+        }
+        self.sets
+            .iter()
+            .map(|sets| {
+                let (mut hits, mut entered) = (0u32, 0u32);
+                for &(set, weight) in sets {
+                    if set & bounds != 0 {
+                        entered += weight;
+                        if set & mask != 0 {
+                            hits += weight;
+                        }
+                    }
+                }
+                if entered == 0 {
+                    0.0
+                } else {
+                    hits as f32 / entered as f32
+                }
+            })
+            .collect()
+    }
+}
+
+/// The voxels of a `4^3` brick whose interiors the line through `p` along `w` crosses.
+fn line_voxels(p: Vec3, w: Vec3) -> u64 {
+    let inv = w.recip();
+    let mut mask = 0;
+    for k in 0..64u32 {
+        let lo = Vec3::new((k & 3) as f32, ((k >> 2) & 3) as f32, (k >> 4) as f32);
+        let t0 = (lo - p) * inv;
+        let t1 = (lo + 1.0 - p) * inv;
+        if t0.min(t1).max_element() < t0.max(t1).min_element() {
+            mask |= 1 << k;
+        }
+    }
+    mask
 }
 
 /// A symmetric projected-area tensor (SGGX): `xx, yy, zz, xy, xz, yz`.
@@ -300,6 +500,63 @@ impl Sggx {
         let m = [[s[0], s[3], s[4]], [s[3], s[1], s[5]], [s[4], s[5], s[2]]];
         let m = psd_projection(m);
         Self([m[0][0], m[1][1], m[2][2], m[0][1], m[0][2], m[1][2]].map(|v| v as f32))
+    }
+
+    /// The PSD tensor with diagonal `diag(axis^2)` (exact along the axes) whose off-diagonal
+    /// terms best fit `coverage^2` at `dirs`: least squares on the correlations
+    /// `r_ab = S_ab / (c_a c_b)`, clamped to `[-1, 1]` and shrunk toward zero until the
+    /// correlation matrix is positive semidefinite.
+    pub fn fit_with_axes(axis: [f32; 3], dirs: &[Vec3], coverage: &[f32]) -> Self {
+        let c = Vec3::from(axis).as_dvec3();
+        let (rows, targets): (Vec<Vec<f64>>, Vec<f64>) = dirs
+            .iter()
+            .zip(coverage)
+            .map(|(&w, &m)| {
+                let q = quadratic(w);
+                let diagonal = q[0] * c.x * c.x + q[1] * c.y * c.y + q[2] * c.z * c.z;
+                (
+                    vec![q[3] * c.x * c.y, q[4] * c.x * c.z, q[5] * c.y * c.z],
+                    (m as f64).powi(2) - diagonal,
+                )
+            })
+            .unzip();
+        let r = least_squares(&rows, &targets);
+        Self::from_axes_and_correlations(
+            axis,
+            psd_correlations([r[0], r[1], r[2]]).map(|v| v as f32),
+        )
+    }
+
+    /// `S_aa = c_a^2`, `S_ab = r_ab c_a c_b` (correlations in `xy, xz, yz` order).
+    pub fn from_axes_and_correlations(axis: [f32; 3], r: [f32; 3]) -> Self {
+        let [x, y, z] = axis;
+        Self([
+            x * x,
+            y * y,
+            z * z,
+            r[0] * x * y,
+            r[1] * x * z,
+            r[2] * y * z,
+        ])
+    }
+
+    /// The correlations `r_ab = S_ab / sqrt(S_aa S_bb)` in `xy, xz, yz` order (`0` where a
+    /// diagonal term is zero).
+    pub fn correlations(&self) -> [f32; 3] {
+        let s = self.0;
+        let r = |ab: f32, aa: f32, bb: f32| {
+            let d = (aa * bb).sqrt();
+            if d > 0.0 {
+                (ab / d).clamp(-1.0, 1.0)
+            } else {
+                0.0
+            }
+        };
+        [
+            r(s[3], s[0], s[1]),
+            r(s[4], s[0], s[2]),
+            r(s[5], s[1], s[2]),
+        ]
     }
 
     /// `sigma(w) = sqrt(max(0, w^T S w))` for the normalized direction.
@@ -407,6 +664,25 @@ fn least_squares(rows: &[Vec<f64>], targets: &[f64]) -> Vec<f64> {
     x
 }
 
+/// Correlations clamped to `[-1, 1]` and scaled toward zero (bisection) until the unit-diagonal
+/// matrix they form is positive semidefinite (`det >= 0`; its 2x2 minors already are).
+fn psd_correlations(r: [f64; 3]) -> [f64; 3] {
+    let r = r.map(|v| v.clamp(-1.0, 1.0));
+    let det = |k: f64| {
+        let [a, b, c] = r.map(|v| v * k);
+        1.0 + 2.0 * a * b * c - a * a - b * b - c * c
+    };
+    if det(1.0) >= 0.0 {
+        return r;
+    }
+    let (mut lo, mut hi) = (0.0, 1.0);
+    for _ in 0..32 {
+        let mid = 0.5 * (lo + hi);
+        if det(mid) >= 0.0 { lo = mid } else { hi = mid }
+    }
+    r.map(|v| v * lo)
+}
+
 /// The nearest positive-semidefinite matrix to the symmetric `m` (Jacobi eigendecomposition,
 /// negative eigenvalues clamped to zero).
 fn psd_projection(m: [[f64; 3]; 3]) -> [[f64; 3]; 3] {
@@ -494,6 +770,19 @@ mod tests {
         // the face construction is diagonal and can't tell the two apart
         let diagonal = Sggx::from_axis_coverage(axis);
         assert_eq!(diagonal.opacity(along), diagonal.opacity(across));
+    }
+
+    #[test]
+    fn brick_line_sets_measure_what_rays_do() {
+        let setup = bake_setup();
+        for mask in [0x8421_8421_0F0F_1248u64, 0x0000_0000_0060_0660, !0, 1 << 21] {
+            let node = NodeVoxels::from_brick_mask(mask).unwrap();
+            let sets = setup.bricks.coverage(mask, node.lo, node.hi);
+            for (&w, set) in setup.directions.iter().zip(sets) {
+                let rays = node.coverage(w, 96);
+                assert!((set - rays).abs() < 0.03, "{mask:x} {w}: {set} vs {rays}");
+            }
+        }
     }
 
     #[test]

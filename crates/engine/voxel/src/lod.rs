@@ -4,37 +4,37 @@
 //!
 //! | Word | Contents                                                                   |
 //! | ---- | -------------------------------------------------------------------------- |
-//! | 0    | `f16` axis-X projected coverage + `f16` axis-Y coverage                    |
-//! | 1    | `f16` axis-Z coverage + representative material (high 16 bits)            |
-//! | 2    | 12+12 bit octahedral mean normal + 8 bit normal spread                     |
+//! | 0    | `f16` SGGX axis-X coverage `c_x` + `f16` axis-Y coverage `c_y`             |
+//! | 1    | `f16` axis-Z coverage `c_z` + representative material (high 16 bits)      |
+//! | 2    | SGGX correlations `xy`, `xz`, `yz`: 10 bit offset snorm each (2 bits spare) |
 //! | 3    | occupied box, 4 bits per bound (24 bits) + 8 bit unorm solid volume fraction |
 //!
 //! The occupied box bounds the node's voxels in sixteenths of its edge (rounded outward: exact
 //! for nodes up to 16 voxels on a side), so a filtered hit fills only the part of the node its
 //! voxels reach (low 12 bits: the minimum corner's x, y, z; next 12: the maximum corner's, minus
-//! one). Axis coverage is the exact fraction of the occupied box's face covered by the node's
-//! projected geometry along that axis, computed from full-resolution bitmaps at bake time, so the
-//! opacity proxy is the chance of a hit given that the ray enters the box. (The spec's coverage
-//! is relative to the node's face; that fraction is `coverage` times the box face's share of the
-//! node face, which shading uses.) Using it as directional
-//! opacity is an approximation (see spec section 3.4); the normal and material are approximations
-//! too. [`crate::hierarchy::tree64::trace_filtered`] reads them through a [`FootprintFilter`], as
-//! does its mirror in `assets/client/shader/voxel/lib/lod.wesl` and `tree64.wesl`.
+//! one). Words 0 to 2 are an SGGX tensor `S_aa = c_a^2`, `S_ab = r_ab c_a c_b`
+//! ([`LodSummary::tensor`]) least-squares fitted at bake time to the node's measured angular
+//! coverage ([`crate::angular::BakeSetup::tensor`]): the chance that a ray entering the occupied
+//! box hits a voxel, so `sigma(w) = sqrt(w^T S w)` is the opacity of a filtered hit. (The spec's
+//! coverage is relative to the node's face; that fraction is `c_a` times the box face's share of
+//! the node face, which shading uses.) Using it as directional opacity is an approximation (spec
+//! section 3.4); the material is one too. [`crate::hierarchy::tree64::trace_filtered`] reads them
+//! through a [`FootprintFilter`], as does its mirror in `assets/client/shader/voxel/lib/lod.wesl`
+//! and `tree64.wesl`.
 
-use crate::module::MaterialId;
-use glam::{Vec2, Vec3};
+use crate::{angular::Sggx, module::MaterialId};
+use glam::Vec3;
 use std::collections::HashMap;
 
 /// A decoded LOD summary.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct LodSummary {
     pub volume: f32,
-    /// Projected coverage of the occupied box's face along X, Y, and Z.
+    /// The fitted SGGX tensor's coverage of the occupied box along X, Y, and Z (`sqrt(S_aa)`,
+    /// near the exact projected coverage of the box's faces but fitted over every direction).
     pub coverage: [f32; 3],
-    /// Mean outward surface normal (zero when the node has no exposed faces).
-    pub normal: Vec3,
-    /// `0` when every exposed face agrees with `normal`, `1` when they cancel out.
-    pub spread: f32,
+    /// The fitted SGGX tensor's correlations `xy`, `xz`, `yz` (`S_ab / (c_a c_b)`, in `[-1, 1]`).
+    pub correlation: [f32; 3],
     pub material: MaterialId,
     /// The occupied box's minimum and maximum corners as fractions of the node's edge, in
     /// sixteenths (packing rounds outward).
@@ -48,10 +48,8 @@ impl LodSummary {
     pub fn pack(&self) -> [u32; 4] {
         let w0 = f32_to_f16(self.coverage[0]) as u32 | (f32_to_f16(self.coverage[1]) as u32) << 16;
         let w1 = f32_to_f16(self.coverage[2]) as u32 | (self.material as u32) << 16;
-        let oct = octahedral_encode(self.normal);
-        let q = |v: f32| (((v * 0.5 + 0.5).clamp(0.0, 1.0) * 4095.0).round() as u32) & 0xFFF;
-        let spread = (self.spread.clamp(0.0, 1.0) * 255.0).round() as u32;
-        let w2 = q(oct.x) | q(oct.y) << 12 | spread << 24;
+        let [rxy, rxz, ryz] = self.correlation.map(correlation_encode);
+        let w2 = rxy | rxz << 10 | ryz << 20;
         let lo = (self.occupied[0] * OCCUPIED_STEPS)
             .floor()
             .clamp(Vec3::ZERO, Vec3::splat(15.0))
@@ -66,8 +64,6 @@ impl LodSummary {
     }
 
     pub fn unpack(words: [u32; 4]) -> Self {
-        let dq = |v: u32| (v & 0xFFF) as f32 / 4095.0 * 2.0 - 1.0;
-        let spread = (words[2] >> 24) as f32 / 255.0;
         let nibble = |shift: u32| ((words[3] >> shift) & 0xF) as f32;
         Self {
             volume: (words[3] >> 24) as f32 / 255.0,
@@ -76,12 +72,7 @@ impl LodSummary {
                 f16_to_f32((words[0] >> 16) as u16),
                 f16_to_f32(words[1] as u16),
             ],
-            normal: if spread >= 1.0 {
-                Vec3::ZERO
-            } else {
-                octahedral_decode(Vec2::new(dq(words[2]), dq(words[2] >> 12)))
-            },
-            spread,
+            correlation: [0, 10, 20].map(|shift| correlation_decode(words[2] >> shift)),
             material: (words[1] >> 16) as MaterialId,
             occupied: [
                 Vec3::new(nibble(0), nibble(4), nibble(8)) / OCCUPIED_STEPS,
@@ -98,15 +89,21 @@ impl LodSummary {
 }
 
 impl LodSummary {
-    /// The axis-coverage opacity proxy for a ray along `dir` that enters the occupied box: the
-    /// coverages combined in `L2`, `min(sqrt(sum(dir_axis^2 * coverage_axis^2)), 1)` with `dir`
-    /// normalized (the diagonal SGGX tensor `diag(coverage^2)`). A low-cost approximation (spec
-    /// section 3.4), not exact arbitrary-angle coverage: the spec's `L1` sum overestimates it
-    /// everywhere (see [`crate::angular`]).
+    /// The fitted SGGX tensor the record stores.
+    pub fn tensor(&self) -> Sggx {
+        Sggx::from_axes_and_correlations(self.coverage, self.correlation)
+    }
+
+    /// The fitted tensor's opacity for a ray along `dir` that enters the occupied box:
+    /// `min(sqrt(max(w^T S w, 0)), 1)` with `w` the normalized `dir` ([`Self::tensor`], evaluated
+    /// as `lod_opacity` in `lod.wesl` does). An approximation of the node's angular coverage (spec
+    /// section 3.4); the spec's `L1` axis proxy overestimates it everywhere (see
+    /// [`crate::angular`]).
     pub fn opacity(&self, dir: Vec3) -> f32 {
-        (dir.normalize_or_zero() * Vec3::from(self.coverage))
-            .length()
-            .min(1.0)
+        let a = dir.normalize_or_zero() * Vec3::from(self.coverage);
+        let r = self.correlation;
+        let q = a.dot(a) + 2.0 * (a.x * a.y * r[0] + a.x * a.z * r[1] + a.y * a.z * r[2]);
+        q.max(0.0).sqrt().min(1.0)
     }
 }
 
@@ -220,26 +217,23 @@ pub fn f16_to_f32(h: u16) -> f32 {
     f32::from_bits(bits)
 }
 
-fn octahedral_encode(n: Vec3) -> Vec2 {
-    let l1 = n.x.abs() + n.y.abs() + n.z.abs();
-    if l1 == 0.0 {
-        return Vec2::ZERO;
-    }
-    let p = Vec2::new(n.x, n.y) / l1;
-    if n.z >= 0.0 {
-        p
-    } else {
-        (Vec2::ONE - Vec2::new(p.y.abs(), p.x.abs())) * Vec2::new(p.x.signum(), p.y.signum())
-    }
+/// A correlation in `[-1, 1]` as a 10 bit offset snorm (`0` is exact).
+fn correlation_encode(r: f32) -> u32 {
+    ((r.clamp(-1.0, 1.0) * 511.0).round() + 511.0) as u32
 }
 
-fn octahedral_decode(e: Vec2) -> Vec3 {
-    let z = 1.0 - e.x.abs() - e.y.abs();
-    let mut xy = e;
-    if z < 0.0 {
-        xy = (Vec2::ONE - Vec2::new(e.y.abs(), e.x.abs())) * Vec2::new(e.x.signum(), e.y.signum());
-    }
-    Vec3::new(xy.x, xy.y, z).normalize_or_zero()
+fn correlation_decode(bits: u32) -> f32 {
+    ((bits & 0x3FF) as f32 - 511.0) / 511.0
+}
+
+/// `tensor` as an LOD record stores it: the axis coverages as `f16` and the correlations as 10
+/// bit snorms.
+pub fn stored_tensor(tensor: Sggx) -> Sggx {
+    let axis = [tensor.0[0], tensor.0[1], tensor.0[2]].map(|v| f16_to_f32(f32_to_f16(v.sqrt())));
+    let r = tensor
+        .correlations()
+        .map(|r| correlation_decode(correlation_encode(r)));
+    Sggx::from_axes_and_correlations(axis, r)
 }
 
 #[cfg(test)]
@@ -277,8 +271,7 @@ mod tests {
         let s = LodSummary {
             volume: 0.25,
             coverage: [0.5, 0.75, 1.0],
-            normal: Vec3::new(0.3, -0.8, 0.52).normalize(),
-            spread: 0.4,
+            correlation: [0.3, -1.0, 0.0],
             material: 42,
             occupied: [Vec3::new(0.0, 0.25, 0.5), Vec3::new(1.0, 0.3, 0.5625)],
         };
@@ -291,8 +284,8 @@ mod tests {
             back.occupied,
             [Vec3::new(0.0, 0.25, 0.5), Vec3::new(1.0, 0.3125, 0.5625)]
         );
-        assert!((back.spread - 0.4).abs() < 0.01);
-        assert!(back.normal.dot(s.normal) > 0.999);
+        assert!((back.correlation[0] - 0.3).abs() < 0.5 / 511.0);
+        assert_eq!(&back.correlation[1..], [-1.0, 0.0]);
     }
 
     #[test]
