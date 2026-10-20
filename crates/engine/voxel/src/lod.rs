@@ -12,8 +12,8 @@
 //! Axis coverage is the exact fraction of the node's face covered by its projected geometry
 //! along that axis, computed from full-resolution bitmaps at bake time. Using it as directional
 //! opacity is an approximation (see spec section 3.4); the normal and material are approximations
-//! too. Nothing in traversal reads these yet: they exist so footprint filtering experiments can
-//! start from real data.
+//! too. [`crate::hierarchy::tree64::trace_filtered`] reads them through a [`FootprintFilter`]; the
+//! shaders don't yet.
 
 use crate::module::MaterialId;
 use glam::{Vec2, Vec3};
@@ -60,6 +60,42 @@ impl LodSummary {
             spread,
             material: words[3] as MaterialId,
         }
+    }
+}
+
+impl LodSummary {
+    /// The axis-coverage opacity proxy for a ray along `dir`:
+    /// `clamp(sum(|dir_axis| * coverage_axis), 0, 1)` with `dir` normalized. A low-cost
+    /// approximation (spec section 3.4), not exact arbitrary-angle coverage.
+    pub fn opacity(&self, dir: Vec3) -> f32 {
+        dir.normalize_or_zero()
+            .abs()
+            .dot(Vec3::from(self.coverage))
+            .clamp(0.0, 1.0)
+    }
+}
+
+/// Footprint LOD filtering for one ray cone (spec section 3.4).
+///
+/// The cone's footprint radius at distance `t` is `radius + spread * t` in world units. Traversal
+/// stops descending into an occupied node whose cell edge fits inside the footprint's diameter and
+/// treats the node's [`LodSummary`] as a surface: the ray hits it when `threshold` falls below the
+/// summary's [`opacity`](LodSummary::opacity), and passes through it otherwise. A `threshold` of
+/// `0.5` is a deterministic cutoff; a spatially and temporally stable random value in `[0, 1)`
+/// gives stochastic transmission.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FootprintFilter {
+    pub radius: f32,
+    pub spread: f32,
+    pub threshold: f32,
+}
+
+impl FootprintFilter {
+    /// Whether a cell `size` voxels on a side, entered at `t`, fits inside the footprint of a ray
+    /// whose direction has length `voxels_per_unit` (rays keep `t` in world units, see
+    /// [`crate::math`]).
+    pub fn covers(&self, size: f32, t: f32, voxels_per_unit: f32) -> bool {
+        size <= 2.0 * (self.radius + self.spread * t) * voxels_per_unit
     }
 }
 

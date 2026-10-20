@@ -16,6 +16,8 @@ use crate::{
 pub trait GeometrySource {
     fn topology_word(&self, handle: ArenaHandle) -> u32;
     fn attribute_word(&self, handle: ArenaHandle) -> u32;
+    /// The packed LOD summary at `index` (see [`crate::lod`]).
+    fn lod_record(&self, index: u32) -> [u32; 4];
 }
 
 /// The topology, attribute, and LOD stores shared by all baked roots.
@@ -87,5 +89,9 @@ impl GeometrySource for GeometryArenas {
 
     fn attribute_word(&self, handle: ArenaHandle) -> u32 {
         self.attributes.word(Handle::from_untyped(handle))
+    }
+
+    fn lod_record(&self, index: u32) -> [u32; 4] {
+        self.lod.records()[index as usize]
     }
 }

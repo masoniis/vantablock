@@ -66,6 +66,8 @@ pub struct GpuGeometryLibrary {
     /// The slab address of each logical page's first word.
     pub topology_page_entries: Vec<u32>,
     pub attribute_page_entries: Vec<u32>,
+    /// Packed LOD summaries, indexed by a node's `lod_meta`. Not uploaded yet.
+    pub lod: Vec<[u32; 4]>,
     pub materials: Vec<[f32; 4]>,
     pub template_bvh: Vec<Bvh4Node>,
     /// Indexed like [`VantaAssetLibrary::assets`].
@@ -167,6 +169,7 @@ impl GpuGeometryLibrary {
             attributes,
             topology_page_entries: topology_plan.page_entries,
             attribute_page_entries: attribute_plan.page_entries,
+            lod: arenas.lod.records().to_vec(),
             materials,
             template_bvh,
             assets,
@@ -195,6 +198,10 @@ impl GeometrySource for GpuGeometryLibrary {
 
     fn attribute_word(&self, handle: ArenaHandle) -> u32 {
         resolve(&self.attributes, &self.attribute_page_entries, handle)
+    }
+
+    fn lod_record(&self, index: u32) -> [u32; 4] {
+        self.lod[index as usize]
     }
 }
 

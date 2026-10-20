@@ -7,7 +7,10 @@ mod common;
 
 use common::{BOUNDARIES, Rng, boundary_module, foliage_module};
 use glam::{UVec3, Vec3};
-use voxel::{GeometryArenas, HierarchyKind, Ray, VoxelModule, VoxelRoot, reference::check_hit};
+use voxel::{
+    GeometryArenas, HierarchyKind, Ray, VoxelModule, VoxelRoot, hierarchy::tree64,
+    lod::FootprintFilter, reference::check_hit,
+};
 
 /// Bakes `module` as every hierarchy, each in its own arenas.
 fn bake_all(module: &VoxelModule) -> Vec<(GeometryArenas, VoxelRoot)> {
@@ -237,5 +240,63 @@ fn hierarchies_agree_with_each_other() {
     assert_eq!(
         same_cell, hits,
         "random rays almost never tie, so cells should match"
+    );
+}
+
+/// Footprint filtering is exact with a zero-width cone, and with a wide cone every filtered hit
+/// names an aligned, occupied region at the distance the ray enters it.
+#[test]
+fn footprint_filtering_reports_aligned_occupied_regions() {
+    let mut rng = Rng(7);
+    let module = foliage_module(4, &mut rng);
+    let mut arenas = GeometryArenas::default();
+    let (root, _) = arenas.bake_tree64(&module).unwrap();
+    let extent = root.extent() as f32;
+    let exact = FootprintFilter {
+        radius: 0.0,
+        spread: 0.0,
+        threshold: 0.5,
+    };
+    let wide = FootprintFilter {
+        radius: 2.0,
+        spread: 0.02,
+        threshold: 0.1,
+    };
+    let mut filtered = 0;
+    for _ in 0..1500 {
+        let dir = rng.direction();
+        let target = Vec3::new(
+            rng.range(0.0, extent),
+            rng.range(0.0, extent),
+            rng.range(0.0, extent),
+        );
+        let ray = Ray::new(target - dir * rng.range(1.0, extent * 1.5), dir);
+        let plain = tree64::trace(&arenas, &root, &ray, 0.0, f32::MAX);
+        let (hit, _) = tree64::trace_filtered(&arenas, &root, &ray, 0.0, f32::MAX, &exact);
+        assert_eq!(hit, plain, "ray {ray:?}");
+
+        let Some(hit) = tree64::trace_filtered(&arenas, &root, &ray, 0.0, f32::MAX, &wide).0 else {
+            continue;
+        };
+        if hit.lod == 0 {
+            continue;
+        }
+        filtered += 1;
+        let size = 4u32.pow(hit.lod);
+        assert_eq!(hit.cell % size, UVec3::ZERO, "ray {ray:?}");
+        let lo = hit.cell.as_vec3();
+        let (te, tx) = voxel::math::slab(lo, lo + Vec3::splat(size as f32), &ray);
+        assert!(
+            te <= tx && (hit.t - te.max(0.0)).abs() < 1e-3,
+            "ray {ray:?}"
+        );
+        let occupied = (0..size.pow(3)).any(|i| {
+            module.get(hit.cell + UVec3::new(i % size, i / size % size, i / size / size)) != 0
+        });
+        assert!(occupied, "ray {ray:?} hit an empty region");
+    }
+    assert!(
+        filtered > 50,
+        "the wide cone should filter ({filtered} filtered hits)"
     );
 }

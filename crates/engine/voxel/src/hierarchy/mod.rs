@@ -166,9 +166,13 @@ pub struct VoxelHit {
     /// terminal node. Every hierarchy reports the same index for the same cell.
     pub terminal_index: u32,
     pub face: HitFace,
-    /// Logical handle of the hit voxel's attribute word.
+    /// Logical handle of the hit voxel's attribute word, or [`ArenaHandle::INVALID`] for a
+    /// filtered LOD hit, which has no single voxel.
     pub attribute: ArenaHandle,
     pub material: MaterialId,
+    /// The hit cell's LOD level: `0` for an exact voxel, `n` for a filtered cell `4^n` voxels on a
+    /// side whose aligned corner is `cell` (see [`tree64::trace_filtered`]).
+    pub lod: u32,
     /// DDA steps taken, for diagnostics.
     pub steps: u32,
 }

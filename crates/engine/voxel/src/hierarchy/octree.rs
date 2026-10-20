@@ -363,6 +363,7 @@ pub fn trace_counted(
                         face: entry_face(lo, 1, ray, step, te, t_start),
                         attribute,
                         material: (word & ATTRIBUTE_MATERIAL_MASK) as MaterialId,
+                        lod: 0,
                         steps,
                     };
                     return (Some(hit), steps);

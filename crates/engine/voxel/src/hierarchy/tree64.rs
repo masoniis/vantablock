@@ -10,6 +10,8 @@
 //! plane distances rather than from a reconstructed position, so the DDA and the slab test can
 //! never disagree about which cells the ray passes through (see [`super`]). The traversal mirrors
 //! `assets/client/shader/voxel/lib/tree64.wesl` line for line; keep them in sync.
+//!
+//! [`trace_filtered`] adds footprint LOD filtering to the same loop. It has no shader mirror yet.
 
 use super::{
     ATTRIBUTE_MATERIAL_MASK, BakeStats, MAX_TRAVERSAL_STEPS, PageSpan, VoxelHit, entry_cell,
@@ -19,7 +21,7 @@ use crate::{
     arena::ArenaError,
     geometry::{GeometryArenas, GeometrySource},
     handle::ArenaHandle,
-    lod::LodSummary,
+    lod::{FootprintFilter, LodSummary},
     mask::{Mask64, cell_index},
     math::{Aabb, Ray, slab},
     module::{BRICK_VOXELS, Brick, EMPTY, MAX_LEVELS, MaterialId, VoxelModule},
@@ -371,7 +373,35 @@ pub fn trace_counted(
     t_min: f32,
     t_max: f32,
 ) -> (Option<VoxelHit>, u32) {
+    trace_impl(geometry, root, ray, t_min, t_max, None)
+}
+
+/// [`trace_counted`] with footprint LOD filtering: an occupied node whose cell fits inside the
+/// ray cone's footprint is resolved from its LOD summary instead of being descended (see
+/// [`FootprintFilter`]). A filtered hit reports the node's aligned corner as `cell`, its index in
+/// the parent as `terminal_index`, its level as `lod`, and the summary's material. Nodes without a
+/// summary are always descended, and the root is never filtered.
+pub fn trace_filtered(
+    geometry: &impl GeometrySource,
+    root: &Tree64Root,
+    ray: &Ray,
+    t_min: f32,
+    t_max: f32,
+    filter: &FootprintFilter,
+) -> (Option<VoxelHit>, u32) {
+    trace_impl(geometry, root, ray, t_min, t_max, Some(filter))
+}
+
+fn trace_impl(
+    geometry: &impl GeometrySource,
+    root: &Tree64Root,
+    ray: &Ray,
+    t_min: f32,
+    t_max: f32,
+    filter: Option<&FootprintFilter>,
+) -> (Option<VoxelHit>, u32) {
     let levels = root.levels as usize;
+    let voxels_per_unit = ray.dir.length();
     let extent = root.extent() as i32;
     let (t0, t1) = slab(Vec3::ZERO, Vec3::splat(extent as f32), ray);
     let t_start = t0.max(t_min);
@@ -448,6 +478,7 @@ pub fn trace_counted(
                         face: entry_face(lo, size, ray, step, te, t_start),
                         attribute,
                         material: (word & ATTRIBUTE_MATERIAL_MASK) as MaterialId,
+                        lod: 0,
                         steps,
                     };
                     return (Some(hit), steps);
@@ -458,6 +489,32 @@ pub fn trace_counted(
                     .child_ref()
                     .offset(frame.node.child_mask.child_word_offset(k));
                 let child = read_node(geometry, child_handle);
+                if let Some(filter) = filter
+                    && let Some(index) = child.lod_index()
+                    && filter.covers(size as f32, te.max(t_start), voxels_per_unit)
+                {
+                    // the summary stands in for the whole subtree: hit it or pass through it
+                    let summary = LodSummary::unpack(geometry.lod_record(index));
+                    if te <= tx
+                        && tx >= t_start
+                        && te <= t_end
+                        && filter.threshold < summary.opacity(ray.dir)
+                    {
+                        let hit = VoxelHit {
+                            t: te.max(t_start),
+                            cell: lo.as_uvec3(),
+                            terminal_index: k,
+                            face: entry_face(lo, size, ray, step, te, t_start),
+                            attribute: ArenaHandle::INVALID,
+                            material: summary.material,
+                            lod: (levels - 1 - depth) as u32,
+                            steps,
+                        };
+                        return (Some(hit), steps);
+                    }
+                    advance(&mut stack[depth], step, &next_boundary, size);
+                    continue;
+                }
                 depth += 1;
                 size /= 4;
                 stack[depth] = enter(child, lo, size, te.max(t_start));
@@ -602,5 +659,119 @@ mod tests {
         assert_eq!(lod.volume, 0.25);
         assert_eq!(lod.coverage, [0.25, 0.25, 1.0]);
         assert_eq!(lod.material, 3);
+    }
+
+    fn filled_brick(module: &mut VoxelModule, corner: UVec3, material: MaterialId) {
+        for i in 0..64 {
+            module.set(corner + UVec3::new(i % 4, i / 4 % 4, i / 16), material);
+        }
+    }
+
+    fn filter(radius: f32, threshold: f32) -> FootprintFilter {
+        FootprintFilter {
+            radius,
+            spread: 0.0,
+            threshold,
+        }
+    }
+
+    #[test]
+    fn wide_footprints_hit_the_lod_summary() {
+        let mut module = VoxelModule::new(2);
+        filled_brick(&mut module, UVec3::ZERO, 5);
+        let mut arenas = GeometryArenas::default();
+        let (root, _) = arenas.bake_tree64(&module).unwrap();
+        let ray = Ray::new(Vec3::new(-10.0, 1.5, 1.5), Vec3::X);
+
+        let hit = trace_filtered(&arenas, &root, &ray, 0.0, f32::MAX, &filter(2.0, 0.5))
+            .0
+            .unwrap();
+        assert_eq!((hit.cell, hit.lod, hit.terminal_index), (UVec3::ZERO, 1, 0));
+        assert_eq!((hit.face, hit.material), (HitFace::NegX, 5));
+        assert!(!hit.attribute.is_valid());
+        assert!((hit.t - 10.0).abs() < 1e-4);
+
+        // a footprint narrower than the brick resolves the exact voxel
+        let hit = trace_filtered(&arenas, &root, &ray, 0.0, f32::MAX, &filter(1.0, 0.5))
+            .0
+            .unwrap();
+        assert_eq!(hit, trace(&arenas, &root, &ray, 0.0, f32::MAX).unwrap());
+        assert_eq!((hit.cell, hit.lod), (UVec3::new(0, 1, 1), 0));
+    }
+
+    #[test]
+    fn sparse_summaries_pass_rays_below_the_threshold() {
+        let mut module = VoxelModule::new(2);
+        module.set(UVec3::new(5, 1, 1), 2);
+        filled_brick(&mut module, UVec3::new(8, 0, 0), 5);
+        let mut arenas = GeometryArenas::default();
+        let (root, _) = arenas.bake_tree64(&module).unwrap();
+        let ray = Ray::new(Vec3::new(-10.0, 1.5, 1.5), Vec3::X);
+
+        // one voxel covers 1/16 of the brick's face: a 0.5 cutoff sees through it
+        let hit = trace_filtered(&arenas, &root, &ray, 0.0, f32::MAX, &filter(2.0, 0.5))
+            .0
+            .unwrap();
+        assert_eq!(
+            (hit.cell, hit.lod, hit.material),
+            (UVec3::new(8, 0, 0), 1, 5)
+        );
+        // a lower threshold stops at it, and no filtering hits the voxel itself
+        let hit = trace_filtered(&arenas, &root, &ray, 0.0, f32::MAX, &filter(2.0, 0.05))
+            .0
+            .unwrap();
+        assert_eq!(
+            (hit.cell, hit.lod, hit.material),
+            (UVec3::new(4, 0, 0), 1, 2)
+        );
+        let hit = trace(&arenas, &root, &ray, 0.0, f32::MAX).unwrap();
+        assert_eq!((hit.cell, hit.lod), (UVec3::new(5, 1, 1), 0));
+    }
+
+    #[test]
+    fn footprints_grow_with_distance_and_ray_scale() {
+        let mut module = VoxelModule::new(2);
+        filled_brick(&mut module, UVec3::new(12, 0, 0), 5);
+        let mut arenas = GeometryArenas::default();
+        let (root, _) = arenas.bake_tree64(&module).unwrap();
+        let cone = FootprintFilter {
+            radius: 0.0,
+            spread: 0.1,
+            threshold: 0.5,
+        };
+
+        // diameter 2.4 at t = 12: too narrow for a 4-voxel brick
+        let near = Ray::new(Vec3::new(0.0, 1.5, 1.5), Vec3::X);
+        assert_eq!(
+            trace_filtered(&arenas, &root, &near, 0.0, f32::MAX, &cone)
+                .0
+                .unwrap()
+                .lod,
+            0
+        );
+        // diameter 4.4 at t = 22
+        let far = Ray::new(Vec3::new(-10.0, 1.5, 1.5), Vec3::X);
+        assert_eq!(
+            trace_filtered(&arenas, &root, &far, 0.0, f32::MAX, &cone)
+                .0
+                .unwrap()
+                .lod,
+            1
+        );
+        // a world-space radius covers twice as many voxels on a ray scaled 2x into the module
+        let wide = filter(1.0, 0.5);
+        assert_eq!(
+            trace_filtered(&arenas, &root, &near, 0.0, f32::MAX, &wide)
+                .0
+                .unwrap()
+                .lod,
+            0
+        );
+        let scaled = Ray::new(Vec3::new(0.0, 1.5, 1.5), Vec3::X * 2.0);
+        let hit = trace_filtered(&arenas, &root, &scaled, 0.0, f32::MAX, &wide)
+            .0
+            .unwrap();
+        assert_eq!(hit.lod, 1);
+        assert!((hit.t - 6.0).abs() < 1e-4);
     }
 }

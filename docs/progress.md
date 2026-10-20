@@ -7,7 +7,7 @@ maps the code itself; this file is the one that changes as work lands.
 ## Status
 
 Phase 1 (renderer feasibility and memory contracts) is complete on Metal and Vulkan; Phase 2 is
-next.
+under way, starting with footprint LOD filtering (see [Phase 2 progress](#phase-2-progress)).
 
 The gate passed on Metal (M1 Pro) and Vulkan (RTX 3080). The 64-tree, short private traversal stack, slab-address residency, and visibility packing were kept on measured evidence on both backends; flattened pose groups replaced the template mini-BVH as the runtime default. The optional Vulkan hardware broad phase (ray queries over a TLAS of pose-frame boxes) matches the reference and is the fastest path measured, taking 25 to 42% less GPU time than the software BVH4; it is wired into the renderer as the default on adapters with ray queries (TLAS rebuilt every frame, primary visibility and shadow rays both using it, 34% less frame GPU time in game at 1280x720), with the software BVH4 as the always-available fallback. Driver register and spill statistics were captured on NVIDIA (128 registers per thread for the stack kernels, 80 stackless or with ray queries).
 
@@ -170,6 +170,41 @@ narrower stack entries or splitting scene search from voxel traversal should be 
   and Bevy pick it ahead of DX12 when both are present.
 - Metal and Vulkan agree on every conformance case of the software paths; no backend-specific
   shader path was needed. The hardware broad phase is Vulkan only (see Known issues).
+
+## Phase 2 progress
+
+### Footprint LOD filtering
+
+**Done (October 20, 2026): the CPU reference.** `voxel::lod::FootprintFilter` describes a ray
+cone (`radius + spread * t` in world units, scaled into module voxels by the ray's direction
+length) and a threshold. `tree64::trace_filtered` shares the 64-tree DDA loop with `trace`: when
+it would descend into an occupied node whose cell edge fits inside the footprint's diameter and
+that node has a summary, it uses the spec's axis-coverage proxy
+(`clamp(sum(|d_axis| * coverage_axis), 0, 1)`, `LodSummary::opacity`) instead. The ray hits the
+node's box when the threshold is below that opacity and passes through it otherwise. Filtered hits
+report the aligned corner as `cell`, the level as the new `VoxelHit::lod` (`0` is an exact voxel),
+and the summary's material, with `ArenaHandle::INVALID` as the attribute. `GeometrySource` gained
+`lod_record`, and `GpuGeometryLibrary` keeps the LOD records (`lod`) but doesn't upload them yet.
+Tests: unit cases in `tree64` (wide vs. narrow footprints, pass-through below the threshold,
+distance and ray-scale growth) and `footprint_filtering_reports_aligned_occupied_regions` in
+`tests/hierarchy_reference.rs` (a zero cone matches `trace` exactly; wide-cone hits are aligned,
+occupied, and at the box entry).
+
+**Open decisions:** a fixed `0.5` threshold makes sparse foliage disappear at distance (the
+reference test needs `0.1` to see many filtered hits), so the threshold should probably become a
+stable per-pixel random value (stochastic transmission). The octree has no summaries and is never
+filtered, and the footprint rule (cell edge vs. cone diameter) is untuned.
+
+**Next steps, one per session:**
+
+1. Upload the LOD records as a storage buffer (bind group, `lib/types.wesl` and `layout.rs`) and
+   mirror `trace_filtered` in `lib/tree64.wesl` behind a WESL feature, with a GPU conformance
+   case against the CPU reference (`just test-gpu`).
+2. Derive the cone per pixel in `primary_visibility.wesl` (camera pixel spread), write the LOD
+   level into `vis.x` (currently hardwired to `0`), and shade filtered hits from the summary's
+   normal. Add a `RenderSettings` toggle and measure with `gpu_scene_throughput` and in game.
+3. Compare against supersampled reference frames, and decide between deterministic and
+   stochastic thresholds before moving on to SGGX candidates.
 
 ## What comes next
 
