@@ -4,6 +4,7 @@ use crate::{
         local_actions::ClientAction,
     },
     lifecycle::state::{ClientLifecycleState, InGameState},
+    showcase::{ApplyShowcase, SHOWCASES},
     ui::{
         theme::{Face, caption, palette, panel, scrim, text},
         widgets::{ButtonTone, button, keycap, keycaps},
@@ -27,8 +28,16 @@ impl Plugin for PauseMenuPlugin {
 
 fn spawn_pause_menu(mut commands: Commands) {
     info!("Spawning Pause Menu UI...");
+    show_page(&mut commands, None, pause_menu());
+}
+
+/// Replaces the open pause page (if any) with `page`, which closes when the game resumes.
+fn show_page(commands: &mut Commands, open: Option<Entity>, page: impl Scene) {
+    if let Some(open) = open {
+        commands.entity(open).despawn();
+    }
     commands
-        .spawn_scene(pause_menu())
+        .spawn_scene(page)
         .insert(DespawnOnExit(InGameState::Paused));
 }
 
@@ -53,6 +62,12 @@ fn pause_menu() -> impl Scene {
                             button("Resume", ButtonTone::Primary)
                             on(|_: On<Activate>, mut next: ResMut<NextState<InGameState>>| {
                                 next.set(InGameState::Playing);
+                            })
+                        ),
+                        (
+                            button("Showcase", ButtonTone::Normal)
+                            on(|_: On<Activate>, mut commands: Commands, page: Single<Entity, With<PauseMenuRoot>>| {
+                                show_page(&mut commands, Some(*page), showcase_page());
                             })
                         ),
                         (
@@ -81,6 +96,48 @@ fn pause_menu() -> impl Scene {
                         ),
                         {controls()},
                     ]
+                ),
+            ]
+        )]
+    }
+}
+
+/// A list of the showcase scenes. Picking one jumps there and resumes the game.
+fn showcase_page() -> impl Scene {
+    let scenes: Vec<Box<dyn Scene>> = SHOWCASES
+        .iter()
+        .enumerate()
+        .map(|(index, showcase)| -> Box<dyn Scene> {
+            Box::new(bsn! {
+                button(showcase.name, ButtonTone::Normal)
+                on(move |_: On<Activate>, mut commands: Commands, mut next: ResMut<NextState<InGameState>>| {
+                    commands.trigger(ApplyShowcase(index));
+                    next.set(InGameState::Playing);
+                })
+            })
+        })
+        .collect();
+
+    bsn! {
+        PauseMenuRoot
+        scrim()
+        TabGroup
+        Children [(
+            panel(palette::ACCENT)
+            Node { width: px(300) }
+            Children [
+                (
+                    text("SHOWCASE", Face::Display, 30.0, palette::TEXT)
+                    template_value(LetterSpacing::Px(3.0))
+                    Node { margin: UiRect::bottom(px(8)) }
+                ),
+                {scenes},
+                (
+                    button("Back", ButtonTone::Normal)
+                    Node { margin: UiRect::top(px(8)) }
+                    on(|_: On<Activate>, mut commands: Commands, page: Single<Entity, With<PauseMenuRoot>>| {
+                        show_page(&mut commands, Some(*page), pause_menu());
+                    })
                 ),
             ]
         )]

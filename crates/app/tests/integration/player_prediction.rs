@@ -5,6 +5,7 @@ use client::{
     lifecycle::ClientLifecycleState,
     network::connection::{ConnectType, InitiateConnection},
     player::{LocalPlayer, LocalPlayerLook},
+    showcase::{ApplyShowcase, SHOWCASES},
     world::chunk::ClientChunkManager,
 };
 use common::{
@@ -175,6 +176,21 @@ fn local_player_inputs_are_predicted_and_authoritative() {
     assert!(
         client_pos.distance(server_pos) < 0.01,
         "client prediction {client_pos} diverged from server {server_pos}"
+    );
+
+    // a showcase moves the player on the server, and prediction follows it
+    client.world_mut().trigger(ApplyShowcase(0));
+    let target = SHOWCASES[0].position;
+    step_until(
+        &mut server,
+        &mut client,
+        Duration::from_secs(10),
+        "showcase teleport applied on server and client",
+        |server, client| {
+            server_player(server).is_some_and(|(pos, _)| pos == target)
+                && client_local_player(client)
+                    .is_some_and(|(_, pos, _)| pos.distance(target) < 0.01)
+        },
     );
 
     // leave the session the way the pause menu's Disconnect does and join again, a few times

@@ -12,6 +12,7 @@
 
 mod block_actions;
 mod ecs_messages;
+mod teleport;
 
 pub use ecs_messages::*;
 
@@ -27,9 +28,17 @@ impl Plugin for NetworkSendPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<OutboundBreakBlockMessage>();
         app.add_message::<OutboundPlaceBlockMessage>();
+        app.add_message::<OutboundTeleportMessage>();
 
-        app.add_systems(Update, send_block_action_messages_system);
+        app.add_systems(
+            Update,
+            (
+                send_block_action_messages_system,
+                send_teleport_messages_system,
+            ),
+        );
     }
 }
 
 pub use block_actions::send_block_action_messages_system;
+pub use teleport::send_teleport_messages_system;

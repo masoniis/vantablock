@@ -15,6 +15,7 @@ pub fn translate_client_network_messages(
     mut ev_request_chunk: MessageWriter<InboundRequestChunkMessage>,
     mut ev_break_block: MessageWriter<InboundBreakBlockMessage>,
     mut ev_place_block: MessageWriter<InboundPlaceBlockMessage>,
+    mut ev_teleport: MessageWriter<InboundTeleportMessage>,
 ) {
     for (player, mut receiver) in query.iter_mut() {
         for message in receiver.receive() {
@@ -33,6 +34,9 @@ pub fn translate_client_network_messages(
                         position,
                         block_id,
                     });
+                }
+                ClientMessage::Teleport { position } => {
+                    ev_teleport.write(InboundTeleportMessage { player, position });
                 }
                 ClientMessage::RequestTimeJump { amount: _ } => {
                     // TODO: implement time jump handling
