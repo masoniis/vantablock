@@ -14,7 +14,7 @@ pub use targeted_block::TargetedBlock;
 //         player plugin
 // -----------------------------
 
-use crate::lifecycle::ClientLifecycleState;
+use crate::lifecycle::{ClientLifecycleState, state::InGameState};
 use bevy::prelude::*;
 use common::player::PlayerAction;
 use leafwing_input_manager::prelude::ActionState;
@@ -50,7 +50,6 @@ impl Plugin for PlayerPlugin {
             Update,
             (
                 setup_replicated_players::dress_replicated_players_system,
-                look::local_player_look_system,
                 block_actions::break_targeted_block_system
                     .run_if(local_action_just_pressed(PlayerAction::PrimaryInteract)),
                 block_actions::place_targeted_block_system
@@ -60,6 +59,12 @@ impl Plugin for PlayerPlugin {
                 block_actions::handle_incoming_block_updates,
             )
                 .run_if(in_state(ClientLifecycleState::InGame)),
+        );
+
+        // mouse look only while playing, so the pause menu cursor doesn't turn the camera
+        app.add_systems(
+            Update,
+            look::local_player_look_system.run_if(in_state(InGameState::Playing)),
         );
     }
 }
