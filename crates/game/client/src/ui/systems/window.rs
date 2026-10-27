@@ -2,9 +2,10 @@
 //!
 //! The window starts invisible (see `DefaultClientPlugins`). Showing it as soon as the app ran
 //! presented the platform's default background for a few frames, while the UI font loaded and
-//! the UI pipelines compiled. It is shown once the render world has drawn a few frames with no
-//! pipeline left compiling.
+//! the UI pipelines compiled. It is shown once the font is loaded and the render world has drawn
+//! a few frames since then with no pipeline left compiling.
 
+use crate::ui::theme::UiFont;
 use bevy::{
     prelude::*,
     render::{Render, RenderApp, RenderSystems, render_resource::PipelineCache},
@@ -58,6 +59,8 @@ fn count_settled_frames(cache: Res<PipelineCache>, settled: Res<SettledFrames>) 
 
 fn reveal_window_system(
     mut window: Query<&mut Window, With<PrimaryWindow>>,
+    font: Res<UiFont>,
+    asset_server: Res<AssetServer>,
     settled: Res<SettledFrames>,
     time: Res<Time<Real>>,
     mut counting: Local<bool>,
@@ -71,8 +74,11 @@ fn reveal_window_system(
 
     let timed_out = time.elapsed() > REVEAL_TIMEOUT;
     if !*counting {
-        // count afresh from the first frame of the running app, so frames drawn during startup
-        // (before the UI existed) don't count
+        if !asset_server.is_loaded_with_dependencies(&font.0) && !timed_out {
+            return;
+        }
+        // count afresh from here: earlier frames had no text to draw, so they compiled nothing
+        // for it
         settled.0.store(0, Ordering::Relaxed);
         *counting = true;
     }
