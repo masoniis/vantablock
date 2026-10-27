@@ -31,10 +31,13 @@ jobs:
           toolchain: "1.99"
           components: clippy
 
+      # the azure apt mirror intermittently throttles to ~24 kB/s, so restore the packages from the
+      # github cache instead of downloading them on every run
       - name: Install Linux dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libasound2-dev libudev-dev pkg-config libx11-dev libxcursor-dev libxi-dev libxrandr-dev libwayland-dev libxkbcommon-dev
+        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
+        with:
+          packages: libasound2-dev libudev-dev pkg-config libx11-dev libxcursor-dev libxi-dev libxrandr-dev libwayland-dev libxkbcommon-dev
+          version: 1
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
