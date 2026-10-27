@@ -3,7 +3,7 @@ use crate::{
         block::BlockRenderDataRegistry,
         chunk::meshing::{OpaqueMeshData, TransparentMeshData, build_chunk_mesh},
     },
-    world::chunk::{ClientChunkManager, range::is_in_bounds},
+    world::chunk::{ClientChunkMap, range::is_in_bounds},
 };
 use bevy::{ecs::prelude::*, math::IVec3, tasks::AsyncComputeTaskPool};
 use common::world::{
@@ -39,7 +39,7 @@ impl MeshingInput {
     pub fn gather(
         coord: IVec3,
         center: &ChunkBlocksComponent,
-        chunk_manager: &ClientChunkManager,
+        chunk_map: &ClientChunkMap,
         blocks: &Query<&ChunkBlocksComponent>,
     ) -> Option<Self> {
         let center_lod = center.lod();
@@ -50,7 +50,7 @@ impl MeshingInput {
         for offset in NEIGHBOR_OFFSETS {
             let neighbor_coord = coord + offset;
             let (data, lod) = if is_in_bounds(neighbor_coord) {
-                let entity = chunk_manager.get_entity(neighbor_coord)?;
+                let entity = chunk_map.get_entity(neighbor_coord)?;
                 let neighbor = blocks.get(entity).ok()?;
                 let lod = neighbor.lod();
                 let resampled = if lod > center_lod {

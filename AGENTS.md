@@ -66,7 +66,7 @@ The project uses `just` as a command runner. A Nix flake is provided to ensure a
 - **UI:** Screens are `bsn!` scenes composed from `ui::theme` (palette, fonts, text) and `ui::widgets` (buttons, text fields, keycaps), with behavior attached through `on(...)` observers. The pause menu's controls list is read from `input::input_maps::{PLAYER_KEYS, CLIENT_KEYS}`, which also build the input maps.
 - **Shaders:** Written in WESL (`assets/client/shader/`). The `VantablockShaderPlugin` handles shader registration.
 - **Assets:** Configured via RON files (e.g., `assets/server/config.ron`, `assets/shared/block/*.ron`, `assets/shared/biome/`).
-- **Chunk Meshing:** One scheduler (`render/chunk/tasks/schedule.rs`) re-decides every frame from `ClientChunkManager` which chunks to mesh: it queues chunks in render distance, un-queues ones that left, and gives a capped number of task slots to the nearest queued chunks whose neighbors all have data. Keep chunk state in the manager; don't drive it with marker components or one-shot "neighbor arrived" signals, which strand chunks when a signal is missed. Streaming and meshing are centered on the `ChunkStreamingAnchor` (the local player), not the camera.
+- **Chunk Meshing:** One scheduler (`render/chunk/tasks/schedule.rs`) re-decides every frame from `ClientChunkMap` which chunks to mesh: it queues chunks in render distance, un-queues ones that left, and gives a capped number of task slots to the nearest queued chunks whose neighbors all have data. Keep chunk state in the manager; don't drive it with marker components or one-shot "neighbor arrived" signals, which strand chunks when a signal is missed. Streaming and meshing are centered on the `ChunkStreamingAnchor` (the local player), not the camera.
 - **Optimization:** Prioritize data-oriented design (DOD) to keep the "hot path" (rendering and chunk generation) efficient.
 
 ### Testing
@@ -99,7 +99,7 @@ Unit and integration tests can't catch everything (UI flows, rendering, session 
 
 - `assets/`: Split into `client/` (fonts, shaders, textures), `server/` (config), and `shared/` (blocks, biomes).
 - `crates/`:
-  - `game/client/src/world/`: Client chunk state (`ClientChunkManager`), distance-based chunk streaming, and decompression. No rendering.
+  - `game/client/src/world/`: Client chunk state (`ClientChunkMap`), distance-based chunk streaming, and decompression. No rendering.
   - `game/client/src/render/`: Custom render passes, chunk meshing, and GPU resource management.
   - `game/client/src/network/`, `game/server/src/network/`: Connection handling, message demultiplexing, and sending.
   - `game/server/src/world/`: Terrain generation and chunk loading.

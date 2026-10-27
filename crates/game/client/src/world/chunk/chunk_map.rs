@@ -2,7 +2,8 @@ use bevy::ecs::prelude::*;
 use bevy::math::IVec3;
 use std::collections::HashMap;
 
-/// Represents the various states a chunk can be in during the client-side visual lifecycle.
+/// Where a tracked chunk is in its client lifecycle: requested, received, queued for meshing,
+/// being meshed, or meshed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ClientChunkState {
     /// Chunk data is requested from server
@@ -36,14 +37,19 @@ impl ClientChunkState {
     }
 }
 
-/// Resource tracking the visual lifecycle (meshing/rendering) of all active chunks on the client.
+/// Every chunk the client tracks, by coordinate, and where it is in its lifecycle.
+///
+/// This is the single source of truth for client chunk state: a chunk is tracked exactly when
+/// it has an entry here, and its entity is the one recorded here. Systems decide what to load,
+/// mesh, or discard by reading this map, never from marker components or entity queries alone.
+/// It mirrors the server's `ChunkMap`.
 #[derive(Resource, Default, Debug)]
-pub struct ClientChunkManager {
-    /// Map tracking the state of all non-unloaded chunks.
+pub struct ClientChunkMap {
+    /// The state of every tracked chunk. Untracked chunks are absent.
     pub chunk_states: HashMap<IVec3, ClientChunkState>,
 }
 
-impl ClientChunkManager {
+impl ClientChunkMap {
     /// Gets the current state of a chunk, if tracked.
     pub fn get_state(&self, coord: IVec3) -> Option<ClientChunkState> {
         self.chunk_states.get(&coord).copied()

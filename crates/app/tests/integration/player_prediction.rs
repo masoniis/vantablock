@@ -6,7 +6,7 @@ use client::{
     network::connection::{ConnectType, InitiateConnection},
     player::{LocalPlayer, LocalPlayerLook},
     showcase::{ApplyShowcase, SHOWCASES},
-    world::chunk::ClientChunkManager,
+    world::chunk::ClientChunkMap,
 };
 use common::{
     lifecycle::state::AppState,
@@ -237,7 +237,7 @@ fn local_player_inputs_are_predicted_and_authoritative() {
 fn tracked_chunk_count(client: &App) -> usize {
     client
         .world()
-        .resource::<ClientChunkManager>()
+        .resource::<ClientChunkMap>()
         .chunk_states
         .len()
 }

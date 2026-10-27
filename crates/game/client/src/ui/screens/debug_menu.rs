@@ -5,7 +5,7 @@ use crate::{
     input::local_actions::ClientAction,
     player::LocalPlayer,
     ui::theme::{Face, font, palette},
-    world::chunk::{ClientChunkManager, ClientChunkState},
+    world::chunk::{ClientChunkMap, ClientChunkState},
 };
 use bevy::{
     diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
@@ -151,7 +151,7 @@ fn grade(value: f64, good: f64, bad: f64) -> Color {
 fn update_debug_menu_system(
     diagnostics: Res<DiagnosticsStore>,
     player_query: Query<(&LogicalPosition, &ChunkCoord, &PlayerLook), With<LocalPlayer>>,
-    chunk_manager: Res<ClientChunkManager>,
+    chunk_map: Res<ClientChunkMap>,
     mut columns: Query<(Entity, &mut DebugColumn)>,
     mut writer: TextUiWriter,
     children: Query<&Children>,
@@ -209,7 +209,7 @@ fn update_debug_menu_system(
 
     // INFO: world and chunk state, right
     let (mut meshing, mut needs_meshing, mut awaiting) = (0, 0, 0);
-    for state in chunk_manager.chunk_states.values() {
+    for state in chunk_map.chunk_states.values() {
         match state {
             ClientChunkState::Meshing { .. } => meshing += 1,
             ClientChunkState::NeedsMeshing { .. } => needs_meshing += 1,
@@ -221,7 +221,7 @@ fn update_debug_menu_system(
     let right = vec![
         Line::default()
             .label("Chunks loaded")
-            .value(chunk_manager.chunk_states.len().to_string()),
+            .value(chunk_map.chunk_states.len().to_string()),
         Line::default()
             .label("Render distance")
             .value(RENDER_DISTANCE.to_string()),

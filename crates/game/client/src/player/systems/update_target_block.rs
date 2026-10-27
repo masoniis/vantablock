@@ -1,6 +1,6 @@
 use crate::player::{LocalPlayer, TargetedBlock};
 use crate::prelude::*;
-use crate::world::chunk::ClientChunkManager;
+use crate::world::chunk::ClientChunkMap;
 use bevy::{
     ecs::relationship::Relationship,
     prelude::{Camera, Camera3d, ChildOf, Entity, GlobalTransform, Query, Res, ResMut, With},
@@ -21,7 +21,7 @@ pub fn update_targeted_block_system(
     // input
     camera_query: Query<(&GlobalTransform, &Camera, &ChildOf), With<Camera3d>>,
     player_query: Query<Entity, With<LocalPlayer>>,
-    chunk_manager: Res<ClientChunkManager>,
+    chunk_map: Res<ClientChunkMap>,
     chunks_query: Query<&ChunkBlocksComponent>,
 
     // output
@@ -63,7 +63,7 @@ pub fn update_targeted_block_system(
         }
 
         // get block for current block
-        let block_id = get_block_at_world_pos(current_block_pos, &chunk_manager, &chunks_query);
+        let block_id = get_block_at_world_pos(current_block_pos, &chunk_map, &chunks_query);
 
         // check if we hit something
         if block_id != Some(AIR_BLOCK_ID) && block_id.is_some() {
@@ -84,13 +84,13 @@ pub fn update_targeted_block_system(
 /// Helper function to get a block from world coordinates
 fn get_block_at_world_pos(
     world_pos: IVec3,
-    manager: &Res<ClientChunkManager>,
+    chunk_map: &Res<ClientChunkMap>,
     chunks_query: &Query<&ChunkBlocksComponent>,
 ) -> Option<u8> {
     let (chunk_coord, local_pos) = ChunkCoord::world_to_chunk_and_local_pos(world_pos);
 
     // only get if chunk has data
-    let state = manager.get_state(chunk_coord)?;
+    let state = chunk_map.get_state(chunk_coord)?;
     if state.is_generated()
         && let Some(actual_entity) = state.entity()
         && let Ok(chunk_blocks) = chunks_query.get(actual_entity)

@@ -1,16 +1,16 @@
 //! The client's chunk data: which chunks it holds and what state they are in
-//! (`ClientChunkManager`), streaming them from the server by distance (`loading`), and turning
+//! (`ClientChunkMap`), streaming them from the server by distance (`loading`), and turning
 //! received bytes into chunk entities (`decompression`).
 //!
 //! Nothing here touches rendering, so it also runs in headless clients. Meshing and GPU upload
 //! live in `render::chunk` and build on this module.
 
+pub mod chunk_map;
 pub mod decompression;
 pub mod loading;
-pub mod manager;
 pub mod range;
 
-pub use manager::{ClientChunkManager, ClientChunkState};
+pub use chunk_map::{ClientChunkMap, ClientChunkState};
 
 // INFO: ---------------------------
 //         plugin definition
@@ -31,7 +31,7 @@ pub struct ClientChunkPlugin;
 
 impl Plugin for ClientChunkPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<ClientChunkManager>();
+        app.init_resource::<ClientChunkMap>();
         app.add_message::<DecompressedChunkMessage>();
 
         app.add_systems(

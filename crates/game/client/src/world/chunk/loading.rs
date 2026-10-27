@@ -1,7 +1,7 @@
 use crate::{
     prelude::*,
     world::chunk::{
-        ClientChunkManager,
+        ClientChunkMap,
         range::{
             StreamingAnchorQuery, chunks_in_horizontal_range, is_within_horizontal_range,
             streaming_center,
@@ -24,7 +24,7 @@ pub fn manage_distance_based_chunk_loading_targets_system(
     anchor: StreamingAnchorQuery,
 
     // output
-    mut chunk_manager: ResMut<ClientChunkManager>,
+    mut chunk_map: ResMut<ClientChunkMap>,
     mut sender_query: Query<&mut MessageSender<ClientMessage>, With<Client>>,
     mut commands: Commands,
 ) {
@@ -38,7 +38,7 @@ pub fn manage_distance_based_chunk_loading_targets_system(
     };
 
     // handle unloading
-    chunk_manager.chunk_states.retain(|coord, state| {
+    chunk_map.chunk_states.retain(|coord, state| {
         if is_within_horizontal_range(center, *coord, LOAD_DISTANCE) {
             return true;
         }
@@ -52,8 +52,8 @@ pub fn manage_distance_based_chunk_loading_targets_system(
     // identify new chunks to load
     let mut requested = Vec::new();
     for coord in chunks_in_horizontal_range(center, LOAD_DISTANCE) {
-        if !chunk_manager.is_chunk_present_or_loading(coord) {
-            chunk_manager.mark_as_awaiting_data(coord);
+        if !chunk_map.is_chunk_present_or_loading(coord) {
+            chunk_map.mark_as_awaiting_data(coord);
             requested.push(ChunkCoord { pos: coord });
         }
     }
@@ -66,11 +66,8 @@ pub fn manage_distance_based_chunk_loading_targets_system(
 
 /// Despawns every client chunk and forgets its state when leaving the game, so a later
 /// session doesn't render or skip requesting chunks from the previous world.
-pub fn unload_all_chunks_system(
-    mut chunk_manager: ResMut<ClientChunkManager>,
-    mut commands: Commands,
-) {
-    for entity in chunk_manager
+pub fn unload_all_chunks_system(mut chunk_map: ResMut<ClientChunkMap>, mut commands: Commands) {
+    for entity in chunk_map
         .chunk_states
         .drain()
         .filter_map(|(_, s)| s.entity())

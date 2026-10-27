@@ -1,4 +1,4 @@
-use crate::{prelude::*, world::chunk::ClientChunkManager};
+use crate::{prelude::*, world::chunk::ClientChunkMap};
 use bevy::ecs::prelude::*;
 use common::world::chunk::{ChunkCoord, ChunkMeshDirty};
 
@@ -9,15 +9,15 @@ pub fn handle_dirty_chunks_system(
 
     // output
     mut commands: Commands,
-    mut chunk_manager: ResMut<ClientChunkManager>,
+    mut chunk_map: ResMut<ClientChunkMap>,
 ) {
     for (entity, coord) in dirty_chunks_query.iter() {
         commands.entity(entity).remove::<ChunkMeshDirty>();
 
-        // a chunk the manager no longer tracks with this entity is being unloaded
-        if chunk_manager.get_entity(coord.pos) == Some(entity) {
+        // a chunk the chunk map no longer tracks with this entity is being unloaded
+        if chunk_map.get_entity(coord.pos) == Some(entity) {
             trace!("Chunk {} was edited, queueing a remesh", coord.pos);
-            chunk_manager.mark_as_needs_meshing(coord.pos, entity);
+            chunk_map.mark_as_needs_meshing(coord.pos, entity);
         }
     }
 }

@@ -5,7 +5,7 @@ use crate::{
         meshing::{OpaqueMeshData, TransparentMeshData},
         tasks::task::ChunkMeshingTaskComponent,
     },
-    world::chunk::{ClientChunkManager, ClientChunkState},
+    world::chunk::{ClientChunkMap, ClientChunkState},
 };
 use bevy::{asset::Assets, ecs::prelude::*, prelude::*};
 use common::world::chunk::{CHUNK_SIDE_LENGTH, ChunkCoord};
@@ -22,7 +22,7 @@ pub fn poll_chunk_meshing_tasks(
 
     // output
     mut commands: Commands,
-    mut chunk_manager: ResMut<ClientChunkManager>,
+    mut chunk_map: ResMut<ClientChunkMap>,
     mut mesh_assets: ResMut<Assets<BlockMeshAsset>>,
 ) {
     for (entity, task, coord) in tasks_query.iter() {
@@ -35,13 +35,13 @@ pub fn poll_chunk_meshing_tasks(
             .entity(entity)
             .remove::<ChunkMeshingTaskComponent>();
 
-        match (chunk_manager.get_state(coord.pos), meshes) {
+        match (chunk_map.get_state(coord.pos), meshes) {
             (Some(ClientChunkState::Meshing { entity: tracked }), Some(meshes))
                 if tracked == entity =>
             {
                 trace!(target: "chunk_loading", "Chunk meshing finished for {coord}");
                 attach_meshes(&mut commands, &mut mesh_assets, entity, coord, meshes);
-                chunk_manager.mark_as_mesh_complete(coord.pos, entity);
+                chunk_map.mark_as_mesh_complete(coord.pos, entity);
             }
             // an edit landed while the task ran: show this (now stale) mesh meanwhile, and keep
             // the chunk queued so the scheduler remeshes it with the edit
@@ -52,7 +52,7 @@ pub fn poll_chunk_meshing_tasks(
             }
             (Some(ClientChunkState::Meshing { entity: tracked }), None) if tracked == entity => {
                 warn!(target: "chunk_loading", "Meshing task for {coord} failed, queueing it again");
-                chunk_manager.mark_as_needs_meshing(coord.pos, entity);
+                chunk_map.mark_as_needs_meshing(coord.pos, entity);
             }
             _ => {
                 debug!(target: "chunk_loading", "Discarding the mesh of {coord}, which is no longer tracked");
@@ -94,14 +94,14 @@ mod tests {
     use crossbeam::channel::unbounded;
 
     /// Runs `poll_chunk_meshing_tasks` once for a chunk whose in-flight task returns `result`,
-    /// with the chunk manager already in `state`, and returns the state afterwards.
+    /// with the chunk map already in `state`, and returns the state afterwards.
     fn poll_with_state(
         state: fn(Entity) -> ClientChunkState,
         result: (Option<OpaqueMeshData>, Option<TransparentMeshData>),
     ) -> ClientChunkState {
         let coord = IVec3::new(2, 1, 3);
         let mut app = App::new();
-        app.init_resource::<ClientChunkManager>();
+        app.init_resource::<ClientChunkMap>();
         app.init_resource::<Assets<BlockMeshAsset>>();
         app.add_systems(Update, poll_chunk_meshing_tasks);
 
@@ -115,14 +115,14 @@ mod tests {
             ))
             .id();
         app.world_mut()
-            .resource_mut::<ClientChunkManager>()
+            .resource_mut::<ClientChunkMap>()
             .chunk_states
             .insert(coord, state(entity));
 
         app.update();
 
         app.world()
-            .resource::<ClientChunkManager>()
+            .resource::<ClientChunkMap>()
             .get_state(coord)
             .unwrap()
     }
@@ -157,7 +157,7 @@ mod tests {
     #[test]
     fn finished_task_always_frees_its_slot() {
         let mut app = App::new();
-        app.init_resource::<ClientChunkManager>();
+        app.init_resource::<ClientChunkMap>();
         app.init_resource::<Assets<BlockMeshAsset>>();
         app.add_systems(Update, poll_chunk_meshing_tasks);
 
@@ -172,7 +172,7 @@ mod tests {
             ))
             .id();
         app.world_mut()
-            .resource_mut::<ClientChunkManager>()
+            .resource_mut::<ClientChunkMap>()
             .mark_as_data_ready(coord, entity);
 
         app.update();
