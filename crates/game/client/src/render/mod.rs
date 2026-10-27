@@ -3,13 +3,11 @@ pub mod chunk;
 pub mod data;
 pub mod passes;
 pub mod resources;
-pub mod scheduling;
 pub mod shaders;
 pub mod texture;
 pub mod types;
 
 pub use data::*;
-pub use scheduling::VantablockNode;
 
 // INFO: --------------------------------
 //         render world interface
@@ -22,7 +20,7 @@ use crate::prelude::*;
 use crate::render::{
     chunk::{OpaqueMeshComponent, TransparentMeshComponent},
     passes::{
-        RenderGraphEdgesPlugin, WorldRenderPassesPlugin, opaque::extract::extract_opaque_meshes,
+        WorldRenderPassesPlugin, opaque::extract::extract_opaque_meshes,
         transparent::extract::extract_transparent_meshes,
     },
     texture::BlockTextureArray,
@@ -104,9 +102,5 @@ pub fn pre_setup_render_sub_app(sub_app: &mut SubApp) {
         .init_resource::<MeshesToUploadQueue>();
 
     // specifically implemented plugins (these run strictly in the Render World)
-    sub_app.add_plugins((
-        WorldRenderPassesPlugin,
-        SimulationExtractionPlugin,
-        RenderGraphEdgesPlugin,
-    ));
+    sub_app.add_plugins((WorldRenderPassesPlugin, SimulationExtractionPlugin));
 }

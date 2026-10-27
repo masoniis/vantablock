@@ -57,7 +57,7 @@ tracing-tracy = { workspace = true, optional = true }
 #         graphics
 # ------------------------
 
-wesl = { workspace = true }             # preprocessor
+wesl-core = { workspace = true }        # include_wesl! for the compiled shaders
 image = { workspace = true }
 bytemuck = { workspace = true }         # gpu friendly data
 offset-allocator = { workspace = true } # gpu buffer allocation

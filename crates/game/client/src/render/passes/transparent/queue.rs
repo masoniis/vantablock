@@ -39,7 +39,7 @@ pub fn queue_and_prepare_transparent_system(
         // specialize pipeline for this view
         let key = TransparentPipelineKey {
             msaa_samples: msaa.samples(),
-            hdr: view.hdr,
+            hdr: view.target_format == bevy::render::render_resource::TextureFormat::Rgba16Float,
         };
         transparent_phase.pipeline_id =
             Some(specialized_pipelines.specialize(&pipeline_cache, &transparent_pipeline, key));

@@ -8,17 +8,13 @@ pub use mesh::*;
 //         plugin definition
 // ---------------------------------
 
-use crate::render::{
-    VantablockNode,
-    passes::opaque::{
-        mesh::pipeline::Opaque3dPipeline, render::OpaquePassRenderNode,
-        skybox::OpaqueSkyboxPipeline,
-    },
+use crate::render::passes::opaque::{
+    mesh::pipeline::Opaque3dPipeline, render::opaque_pass, skybox::OpaqueSkyboxPipeline,
 };
 use bevy::{
+    core_pipeline::{Core3d, Core3dSystems, core_3d::main_opaque_pass_3d},
     prelude::{App, IntoScheduleConfigs, Plugin},
     render::{
-        render_graph::{RenderGraphExt, ViewNodeRunner},
         render_resource::SpecializedRenderPipelines,
         {Render, RenderSystems},
     },
@@ -37,13 +33,15 @@ impl Plugin for OpaqueRenderPassPlugin {
             queue::queue_opaque_system.in_set(RenderSystems::Queue),
         );
 
-        // INFO: ----------------------------------
-        //         render graph integration
-        // ----------------------------------------
+        // INFO: ---------------------------------
+        //         camera schedule wiring
+        // ---------------------------------------
 
-        app.add_render_graph_node::<ViewNodeRunner<OpaquePassRenderNode>>(
-            bevy::core_pipeline::core_3d::graph::Core3d,
-            VantablockNode::OpaquePass,
+        app.add_systems(
+            Core3d,
+            opaque_pass
+                .after(main_opaque_pass_3d)
+                .in_set(Core3dSystems::MainPass),
         );
     }
 

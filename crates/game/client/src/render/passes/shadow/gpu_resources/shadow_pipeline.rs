@@ -23,8 +23,8 @@ impl FromWorld for ShadowPassPipeline {
 
         let shadow_depth_stencil = Some(DepthStencilState {
             format: SHADOW_DEPTH_FORMAT,
-            depth_write_enabled: true,
-            depth_compare: CompareFunction::Less,
+            depth_write_enabled: Some(true),
+            depth_compare: Some(CompareFunction::Less),
             stencil: StencilState::default(),
             bias: DepthBiasState::default(),
         });
@@ -35,7 +35,7 @@ impl FromWorld for ShadowPassPipeline {
                 view_layout.descriptor.clone(),
                 chunk_layout.descriptor.clone(),
             ],
-            push_constant_ranges: vec![],
+            immediate_size: 0,
             vertex: VertexState {
                 shader: SHADOW_VERT_SHADER_HANDLE,
                 shader_defs: vec![],

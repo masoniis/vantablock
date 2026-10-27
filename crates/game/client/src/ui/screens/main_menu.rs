@@ -62,8 +62,8 @@ pub fn spawn_main_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
             parent.spawn((
                 Text::new("VANTABLOCK"),
                 TextFont {
-                    font: font.clone(),
-                    font_size: 72.0,
+                    font: FontSource::Handle(font.clone()),
+                    font_size: FontSize::Px(72.0),
                     ..Default::default()
                 },
                 TextColor(Color::WHITE),
@@ -99,8 +99,8 @@ pub fn spawn_main_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
             parent.spawn((
                 Text::new("Server Address:"),
                 TextFont {
-                    font: font.clone(),
-                    font_size: 20.0,
+                    font: FontSource::Handle(font.clone()),
+                    font_size: FontSize::Px(20.0),
                     ..Default::default()
                 },
                 TextColor(Color::srgb(0.5, 0.5, 0.5)),
@@ -129,8 +129,8 @@ pub fn spawn_main_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
                     parent.spawn((
                         Text::new(DEFAULT_LOCAL_SERVER_ADDR),
                         TextFont {
-                            font: font.clone(),
-                            font_size: 24.0,
+                            font: FontSource::Handle(font.clone()),
+                            font_size: FontSize::Px(24.0),
                             ..Default::default()
                         },
                         TextColor(Color::WHITE),
@@ -165,8 +165,8 @@ fn spawn_button(
             parent.spawn((
                 Text::new(label),
                 TextFont {
-                    font,
-                    font_size: 32.0,
+                    font: FontSource::Handle(font),
+                    font_size: FontSize::Px(32.0),
                     ..Default::default()
                 },
                 TextColor(Color::WHITE),

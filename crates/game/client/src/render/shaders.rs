@@ -34,7 +34,7 @@ pub const SHADOW_VERT_SHADER_HANDLE: Handle<Shader> =
 
 use bevy::asset::uuid_handle;
 use bevy::prelude::*;
-use wesl::include_wesl;
+use wesl_core::include_wesl;
 
 /// A plugin that registers all the WESL shaders needed for rendering
 pub struct VantablockShaderPlugin;

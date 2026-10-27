@@ -8,88 +8,83 @@ use crate::render::{
     },
 };
 use bevy::ecs::prelude::*;
-use bevy::ecs::query::QueryItem;
-use bevy::render::render_graph::{NodeRunError, RenderGraphContext, ViewNode};
 use bevy::render::render_resource::{
     LoadOp, Operations, PipelineCache, RenderPassDepthStencilAttachment, RenderPassDescriptor,
     StoreOp,
 };
-use bevy::render::renderer::RenderContext;
+use bevy::render::renderer::{RenderContext, ViewQuery};
 
-#[derive(Default)]
-pub struct ShadowRenderPassNode;
+/// Renders the opaque meshes into the shadow map. Runs in the `Core3d` schedule of every view
+/// that has an opaque phase.
+#[instrument(skip_all, name = "shadow_render_pass")]
+pub fn shadow_pass(
+    view: ViewQuery<&Opaque3dRenderPhase>,
+    pipeline_res: Option<Res<ShadowPassPipeline>>,
+    shadow_view_buffer: Option<Res<ShadowViewBuffer>>,
+    shadow_depth_texture: Option<Res<ShadowDepthTextureResource>>,
+    mesh_storage: Option<Res<RenderMeshStorageResource>>,
+    chunk_memory_manager: Option<Res<ChunkStorageManager>>,
+    pipeline_cache: Res<PipelineCache>,
+    render_meshes: Query<&OpaqueRenderMeshComponent>,
+    mut render_context: RenderContext,
+) {
+    let opaque_phase = view.into_inner();
+    let (
+        Some(pipeline_res),
+        Some(shadow_view_buffer),
+        Some(shadow_depth_texture),
+        Some(mesh_storage),
+        Some(chunk_memory_manager),
+    ) = (
+        pipeline_res,
+        shadow_view_buffer,
+        shadow_depth_texture,
+        mesh_storage,
+        chunk_memory_manager,
+    )
+    else {
+        return;
+    };
 
-impl ViewNode for ShadowRenderPassNode {
-    type ViewQuery = &'static Opaque3dRenderPhase;
+    let pipeline = pipeline_cache.get_render_pipeline(pipeline_res.pipeline_id);
+    if pipeline.is_none() {
+        return;
+    }
 
-    #[instrument(skip_all, name = "shadow_render_node")]
-    fn run(
-        &self,
-        _graph: &mut RenderGraphContext,
-        render_context: &mut RenderContext,
-        opaque_phase: QueryItem<Self::ViewQuery>,
-        world: &World,
-    ) -> Result<(), NodeRunError> {
-        let (
-            Some(pipeline_res),
-            Some(shadow_view_buffer),
-            Some(shadow_depth_texture),
-            Some(mesh_storage),
-            Some(chunk_memory_manager),
-            Some(pipeline_cache),
-        ) = (
-            world.get_resource::<ShadowPassPipeline>(),
-            world.get_resource::<ShadowViewBuffer>(),
-            world.get_resource::<ShadowDepthTextureResource>(),
-            world.get_resource::<RenderMeshStorageResource>(),
-            world.get_resource::<ChunkStorageManager>(),
-            world.get_resource::<PipelineCache>(),
-        )
-        else {
-            return Ok(());
-        };
-
-        let pipeline = pipeline_cache.get_render_pipeline(pipeline_res.pipeline_id);
-        if pipeline.is_none() {
-            return Ok(());
-        }
-
-        let mut render_pass =
-            render_context
-                .command_encoder()
-                .begin_render_pass(&RenderPassDescriptor {
-                    label: Some("Shadow Map Render Pass"),
-                    color_attachments: &[],
-                    depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
-                        view: &shadow_depth_texture.view,
-                        depth_ops: Some(Operations {
-                            load: LoadOp::Clear(1.0),
-                            store: StoreOp::Store,
-                        }),
-                        stencil_ops: None,
+    let mut render_pass =
+        render_context
+            .command_encoder()
+            .begin_render_pass(&RenderPassDescriptor {
+                label: Some("Shadow Map Render Pass"),
+                color_attachments: &[],
+                depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
+                    view: &shadow_depth_texture.view,
+                    depth_ops: Some(Operations {
+                        load: LoadOp::Clear(1.0),
+                        store: StoreOp::Store,
                     }),
-                    timestamp_writes: None,
-                    occlusion_query_set: None,
-                });
+                    stencil_ops: None,
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
 
-        render_pass.set_pipeline(pipeline.unwrap());
-        render_pass.set_bind_group(0, &shadow_view_buffer.bind_group, &[]);
-        render_pass.set_bind_group(1, &chunk_memory_manager.bind_group, &[]);
+    render_pass.set_pipeline(pipeline.unwrap());
+    render_pass.set_bind_group(0, &shadow_view_buffer.bind_group, &[]);
+    render_pass.set_bind_group(1, &chunk_memory_manager.bind_group, &[]);
 
-        // iterate directly over the phase passed into the method
-        for item in opaque_phase.items.iter() {
-            if let Some(render_mesh_comp) = world.get::<OpaqueRenderMeshComponent>(item.entity)
-                && let Some(gpu_mesh) = mesh_storage.meshes.get(&render_mesh_comp.mesh_handle.id())
-            {
-                let object_index = gpu_mesh.slot_index;
+    // iterate directly over the phase passed into the method
+    for item in opaque_phase.items.iter() {
+        if let Ok(render_mesh_comp) = render_meshes.get(item.entity)
+            && let Some(gpu_mesh) = mesh_storage.meshes.get(&render_mesh_comp.mesh_handle.id())
+        {
+            let object_index = gpu_mesh.slot_index;
 
-                render_pass.draw(
-                    0..(gpu_mesh.face_count * 6),
-                    object_index..(object_index + 1),
-                );
-            }
+            render_pass.draw(
+                0..(gpu_mesh.face_count * 6),
+                object_index..(object_index + 1),
+            );
         }
-
-        Ok(())
     }
 }

@@ -79,8 +79,10 @@ fn toggle_debug_menu_system(
                     parent.spawn((
                         Text::new(""),
                         TextFont {
-                            font: asset_server.load("client/font/Recursive_variable.ttf"),
-                            font_size: 16.0,
+                            font: FontSource::Handle(
+                                asset_server.load("client/font/Recursive_variable.ttf"),
+                            ),
+                            font_size: FontSize::Px(16.0),
                             ..default()
                         },
                         TextColor(Color::WHITE),

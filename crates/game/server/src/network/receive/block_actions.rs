@@ -64,7 +64,7 @@ pub fn handle_client_block_requests(
             let _ = sender.send::<_, BlockUpdates>(
                 &update_message,
                 *server,
-                &NetworkTarget::AllExcept(vec![**remote_id]),
+                &NetworkTarget::AllExcept(vec![**remote_id].into()),
             );
         } else {
             warn!(

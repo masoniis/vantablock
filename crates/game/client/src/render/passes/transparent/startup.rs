@@ -5,11 +5,11 @@ use crate::render::{
     },
     shaders::{TRANSPARENT_FRAG_SHADER_HANDLE, TRANSPARENT_VERT_SHADER_HANDLE},
 };
+use bevy::render::render_resource::*;
 use bevy::{
     core_pipeline::core_3d,
     prelude::{FromWorld, Resource, World},
 };
-use bevy::{render::render_resource::*, render::view::ViewTarget};
 
 // INFO: -------------------
 //         resources
@@ -51,7 +51,7 @@ impl SpecializedRenderPipeline for TransparentPipeline {
 
     fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
         let format = if key.hdr {
-            ViewTarget::TEXTURE_FORMAT_HDR
+            TextureFormat::Rgba16Float
         } else {
             TextureFormat::Rgba8UnormSrgb
         };
@@ -64,7 +64,7 @@ impl SpecializedRenderPipeline for TransparentPipeline {
                 self.texture_layout_descriptor.clone(),
                 self.chunk_storage_layout_descriptor.clone(),
             ],
-            push_constant_ranges: vec![],
+            immediate_size: 0,
             vertex: VertexState {
                 shader: TRANSPARENT_VERT_SHADER_HANDLE,
                 shader_defs: vec![],
@@ -83,8 +83,8 @@ impl SpecializedRenderPipeline for TransparentPipeline {
             }),
             depth_stencil: Some(DepthStencilState {
                 format: core_3d::CORE_3D_DEPTH_FORMAT,
-                depth_write_enabled: false, // transparent objects don't write depth
-                depth_compare: CompareFunction::GreaterEqual,
+                depth_write_enabled: Some(false), // transparent objects don't write depth
+                depth_compare: Some(CompareFunction::GreaterEqual),
                 stencil: StencilState::default(),
                 bias: DepthBiasState::default(),
             }),

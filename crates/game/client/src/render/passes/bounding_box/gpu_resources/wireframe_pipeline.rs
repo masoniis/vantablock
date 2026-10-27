@@ -5,7 +5,6 @@ use crate::render::types::WireframeVertex;
 use bevy::core_pipeline::core_3d;
 use bevy::ecs::prelude::*;
 use bevy::render::render_resource::*;
-use bevy::render::view::ViewTarget;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct WireframePipelineKey {
@@ -40,7 +39,7 @@ impl SpecializedRenderPipeline for WireframePipeline {
 
     fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
         let format = if key.hdr {
-            ViewTarget::TEXTURE_FORMAT_HDR
+            TextureFormat::Rgba16Float
         } else {
             TextureFormat::Rgba8UnormSrgb
         };
@@ -52,7 +51,7 @@ impl SpecializedRenderPipeline for WireframePipeline {
                 self.environment_layout.clone(),
                 self.object_layout.clone(),
             ],
-            push_constant_ranges: vec![],
+            immediate_size: 0,
             vertex: VertexState {
                 shader: WIREFRAME_VERT_SHADER_HANDLE,
                 shader_defs: vec![],
@@ -71,8 +70,8 @@ impl SpecializedRenderPipeline for WireframePipeline {
             }),
             depth_stencil: Some(DepthStencilState {
                 format: core_3d::CORE_3D_DEPTH_FORMAT,
-                depth_write_enabled: false,
-                depth_compare: CompareFunction::GreaterEqual,
+                depth_write_enabled: Some(false),
+                depth_compare: Some(CompareFunction::GreaterEqual),
                 stencil: StencilState::default(),
                 bias: DepthBiasState::default(),
             }),

@@ -2,18 +2,17 @@ pub mod gpu_resources;
 pub mod queue;
 pub mod render;
 
-pub use render::BoundingBoxNode;
-
 // INFO: ---------------------------
 //         plugin definition
 // ---------------------------------
 
-use crate::render::{VantablockNode, passes::bounding_box::queue::queue_wireframe_system};
+use crate::render::passes::bounding_box::{
+    queue::queue_wireframe_system, render::bounding_box_pass,
+};
 use bevy::{
-    core_pipeline::core_3d,
+    core_pipeline::{Core3d, Core3dSystems, core_3d::main_transparent_pass_3d},
     prelude::{App, IntoScheduleConfigs, Plugin},
     render::{
-        render_graph::{RenderGraphExt, ViewNodeRunner},
         render_resource::SpecializedRenderPipelines,
         {Render, RenderSystems},
     },
@@ -30,10 +29,12 @@ impl Plugin for WireframeRenderPassPlugin {
         // queue
         app.add_systems(Render, queue_wireframe_system.in_set(RenderSystems::Queue));
 
-        // render graph node
-        app.add_render_graph_node::<ViewNodeRunner<BoundingBoxNode>>(
-            core_3d::graph::Core3d,
-            VantablockNode::BoundingBoxPass,
+        // camera schedule wiring, drawn over everything else
+        app.add_systems(
+            Core3d,
+            bounding_box_pass
+                .after(main_transparent_pass_3d)
+                .in_set(Core3dSystems::MainPass),
         );
     }
 

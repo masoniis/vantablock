@@ -1,12 +1,8 @@
 use crate::lifecycle::{ClientLifecycleState, InGameState, SessionTopology};
 use crate::network::connection::{ConnectType, InitiateConnection, RequestSingleplayerSession};
 use bevy::prelude::*;
-use common::network::NETWORK_TICK_DURATION;
 use lightyear::{netcode::Key, prelude::client::*, prelude::*};
-use std::{
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
-    time::Duration,
-};
+use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 /// Sets up a basic client.
 ///
@@ -60,8 +56,8 @@ pub fn on_initiate_connection(
         .spawn((
             LocalAddr(client_addr),
             PeerAddr(server_addr),
-            Link::new(None),
-            ReplicationReceiver::default(),
+            Link::default(),
+            ReplicationReceiver,
             // enables rollback for predicted entities
             PredictionManager::default(),
             input_timeline_config(),
@@ -83,13 +79,12 @@ pub fn on_initiate_connection(
 
 /// Configures how far ahead of the server the client's input timeline runs.
 ///
-/// Lightyear's defaults (a 5ms margin, corrected only once off by a whole tick) are tuned for
-/// fast tick rates. At our slower tick rate that lets the client settle level with the server,
-/// so every input arrives just after the server simulated its tick and gets dropped. Instead we
-/// aim a full tick ahead and correct drift past half a tick, keeping inputs early but bounded.
+/// At our slow tick rate, a client that settles level with the server sends every input just
+/// after the server simulated its tick, and the input is dropped. We aim a full tick ahead
+/// (margins are in ticks) and correct drift past half a tick, keeping inputs early but bounded.
 fn input_timeline_config() -> InputTimelineConfig {
     InputTimelineConfig::default().with_sync_config(SyncConfig {
-        jitter_margin: Duration::from_secs_f64(NETWORK_TICK_DURATION),
+        jitter_margin: 1.0,
         error_margin: 0.5,
         ..default()
     })

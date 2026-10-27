@@ -16,13 +16,13 @@ pub fn dress_replicated_players_system(
             Entity,
             Has<Predicted>,
             Has<Interpolated>,
-            Option<&Confirmed<LogicalPosition>>,
+            Option<&LogicalPosition>,
         ),
         Added<NetworkPlayer>,
     >,
 ) {
-    for (entity, predicted, interpolated, confirmed_pos) in new_players.iter() {
-        let spawn_pos = confirmed_pos.map(|pos| pos.0.0).unwrap_or_default();
+    for (entity, predicted, interpolated, replicated_pos) in new_players.iter() {
+        let spawn_pos = replicated_pos.map(|pos| pos.0).unwrap_or_default();
 
         if predicted {
             info!("This is the LOCAL player! Dressing entity {:?}...", entity);
