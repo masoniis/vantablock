@@ -42,4 +42,5 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Run tests
-        run: cargo test --workspace
+        # bevy is linked dynamically, so doctest binaries need the toolchain's libstd on the loader path
+        run: LD_LIBRARY_PATH="$(rustc --print sysroot)/lib:$LD_LIBRARY_PATH" cargo test --workspace
