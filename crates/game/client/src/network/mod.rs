@@ -4,6 +4,7 @@ pub mod receive;
 pub mod send;
 
 pub use receive::*;
+pub use send::*;
 
 // INFO: ---------------------------
 //         plugin definition
