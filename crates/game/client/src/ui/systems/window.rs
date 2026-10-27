@@ -64,6 +64,7 @@ fn reveal_window_system(
     settled: Res<SettledFrames>,
     time: Res<Time<Real>>,
     mut counting: Local<bool>,
+    mut started: Local<Option<Duration>>,
 ) {
     let Ok(mut window) = window.single_mut() else {
         return;
@@ -72,7 +73,10 @@ fn reveal_window_system(
         return;
     }
 
-    let timed_out = time.elapsed() > REVEAL_TIMEOUT;
+    // the timeout counts from the first running frame, not from process start (asset loading
+    // alone can take longer than it in debug builds)
+    let started = *started.get_or_insert(time.elapsed());
+    let timed_out = time.elapsed() - started > REVEAL_TIMEOUT;
     if !*counting {
         if !asset_server.is_loaded_with_dependencies(&font.0) && !timed_out {
             return;
