@@ -17,16 +17,4 @@ pub enum ClientAction {
     ToggleOpaqueWireframeMode,
     ToggleChunkBorders,
     TogglePause,
-
-    // showcase actions
-    Showcase0,
-    Showcase1,
-    Showcase2,
-    Showcase3,
-    Showcase4,
-    Showcase5,
-    Showcase6,
-    Showcase7,
-    Showcase8,
-    Showcase9,
 }

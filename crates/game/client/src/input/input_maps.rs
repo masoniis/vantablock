@@ -32,17 +32,6 @@ pub const CLIENT_KEYS: &[(ClientAction, &[KeyCode])] = &[
         &[KeyCode::F2, KeyCode::KeyO],
     ),
     (ClientAction::ToggleChunkBorders, &[KeyCode::KeyB]),
-    // showcase actions
-    (ClientAction::Showcase0, &[KeyCode::Digit0]),
-    (ClientAction::Showcase1, &[KeyCode::Digit1]),
-    (ClientAction::Showcase2, &[KeyCode::Digit2]),
-    (ClientAction::Showcase3, &[KeyCode::Digit3]),
-    (ClientAction::Showcase4, &[KeyCode::Digit4]),
-    (ClientAction::Showcase5, &[KeyCode::Digit5]),
-    (ClientAction::Showcase6, &[KeyCode::Digit6]),
-    (ClientAction::Showcase7, &[KeyCode::Digit7]),
-    (ClientAction::Showcase8, &[KeyCode::Digit8]),
-    (ClientAction::Showcase9, &[KeyCode::Digit9]),
 ];
 
 /// The default keys bound to a player action.

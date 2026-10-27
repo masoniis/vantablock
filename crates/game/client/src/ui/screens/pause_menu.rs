@@ -4,14 +4,14 @@ use crate::{
         local_actions::ClientAction,
     },
     lifecycle::state::{ClientLifecycleState, InGameState},
+    network::connection::SessionWorld,
+    showcase::{ApplyShowcase, SHOWCASES},
     ui::{
-        theme::{Face, caption, palette, panel, scrim, text},
+        theme::{Face, caption, palette, panel, text},
         widgets::{ButtonTone, button, keycap, keycaps},
     },
 };
-use bevy::{
-    input_focus::tab_navigation::TabGroup, prelude::*, text::LetterSpacing, ui_widgets::Activate,
-};
+use bevy::{input_focus::tab_navigation::TabGroup, prelude::*, ui_widgets::Activate};
 use common::player::PlayerAction;
 
 #[derive(Component, Default, Clone)]
@@ -27,32 +27,46 @@ impl Plugin for PauseMenuPlugin {
 
 fn spawn_pause_menu(mut commands: Commands) {
     info!("Spawning Pause Menu UI...");
+    show_page(&mut commands, None, pause_menu());
+}
+
+/// Replaces the open pause page (if any) with `page`, which closes when the game resumes.
+fn show_page(commands: &mut Commands, open: Option<Entity>, page: impl Scene) {
+    if let Some(open) = open {
+        commands.entity(open).despawn();
+    }
     commands
-        .spawn_scene(pause_menu())
+        .spawn_scene(page)
         .insert(DespawnOnExit(InGameState::Paused));
 }
 
 fn pause_menu() -> impl Scene {
+    // docked left, so the game stays visible on the right
     bsn! {
         PauseMenuRoot
-        scrim()
+        docked()
         TabGroup
         Children [(
-            Node { column_gap: px(16), align_items: AlignItems::FlexStart }
+            Node { column_gap: px(12), align_items: AlignItems::FlexStart }
             Children [
                 (
-                    panel(palette::ACCENT)
-                    Node { width: px(260) }
+                    panel()
+                    Node { width: px(280), padding: UiRect::all(px(28)), row_gap: px(10) }
                     Children [
                         (
-                            text("PAUSED", Face::Display, 30.0, palette::TEXT)
-                            template_value(LetterSpacing::Px(3.0))
-                            Node { margin: UiRect::bottom(px(8)) }
+                            text("Paused", Face::Strong, 24.0, palette::TEXT)
+                            Node { margin: UiRect::bottom(px(10)) }
                         ),
                         (
                             button("Resume", ButtonTone::Primary)
                             on(|_: On<Activate>, mut next: ResMut<NextState<InGameState>>| {
                                 next.set(InGameState::Playing);
+                            })
+                        ),
+                        (
+                            button("Showcase", ButtonTone::Normal)
+                            on(|_: On<Activate>, mut commands: Commands, page: Single<Entity, With<PauseMenuRoot>>, world: Option<Res<SessionWorld>>| {
+                                show_page(&mut commands, Some(*page), showcase_page(world.as_deref().copied()));
                             })
                         ),
                         (
@@ -63,7 +77,12 @@ fn pause_menu() -> impl Scene {
                             })
                         ),
                         (
-                            Node { column_gap: px(8), align_items: AlignItems::Center, margin: UiRect::top(px(8)) }
+                            Node {
+                                column_gap: px(8),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::Center,
+                                margin: UiRect::top(px(8)),
+                            }
                             Children [
                                 keycap("Esc"),
                                 text("to resume", Face::Sans, 13.0, palette::TEXT_DIM),
@@ -72,18 +91,80 @@ fn pause_menu() -> impl Scene {
                     ]
                 ),
                 (
-                    panel(palette::PANEL_BORDER)
+                    panel()
                     Node { width: px(400), row_gap: px(6) }
                     Children [
-                        (
-                            text("CONTROLS", Face::Display, 18.0, palette::TEXT)
-                            template_value(LetterSpacing::Px(2.0))
-                        ),
+                        text("Controls", Face::Strong, 18.0, palette::TEXT),
                         {controls()},
                     ]
                 ),
             ]
         )]
+    }
+}
+
+/// A list of the showcase scenes for this world's terrain (all of them when joining a server,
+/// whose terrain the client doesn't know). Picking one jumps there and resumes the game.
+fn showcase_page(world: Option<SessionWorld>) -> impl Scene {
+    let mut scenes: Vec<Box<dyn Scene>> = SHOWCASES
+        .iter()
+        .enumerate()
+        .filter(|(_, showcase)| world.is_none_or(|world| world.0.shaper == showcase.shaper))
+        .map(|(index, showcase)| -> Box<dyn Scene> {
+            Box::new(bsn! {
+                button(showcase.name, ButtonTone::Normal)
+                on(move |_: On<Activate>, mut commands: Commands, mut next: ResMut<NextState<InGameState>>| {
+                    commands.trigger(ApplyShowcase(index));
+                    next.set(InGameState::Playing);
+                })
+            })
+        })
+        .collect();
+    if scenes.is_empty() {
+        scenes.push(Box::new(text(
+            "No scenes for this terrain",
+            Face::Sans,
+            14.0,
+            palette::TEXT_DIM,
+        )));
+    }
+
+    bsn! {
+        PauseMenuRoot
+        docked()
+        TabGroup
+        Children [(
+            panel()
+            Node { width: px(280), padding: UiRect::all(px(28)), row_gap: px(10) }
+            Children [
+                (
+                    text("Showcase", Face::Strong, 24.0, palette::TEXT)
+                    Node { margin: UiRect::bottom(px(10)) }
+                ),
+                {scenes},
+                (
+                    button("Back", ButtonTone::Quiet)
+                    Node { margin: UiRect::top(px(8)) }
+                    on(|_: On<Activate>, mut commands: Commands, page: Single<Entity, With<PauseMenuRoot>>| {
+                        show_page(&mut commands, Some(*page), pause_menu());
+                    })
+                ),
+            ]
+        )]
+    }
+}
+
+/// A full-window layer that docks its content to the left edge, vertically centered.
+fn docked() -> impl Scene {
+    bsn! {
+        Node {
+            width: percent(100),
+            height: percent(100),
+            flex_direction: FlexDirection::Column,
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::FlexStart,
+            padding: UiRect::left(px(16)),
+        }
     }
 }
 

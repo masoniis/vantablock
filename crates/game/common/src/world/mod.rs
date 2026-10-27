@@ -1,6 +1,7 @@
 pub mod biome;
 pub mod block;
 pub mod chunk;
+pub mod terrain;
 
 // INFO: ----------------------
 //         plugin group

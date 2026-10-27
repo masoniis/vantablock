@@ -17,6 +17,8 @@ pub enum ClientMessage {
     PlaceBlock { position: IVec3, block_id: u8 },
     /// Request the server to jump the game time by a specific amount.
     RequestTimeJump { amount: f32 },
+    /// Request the server to move the sender's player to `position` (the showcase menu).
+    Teleport { position: Vec3 },
 }
 
 /// A protocol defining all the direct server messages that a server communicates

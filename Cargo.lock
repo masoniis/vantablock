@@ -8617,6 +8617,7 @@ version = "0.2.0"
 dependencies = [
  "bevy",
  "crossbeam-channel",
+ "leafwing-input-manager",
  "lightyear",
  "tracing",
  "vantablock-client",

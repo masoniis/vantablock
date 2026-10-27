@@ -1,9 +1,11 @@
 use bevy::prelude::*;
 use client::{
     HeadlessClientPlugins,
+    input::{local_actions::ClientAction, systems::toggle_chunk_borders::ChunkBoundsToggle},
     lifecycle::ClientLifecycleState,
     network::connection::{ConnectType, InitiateConnection},
     player::{LocalPlayer, LocalPlayerLook},
+    showcase::{ApplyShowcase, SHOWCASES},
     world::chunk::ClientChunkManager,
 };
 use common::{
@@ -11,6 +13,7 @@ use common::{
     network::DEFAULT_LOCAL_SERVER_ADDR,
     player::components::{LogicalPosition, NetworkPlayer, PlayerLook},
 };
+use leafwing_input_manager::prelude::ActionState;
 use lightyear::prelude::{Client, Predicted, PredictionManager};
 use server::{DefaultServerPlugins, lifecycle::state::ServerState};
 use std::time::{Duration, Instant};
@@ -107,6 +110,25 @@ fn local_player_inputs_are_predicted_and_authoritative() {
         |_, client| client_local_player(client).is_some(),
     );
 
+    // client-only binds read a single `ActionState<ClientAction>`, so joining must not add one
+    let mut action_states = client.world_mut().query::<&ActionState<ClientAction>>();
+    assert_eq!(action_states.iter(client.world()).count(), 1);
+    client
+        .world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .press(KeyCode::KeyB);
+    step_until(
+        &mut server,
+        &mut client,
+        Duration::from_secs(5),
+        "chunk borders toggled in game",
+        |_, client| client.world().resource::<ChunkBoundsToggle>().enabled,
+    );
+    client
+        .world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .release(KeyCode::KeyB);
+
     let (local_entity, _, _) = client_local_player(&mut client).unwrap();
     let (spawn_pos, _) = server_player(&mut server).expect("server should have a player");
 
@@ -154,6 +176,21 @@ fn local_player_inputs_are_predicted_and_authoritative() {
     assert!(
         client_pos.distance(server_pos) < 0.01,
         "client prediction {client_pos} diverged from server {server_pos}"
+    );
+
+    // a showcase moves the player on the server, and prediction follows it
+    client.world_mut().trigger(ApplyShowcase(0));
+    let target = SHOWCASES[0].position;
+    step_until(
+        &mut server,
+        &mut client,
+        Duration::from_secs(10),
+        "showcase teleport applied on server and client",
+        |server, client| {
+            server_player(server).is_some_and(|(pos, _)| pos == target)
+                && client_local_player(client)
+                    .is_some_and(|(_, pos, _)| pos.distance(target) < 0.01)
+        },
     );
 
     // leave the session the way the pause menu's Disconnect does and join again, a few times

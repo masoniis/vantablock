@@ -2,7 +2,7 @@ use crate::ui::theme::{Face, palette, text};
 use bevy::prelude::*;
 use std::borrow::Cow;
 
-/// A key drawn as a small keycap, with a thicker bottom edge so it reads as a physical key.
+/// A key drawn as a small rounded keycap, with a thicker bottom edge so it reads as a physical key.
 pub fn keycap(label: &str) -> impl Scene + use<> {
     let label = label.to_owned();
     bsn! {
@@ -10,7 +10,8 @@ pub fn keycap(label: &str) -> impl Scene + use<> {
             min_width: px(26),
             height: px(24),
             padding: UiRect::horizontal(px(7)),
-            border: UiRect { left: px(1), right: px(1), top: px(1), bottom: px(3) },
+            border: UiRect { left: px(1), right: px(1), top: px(1), bottom: px(2) },
+            border_radius: BorderRadius::all(px(6)),
             justify_content: JustifyContent::Center,
             align_items: AlignItems::Center,
         }

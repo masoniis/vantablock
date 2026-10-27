@@ -1,6 +1,6 @@
 use crate::lifecycle::{ClientLifecycleState, InGameState, SessionTopology};
 use crate::network::connection::{
-    ConnectType, InitiateConnection, NetworkErrorEvent, RequestSingleplayerSession,
+    ConnectType, InitiateConnection, NetworkErrorEvent, RequestSingleplayerSession, SessionWorld,
 };
 use bevy::prelude::*;
 use lightyear::{netcode::Key, prelude::client::*, prelude::*};
@@ -36,12 +36,14 @@ pub fn on_initiate_connection(
 
     // handle session topology and singleplayer requests
     match event.connect_type {
-        ConnectType::Singleplayer => {
+        ConnectType::Singleplayer(world) => {
             next_session_topology.set(SessionTopology::Internal);
-            commands.trigger(RequestSingleplayerSession);
+            commands.insert_resource(SessionWorld(world));
+            commands.trigger(RequestSingleplayerSession { world });
         }
         ConnectType::Multiplayer => {
             next_session_topology.set(SessionTopology::External);
+            commands.remove_resource::<SessionWorld>();
         }
     }
 

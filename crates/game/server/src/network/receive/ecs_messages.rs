@@ -25,3 +25,9 @@ pub struct InboundPlaceBlockMessage {
     pub position: IVec3,
     pub block_id: u8,
 }
+
+#[derive(Message, Clone)]
+pub struct InboundTeleportMessage {
+    pub player: Entity,
+    pub position: Vec3,
+}

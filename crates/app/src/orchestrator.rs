@@ -36,7 +36,7 @@ struct LocalServerSignals {
 }
 
 fn handle_request_singleplayer(
-    _trigger: On<RequestSingleplayerSession>,
+    trigger: On<RequestSingleplayerSession>,
     mut commands: Commands,
     previous: Option<ResMut<LocalServer>>,
 ) {
@@ -48,6 +48,7 @@ fn handle_request_singleplayer(
         server.thread.take()
     });
 
+    let world = trigger.event().world;
     let ready = Arc::new(AtomicBool::new(false));
     let shutdown = Arc::new(AtomicBool::new(false));
     let signals = LocalServerSignals {
@@ -65,6 +66,8 @@ fn handle_request_singleplayer(
         }
 
         let mut app = App::new();
+        // the terrain plugin reads the world settings while it builds
+        app.insert_resource(world);
         app.add_plugins(DefaultServerPlugins);
 
         // pass the server's half of the signals into its ECS

@@ -65,5 +65,6 @@ bevy = { workspace = true, features = ["bevy_asset"] }
 tracing = { workspace = true }
 
 [dev-dependencies]
+leafwing-input-manager = { workspace = true }
 lightyear = { workspace = true }
 crossbeam-channel = "0.5"

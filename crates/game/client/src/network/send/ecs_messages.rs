@@ -17,3 +17,9 @@ pub struct OutboundPlaceBlockMessage {
     pub position: IVec3,
     pub block_id: u8,
 }
+
+/// The local player wants the server to move it somewhere.
+#[derive(Message)]
+pub struct OutboundTeleportMessage {
+    pub position: Vec3,
+}
