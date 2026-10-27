@@ -8,11 +8,14 @@ use tracing::instrument;
 #[instrument(skip_all)]
 #[allow(clippy::too_many_arguments)]
 pub fn camera_movement_system(
+    // input
+    action_state: Single<&ActionState<ClientAction>>,
+    player_query: Query<Entity, With<LocalPlayer>>,
+
     // output
-    player_query: Query<(Entity, &ActionState<ClientAction>), With<LocalPlayer>>,
     mut camera_query: Query<(&Camera, &mut Projection, &ChildOf), With<Camera3d>>,
 ) {
-    let Ok((player_entity, action_state)) = player_query.single() else {
+    let Ok(player_entity) = player_query.single() else {
         return;
     };
 

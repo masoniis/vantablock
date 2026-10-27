@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use client::{
     HeadlessClientPlugins,
+    input::{local_actions::ClientAction, systems::toggle_chunk_borders::ChunkBoundsToggle},
     lifecycle::ClientLifecycleState,
     network::connection::{ConnectType, InitiateConnection},
     player::{LocalPlayer, LocalPlayerLook},
@@ -11,6 +12,7 @@ use common::{
     network::DEFAULT_LOCAL_SERVER_ADDR,
     player::components::{LogicalPosition, NetworkPlayer, PlayerLook},
 };
+use leafwing_input_manager::prelude::ActionState;
 use lightyear::prelude::{Client, Predicted, PredictionManager};
 use server::{DefaultServerPlugins, lifecycle::state::ServerState};
 use std::time::{Duration, Instant};
@@ -106,6 +108,25 @@ fn local_player_inputs_are_predicted_and_authoritative() {
         "predicted local player on client",
         |_, client| client_local_player(client).is_some(),
     );
+
+    // client-only binds read a single `ActionState<ClientAction>`, so joining must not add one
+    let mut action_states = client.world_mut().query::<&ActionState<ClientAction>>();
+    assert_eq!(action_states.iter(client.world()).count(), 1);
+    client
+        .world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .press(KeyCode::KeyB);
+    step_until(
+        &mut server,
+        &mut client,
+        Duration::from_secs(5),
+        "chunk borders toggled in game",
+        |_, client| client.world().resource::<ChunkBoundsToggle>().enabled,
+    );
+    client
+        .world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .release(KeyCode::KeyB);
 
     let (local_entity, _, _) = client_local_player(&mut client).unwrap();
     let (spawn_pos, _) = server_player(&mut server).expect("server should have a player");

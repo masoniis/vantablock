@@ -76,9 +76,8 @@ impl Plugin for PlayerPlugin {
 
 /// Run condition for a `PlayerAction` just pressed by the local player.
 ///
-/// Leafwing's `action_just_pressed` reads the global `ActionState` resource, but player
-/// input lives on the local player entity (it is networked per player), so that resource
-/// never sees these actions.
+/// Leafwing's `action_just_pressed` reads any `Single` `ActionState<PlayerAction>`, but player
+/// input is networked per player entity, so this narrows it to the local player's.
 fn local_action_just_pressed(
     action: PlayerAction,
 ) -> impl Fn(Query<&ActionState<PlayerAction>, With<LocalPlayer>>) -> bool {
