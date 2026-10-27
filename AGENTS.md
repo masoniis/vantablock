@@ -35,6 +35,7 @@ The project uses `just` as a command runner. A Nix flake is provided to ensure a
 ### Tooling & Environment
 
 - **Worktrees:** Asset and dev-data paths are baked in at compile time from `CARGO_MANIFEST_DIR` (`crates/platform/src/paths.rs`). Never point a git worktree at the main checkout's `target/` (`CARGO_TARGET_DIR`): cargo can reuse the worktree's artifacts, and the main binary then loads assets from the worktree path. If that happens, run `cargo clean -p vantablock-platform`.
+- **Fast Builds:** The Bevy crates (`common`, `server`, `client`, `app`) default to `bevy/dynamic_linking`, and dev builds optimize dependencies. Plain `cargo`/`just` commands get all of this. Distribution builds (`just release`, `just package`, the release workflow) pass `--no-default-features --features client,distribution` to link statically; keep that on any new distribution path. The `release` profile has no LTO because it can't link against the Bevy dylib.
 - **Searching:** Always exclude the `target/` directory when searching (e.g., `grep --exclude-dir=target`). It contains large build artifacts that can overwhelm search results and consume excessive context.
 - **Environment Setup:** Use `nix develop` or `direnv allow` if using Nix.
 - **Formatting:** `just fmt` (runs `nix fmt` which handles Rust and WGSL/WESL).

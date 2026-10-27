@@ -36,7 +36,7 @@ required-features = ["server"]
 
 [features]
 # binary features
-default = ["client"]
+default = ["client", "bevy/dynamic_linking"]
 # for the client (hosting capability as well)
 client = [
   "dep:client",

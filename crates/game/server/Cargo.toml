@@ -12,6 +12,9 @@ path = "src/lib.rs"
 name = "generation_benchmarks"
 harness = false
 
+[features]
+default = ["bevy/dynamic_linking"]
+
 [lints]
 workspace = true
 
