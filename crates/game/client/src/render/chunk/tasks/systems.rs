@@ -221,9 +221,14 @@ pub fn poll_chunk_meshing_tasks(
 
                 match current_state {
                     Some(
-                        ClientChunkState::Meshing { entity: gen_entity }
-                        | ClientChunkState::NeedsMeshing { entity: gen_entity },
+                        state @ (ClientChunkState::Meshing { entity: gen_entity }
+                        | ClientChunkState::NeedsMeshing { entity: gen_entity }),
                     ) if gen_entity == entity => {
+                        // an edit that landed while this task ran already queued a remesh. This
+                        // (now stale) mesh is still shown in the meantime, but the state must
+                        // stay `NeedsMeshing` or the queued remesh is treated as cancelled.
+                        let remesh_pending = matches!(state, ClientChunkState::NeedsMeshing { .. });
+
                         trace!(target : "chunk_loading","Chunk meshing finished for {:?}", coord);
 
                         // remove old if it exists
@@ -270,7 +275,9 @@ pub fn poll_chunk_meshing_tasks(
                                 commands
                                     .entity(entity)
                                     .remove::<ChunkMeshingTaskComponent>();
-                                chunk_manager.mark_as_mesh_complete(coord.pos, entity);
+                                if !remesh_pending {
+                                    chunk_manager.mark_as_mesh_complete(coord.pos, entity);
+                                }
                                 continue; // continue to prevent transform from being added
                             }
                         }
@@ -288,7 +295,9 @@ pub fn poll_chunk_meshing_tasks(
                             ))
                             .remove::<ChunkMeshingTaskComponent>();
 
-                        chunk_manager.mark_as_mesh_complete(coord.pos, entity);
+                        if !remesh_pending {
+                            chunk_manager.mark_as_mesh_complete(coord.pos, entity);
+                        }
                     }
                     Some(_) => {
                         error!(
@@ -430,6 +439,71 @@ pub fn manage_distance_based_chunk_meshing_targets_system(
                 .entity(*entity)
                 .insert((WantsMeshing, CheckForMeshing));
             *state = ClientChunkState::NeedsMeshing { entity: *entity };
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::render::chunk::meshing::{OpaqueMeshData, TransparentMeshData};
+
+    /// Runs `poll_chunk_meshing_tasks` once for a chunk whose in-flight task returns `result`,
+    /// with the chunk manager already in `state`, and returns the state afterwards.
+    fn poll_with_state(
+        state: fn(Entity) -> ClientChunkState,
+        result: (Option<OpaqueMeshData>, Option<TransparentMeshData>),
+    ) -> ClientChunkState {
+        let coord = IVec3::new(2, 1, 3);
+        let mut app = App::new();
+        app.init_resource::<ClientChunkManager>();
+        app.init_resource::<Assets<BlockMeshAsset>>();
+        app.add_systems(Update, poll_chunk_meshing_tasks);
+
+        let (sender, receiver) = unbounded();
+        sender.send(result).unwrap();
+        let entity = app
+            .world_mut()
+            .spawn((
+                ChunkCoord { pos: coord },
+                ChunkMeshingTaskComponent { receiver },
+            ))
+            .id();
+        app.world_mut()
+            .resource_mut::<ClientChunkManager>()
+            .chunk_states
+            .insert(coord, state(entity));
+
+        app.update();
+
+        app.world()
+            .resource::<ClientChunkManager>()
+            .get_state(coord)
+            .unwrap()
+    }
+
+    fn some_mesh() -> OpaqueMeshData {
+        BlockMeshAsset {
+            name: "test".into(),
+            faces: vec![crate::render::chunk::meshing::PackedFace(0)].into(),
+        }
+    }
+
+    #[test]
+    fn finished_mesh_completes_a_meshing_chunk() {
+        for result in [(None, None), (Some(some_mesh()), None)] {
+            let state = poll_with_state(|entity| ClientChunkState::Meshing { entity }, result);
+            assert!(matches!(state, ClientChunkState::MeshComplete { .. }));
+        }
+    }
+
+    /// Regression: an edit during meshing marks the chunk `NeedsMeshing`. The finished (stale)
+    /// mesh used to overwrite that with `MeshComplete`, so the edit never got remeshed.
+    #[test]
+    fn edit_during_meshing_keeps_the_remesh_queued() {
+        for result in [(None, None), (Some(some_mesh()), None)] {
+            let state = poll_with_state(|entity| ClientChunkState::NeedsMeshing { entity }, result);
+            assert!(matches!(state, ClientChunkState::NeedsMeshing { .. }));
         }
     }
 }
