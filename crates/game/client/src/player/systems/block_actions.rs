@@ -1,39 +1,35 @@
 use crate::{
-    network::InboundBlockUpdateMessage,
+    network::{InboundBlockUpdateMessage, OutboundBreakBlockMessage, OutboundPlaceBlockMessage},
     player::{BreakBlockEvent, PlaceBlockEvent, TargetedBlock},
+    world::chunk::ClientChunkManager,
 };
 use bevy::ecs::prelude::*;
 use common::{
-    network::protocol::{BlockUpdates, ClientMessage},
     prelude::IVec3,
-    world::block::block_registry::AIR_BLOCK_ID,
+    world::block::block_registry::{AIR_BLOCK_ID, BlockId},
     world::chunk::{
         CHUNK_SIDE_LENGTH,
         components::{ChunkBlocksComponent, ChunkCoord, ChunkMeshDirty},
     },
 };
-use lightyear::prelude::{Client, MessageSender};
-use std::collections::HashMap;
 
-/// Fires a `BreakBlockEvent` for the currently targeted block and sends a
-/// `ClientMessage::BreakBlock` to the server.
+/// Fires a `BreakBlockEvent` for the currently targeted block and asks the network layer to
+/// tell the server.
 pub fn break_targeted_block_system(
     targeted_block: Res<TargetedBlock>,
     mut break_block_writer: MessageWriter<BreakBlockEvent>,
-    mut sender_query: Query<&mut MessageSender<ClientMessage>, With<Client>>,
+    mut outbound_writer: MessageWriter<OutboundBreakBlockMessage>,
 ) {
     if let Some(block_pos) = targeted_block.position {
-        // send local event for instant Client-Side Prediction (CSP)
+        // local event for instant Client-Side Prediction (CSP)
         break_block_writer.write(BreakBlockEvent {
             world_pos: block_pos,
         });
 
-        // send networked intent to the server
-        if let Ok(mut sender) = sender_query.single_mut() {
-            sender.send::<BlockUpdates>(ClientMessage::BreakBlock {
-                position: block_pos,
-            });
-        }
+        // networked intent to the server
+        outbound_writer.write(OutboundBreakBlockMessage {
+            position: block_pos,
+        });
     }
 }
 
@@ -58,101 +54,50 @@ pub fn handle_incoming_block_updates(
     }
 }
 
-/// A system that handles the `BreakBlockEvent` by mutating local chunk data
-/// and marking chunks as dirty for remeshing.
-pub fn handle_break_block_events_system(
-    // input
-    mut events: MessageReader<BreakBlockEvent>,
-    chunk_query: Query<(&ChunkCoord, Entity)>,
-
-    // output
-    mut blocks_query: Query<&mut ChunkBlocksComponent>,
-    mut commands: Commands,
-) {
-    if events.is_empty() {
-        return;
-    }
-
-    // build a temporary map for lookups
-    let mut entity_map = HashMap::new();
-    for (coord, entity) in chunk_query.iter() {
-        entity_map.insert(coord.pos, entity);
-    }
-
-    for event in events.read() {
-        let chunk_pos = ChunkCoord::world_to_chunk_pos(event.world_pos.as_vec3());
-
-        if let Some(&entity) = entity_map.get(&chunk_pos)
-            && let Ok(mut chunk_blocks) = blocks_query.get_mut(entity)
-        {
-            let local_pos = event.world_pos - (chunk_pos * CHUNK_SIDE_LENGTH as i32);
-
-            let mut writer = chunk_blocks.get_writer();
-            writer.set_data(
-                local_pos.x as usize,
-                local_pos.y as usize,
-                local_pos.z as usize,
-                AIR_BLOCK_ID,
-            );
-
-            // mark the primary chunk as dirty
-            commands.entity(entity).insert(ChunkMeshDirty);
-
-            // mark any neighbors as dirty if we are on the edge
-            let max_idx = (CHUNK_SIDE_LENGTH - 1) as i32;
-            let mut neighbor_coords_to_dirty = Vec::with_capacity(3);
-
-            if local_pos.x == 0 {
-                neighbor_coords_to_dirty.push(chunk_pos - IVec3::X);
-            } else if local_pos.x == max_idx {
-                neighbor_coords_to_dirty.push(chunk_pos + IVec3::X);
-            }
-
-            if local_pos.y == 0 {
-                neighbor_coords_to_dirty.push(chunk_pos - IVec3::Y);
-            } else if local_pos.y == max_idx {
-                neighbor_coords_to_dirty.push(chunk_pos + IVec3::Y);
-            }
-
-            if local_pos.z == 0 {
-                neighbor_coords_to_dirty.push(chunk_pos - IVec3::Z);
-            } else if local_pos.z == max_idx {
-                neighbor_coords_to_dirty.push(chunk_pos + IVec3::Z);
-            }
-
-            for neighbor_coord in neighbor_coords_to_dirty {
-                if let Some(&neighbor_entity) = entity_map.get(&neighbor_coord) {
-                    commands.entity(neighbor_entity).insert(ChunkMeshDirty);
-                }
-            }
-        }
-    }
-}
-
-/// Fires a `PlaceBlockEvent` for the currently targeted block and sends a
-/// `ClientMessage::PlaceBlock` to the server.
+/// Fires a `PlaceBlockEvent` for the currently targeted block and asks the network layer to
+/// tell the server.
 pub fn place_targeted_block_system(
     targeted_block: Res<TargetedBlock>,
     mut place_block_writer: MessageWriter<PlaceBlockEvent>,
-    mut sender_query: Query<&mut MessageSender<ClientMessage>, With<Client>>,
+    mut outbound_writer: MessageWriter<OutboundPlaceBlockMessage>,
 ) {
     if let (Some(block_pos), Some(normal)) = (targeted_block.position, targeted_block.normal) {
         let target_pos = block_pos + normal;
         let block_id = 1;
 
-        // send local event for CSP
+        // local event for CSP
         place_block_writer.write(PlaceBlockEvent {
             target_pos,
             block_id,
         });
 
-        // send networked intent to the server
-        if let Ok(mut sender) = sender_query.single_mut() {
-            sender.send::<BlockUpdates>(ClientMessage::PlaceBlock {
-                position: target_pos,
-                block_id,
-            });
-        }
+        // networked intent to the server
+        outbound_writer.write(OutboundPlaceBlockMessage {
+            position: target_pos,
+            block_id,
+        });
+    }
+}
+
+/// A system that handles the `BreakBlockEvent` by mutating local chunk data
+/// and marking chunks as dirty for remeshing.
+pub fn handle_break_block_events_system(
+    // input
+    mut events: MessageReader<BreakBlockEvent>,
+    chunk_manager: Res<ClientChunkManager>,
+
+    // output
+    mut blocks_query: Query<&mut ChunkBlocksComponent>,
+    mut commands: Commands,
+) {
+    for event in events.read() {
+        apply_block_edit(
+            event.world_pos,
+            AIR_BLOCK_ID,
+            &chunk_manager,
+            &mut blocks_query,
+            &mut commands,
+        );
     }
 }
 
@@ -161,68 +106,144 @@ pub fn place_targeted_block_system(
 pub fn handle_place_block_events_system(
     // input
     mut events: MessageReader<PlaceBlockEvent>,
-    chunk_query: Query<(&ChunkCoord, Entity)>,
+    chunk_manager: Res<ClientChunkManager>,
 
     // output
     mut blocks_query: Query<&mut ChunkBlocksComponent>,
     mut commands: Commands,
 ) {
-    if events.is_empty() {
-        return;
-    }
-
-    // build a temporary map for lookups
-    let mut entity_map = HashMap::new();
-    for (coord, entity) in chunk_query.iter() {
-        entity_map.insert(coord.pos, entity);
-    }
-
     for event in events.read() {
-        let chunk_pos = ChunkCoord::world_to_chunk_pos(event.target_pos.as_vec3());
+        apply_block_edit(
+            event.target_pos,
+            event.block_id,
+            &chunk_manager,
+            &mut blocks_query,
+            &mut commands,
+        );
+    }
+}
 
-        if let Some(&entity) = entity_map.get(&chunk_pos)
-            && let Ok(mut chunk_blocks) = blocks_query.get_mut(entity)
-        {
-            let local_pos = event.target_pos - (chunk_pos * CHUNK_SIDE_LENGTH as i32);
+/// Writes `block_id` at `world_pos` into the loaded chunk containing it and marks that chunk
+/// (plus any neighbor sharing the edited border) for remeshing.
+///
+/// Chunks are looked up through the `ClientChunkManager`, which only tracks chunk entities.
+fn apply_block_edit(
+    world_pos: IVec3,
+    block_id: BlockId,
+    chunk_manager: &ClientChunkManager,
+    blocks_query: &mut Query<&mut ChunkBlocksComponent>,
+    commands: &mut Commands,
+) {
+    let chunk_pos = ChunkCoord::world_to_chunk_pos(world_pos.as_vec3());
 
-            let mut writer = chunk_blocks.get_writer();
-            writer.set_data(
-                local_pos.x as usize,
-                local_pos.y as usize,
-                local_pos.z as usize,
-                event.block_id,
-            );
+    let Some(entity) = chunk_manager.get_entity(chunk_pos) else {
+        return;
+    };
+    let Ok(mut chunk_blocks) = blocks_query.get_mut(entity) else {
+        return;
+    };
 
-            // mark primary chunk as dirty
-            commands.entity(entity).insert(ChunkMeshDirty);
+    let local_pos = world_pos - (chunk_pos * CHUNK_SIDE_LENGTH as i32);
 
-            // mark any neighbors as dirty if we are on the edge
-            let max_idx = (CHUNK_SIDE_LENGTH - 1) as i32;
-            let mut neighbor_coords_to_dirty = Vec::with_capacity(3);
+    chunk_blocks.get_writer().set_data(
+        local_pos.x as usize,
+        local_pos.y as usize,
+        local_pos.z as usize,
+        block_id,
+    );
 
-            if local_pos.x == 0 {
-                neighbor_coords_to_dirty.push(chunk_pos - IVec3::X);
-            } else if local_pos.x == max_idx {
-                neighbor_coords_to_dirty.push(chunk_pos + IVec3::X);
-            }
+    commands.entity(entity).insert(ChunkMeshDirty);
 
-            if local_pos.y == 0 {
-                neighbor_coords_to_dirty.push(chunk_pos - IVec3::Y);
-            } else if local_pos.y == max_idx {
-                neighbor_coords_to_dirty.push(chunk_pos + IVec3::Y);
-            }
+    // blocks on a chunk border change the neighbor's visible faces and ambient occlusion too
+    let max_idx = (CHUNK_SIDE_LENGTH - 1) as i32;
+    for axis in [IVec3::X, IVec3::Y, IVec3::Z] {
+        let along_axis = local_pos.dot(axis);
+        let neighbor_offset = if along_axis == 0 {
+            -axis
+        } else if along_axis == max_idx {
+            axis
+        } else {
+            continue;
+        };
 
-            if local_pos.z == 0 {
-                neighbor_coords_to_dirty.push(chunk_pos - IVec3::Z);
-            } else if local_pos.z == max_idx {
-                neighbor_coords_to_dirty.push(chunk_pos + IVec3::Z);
-            }
-
-            for neighbor_coord in neighbor_coords_to_dirty {
-                if let Some(&neighbor_entity) = entity_map.get(&neighbor_coord) {
-                    commands.entity(neighbor_entity).insert(ChunkMeshDirty);
-                }
-            }
+        if let Some(neighbor_entity) = chunk_manager.get_entity(chunk_pos + neighbor_offset) {
+            commands.entity(neighbor_entity).insert(ChunkMeshDirty);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::world::chunk::ClientChunkState;
+    use bevy::prelude::*;
+    use common::world::{block::SOLID_BLOCK_ID, chunk::types::ChunkLod};
+
+    fn spawn_chunk(app: &mut App, pos: IVec3) -> Entity {
+        let entity = app
+            .world_mut()
+            .spawn((
+                ChunkCoord { pos },
+                ChunkBlocksComponent::new_uniform_solid(ChunkLod(0)),
+            ))
+            .id();
+        app.world_mut()
+            .resource_mut::<ClientChunkManager>()
+            .chunk_states
+            .insert(pos, ClientChunkState::MeshComplete { entity });
+        entity
+    }
+
+    fn app() -> App {
+        let mut app = App::new();
+        app.init_resource::<ClientChunkManager>();
+        app.add_message::<BreakBlockEvent>();
+        app.add_systems(Update, handle_break_block_events_system);
+        app
+    }
+
+    #[test]
+    fn breaking_a_border_block_dirties_the_chunk_and_that_neighbor_only() {
+        let mut app = app();
+        let chunk = spawn_chunk(&mut app, IVec3::ZERO);
+        let east = spawn_chunk(&mut app, IVec3::X);
+        let north = spawn_chunk(&mut app, IVec3::Z);
+
+        // a camera shares chunk coordinates with chunks but must never be edited
+        let camera = app
+            .world_mut()
+            .spawn(ChunkCoord {
+                pos: IVec3::new(5, 0, 5),
+            })
+            .id();
+
+        let max = CHUNK_SIDE_LENGTH as i32 - 1;
+        app.world_mut().write_message(BreakBlockEvent {
+            world_pos: IVec3::new(max, 4, 4),
+        });
+        app.update();
+
+        let world = app.world();
+        assert!(world.entity(chunk).contains::<ChunkMeshDirty>());
+        assert!(world.entity(east).contains::<ChunkMeshDirty>());
+        assert!(!world.entity(north).contains::<ChunkMeshDirty>());
+        assert!(!world.entity(camera).contains::<ChunkMeshDirty>());
+
+        let blocks = world.entity(chunk).get::<ChunkBlocksComponent>().unwrap();
+        let view = blocks.get_view();
+        let common::world::chunk::ChunkView::Dense(data) = view else {
+            panic!("edited chunk should be dense");
+        };
+        assert_eq!(data.get_data(max as usize, 4, 4), AIR_BLOCK_ID);
+        assert_eq!(data.get_data(0, 0, 0), SOLID_BLOCK_ID);
+    }
+
+    #[test]
+    fn edits_outside_loaded_chunks_are_ignored() {
+        let mut app = app();
+        app.world_mut().write_message(BreakBlockEvent {
+            world_pos: IVec3::new(1000, 4, 4),
+        });
+        app.update();
     }
 }

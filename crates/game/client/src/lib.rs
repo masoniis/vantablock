@@ -9,6 +9,7 @@ pub mod render;
 pub mod settings;
 pub mod showcase;
 pub mod ui;
+pub mod world;
 
 pub use prelude::*;
 
@@ -43,6 +44,7 @@ impl PluginGroup for CoreClientLogicPlugins {
             .add(input::ClientInputPlugin)
             .add_group(lifecycle::LifecyclePlugins)
             .add_group(network::ClientNetworkPlugins)
+            .add(world::ClientWorldPlugin)
             .add(player::PlayerPlugin)
             .add(showcase::ShowcasePlugin)
     }

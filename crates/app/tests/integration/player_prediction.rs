@@ -4,7 +4,7 @@ use client::{
     lifecycle::ClientLifecycleState,
     network::connection::{ConnectType, InitiateConnection},
     player::{LocalPlayer, LocalPlayerLook},
-    render::chunk::manager::ClientChunkManager,
+    world::chunk::ClientChunkManager,
 };
 use common::{
     lifecycle::state::AppState,
@@ -66,8 +66,6 @@ fn local_player_inputs_are_predicted_and_authoritative() {
     server.add_plugins(DefaultServerPlugins);
     let mut client = App::new();
     client.add_plugins(HeadlessClientPlugins);
-    // owned by the render plugin, which headless clients don't have
-    client.init_resource::<ClientChunkManager>();
 
     // `App::run` normally does this, but we drive the apps by hand. Lightyear builds its
     // replication systems in `Plugin::finish`, so skipping this silently disables replication.
@@ -159,9 +157,14 @@ fn local_player_inputs_are_predicted_and_authoritative() {
     );
 
     // leave the session the way the pause menu's Disconnect does and join again, a few times
-    // over: teardown must not panic or leave a client entity or prediction resource behind, and
-    // each new session must predict its new local player
+    // over: teardown must not panic or leave a client entity, prediction resource or chunk
+    // behind, and each new session must predict its new local player and stream chunks again
     for _ in 0..3 {
+        assert!(
+            tracked_chunk_count(&client) > 0,
+            "client should be streaming chunks before leaving"
+        );
+
         client
             .world_mut()
             .resource_mut::<NextState<ClientLifecycleState>>()
@@ -176,6 +179,7 @@ fn local_player_inputs_are_predicted_and_authoritative() {
                 clients.iter(client.world()).next().is_none()
                     && !client.world().contains_resource::<PredictionManager>()
                     && client_local_player(client).is_none()
+                    && tracked_chunk_count(client) == 0
             },
         );
 
@@ -187,8 +191,16 @@ fn local_player_inputs_are_predicted_and_authoritative() {
             &mut server,
             &mut client,
             Duration::from_secs(20),
-            "predicted local player after rejoining",
-            |_, client| client_local_player(client).is_some(),
+            "predicted local player and chunks after rejoining",
+            |_, client| client_local_player(client).is_some() && tracked_chunk_count(client) > 0,
         );
     }
+}
+
+fn tracked_chunk_count(client: &App) -> usize {
+    client
+        .world()
+        .resource::<ClientChunkManager>()
+        .chunk_states
+        .len()
 }

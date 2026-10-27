@@ -1,7 +1,5 @@
 use crate::render::chunk::meshing::{OpaqueMeshData, TransparentMeshData};
 use bevy::ecs::prelude::Component;
-use bevy::tasks::Task;
-use common::world::chunk::ChunkCoord;
 use crossbeam::channel::Receiver;
 
 /// Marks a chunk meshing task in the simulation world that returns a MeshComponent.
@@ -9,10 +7,6 @@ use crossbeam::channel::Receiver;
 pub struct ChunkMeshingTaskComponent {
     pub receiver: Receiver<(Option<OpaqueMeshData>, Option<TransparentMeshData>)>,
 }
-
-/// Marks a chunk decompression task.
-#[derive(Component)]
-pub struct DecompressionTask(pub Task<(ChunkCoord, Vec<u8>)>);
 
 /// A signal marking that chunks should be checked for meshing. This check is necessary
 /// as chunks require all neighbors to be generated before they mesh.

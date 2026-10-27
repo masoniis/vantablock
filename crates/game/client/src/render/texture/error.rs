@@ -8,6 +8,11 @@ pub enum TextureLoadError {
     NoTexturesFound,
     DimensionMismatch(String, u32, u32, u32, u32),
     RegistryError(String),
+    /// More texture layers than a `PackedFace` texture id can address.
+    TooManyTextures {
+        count: usize,
+        max: usize,
+    },
 }
 
 impl From<Error> for TextureLoadError {
@@ -43,6 +48,12 @@ impl fmt::Display for TextureLoadError {
             }
             TextureLoadError::RegistryError(err) => {
                 write!(f, "Texture registry error: {}", err)
+            }
+            TextureLoadError::TooManyTextures { count, max } => {
+                write!(
+                    f,
+                    "Texture pack has {count} layers, but packed faces can only address {max}."
+                )
             }
         }
     }

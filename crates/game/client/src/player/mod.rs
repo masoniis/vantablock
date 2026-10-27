@@ -14,7 +14,10 @@ pub use targeted_block::TargetedBlock;
 //         player plugin
 // -----------------------------
 
-use crate::lifecycle::{ClientLifecycleState, state::InGameState};
+use crate::{
+    lifecycle::{ClientLifecycleState, state::InGameState},
+    network::send_block_action_messages_system,
+};
 use bevy::prelude::*;
 use common::player::PlayerAction;
 use leafwing_input_manager::prelude::ActionState;
@@ -30,8 +33,8 @@ impl Plugin for PlayerPlugin {
         app.add_plugins(CameraPlugin);
 
         // register local block events
-        app.init_resource::<Messages<BreakBlockEvent>>();
-        app.init_resource::<Messages<PlaceBlockEvent>>();
+        app.add_message::<BreakBlockEvent>();
+        app.add_message::<PlaceBlockEvent>();
 
         app.add_systems(
             PostUpdate,
@@ -51,8 +54,10 @@ impl Plugin for PlayerPlugin {
             (
                 setup_replicated_players::dress_replicated_players_system,
                 block_actions::break_targeted_block_system
+                    .before(send_block_action_messages_system)
                     .run_if(local_action_just_pressed(PlayerAction::PrimaryInteract)),
                 block_actions::place_targeted_block_system
+                    .before(send_block_action_messages_system)
                     .run_if(local_action_just_pressed(PlayerAction::SecondaryInteract)),
                 block_actions::handle_break_block_events_system,
                 block_actions::handle_place_block_events_system,

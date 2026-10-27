@@ -287,7 +287,13 @@ impl ChunkStorageManager {
         let size_bytes = std::mem::size_of_val(faces) as u32;
 
         // check if allocation offset is outside physical address space and resize if necessary
-        let geometry_allocation = self.geometry_allocator.allocate(size_bytes)?;
+        let Some(geometry_allocation) = self.geometry_allocator.allocate(size_bytes) else {
+            warn!(
+                target: "gpu_memory",
+                "Out of geometry address space allocating {size_bytes} bytes; chunk will not render"
+            );
+            return None;
+        };
         let required_end = (geometry_allocation.offset + size_bytes) as u64;
         self.ensure_capacity(device, queue, layout, required_end);
 
@@ -295,6 +301,10 @@ impl ChunkStorageManager {
         let slot_index = match self.slot_allocator.allocate() {
             Some(s) => s,
             None => {
+                warn!(
+                    target: "gpu_memory",
+                    "Out of chunk metadata slots ({MAX_CHUNKS}); chunk will not render"
+                );
                 self.geometry_allocator.free(geometry_allocation);
                 return None;
             }

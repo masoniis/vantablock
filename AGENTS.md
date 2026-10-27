@@ -55,7 +55,7 @@ The project uses `just` as a command runner. A Nix flake is provided to ensure a
 - **Server Authoritative:** The server owns all game state. Singleplayer also goes through the network stack: the runner spins up a background server thread and the client connects over local UDP.
 - **Prediction:** The server spawns players with `PredictionTarget` for the owner and `InterpolationTarget` for everyone else. On the client, `Predicted` identifies the local player and `Interpolated` identifies remote players. Never overwrite predicted components (`LogicalPosition`, `PlayerLook`) outside the fixed-step simulation, or the prediction history diverges and causes rollbacks.
 - **Inputs:** Player intents go through leafwing `PlayerAction`s, which lightyear buffers and sends per tick. Write custom input values (such as look angles) in `InputSystems::WriteClientInputs` in `FixedPreUpdate`.
-- **Messages:** `MessageSender`/`MessageReceiver` components live on the connection entity (`Client` on the client, `ClientOf` on the server), not on player entities. Incoming messages are demultiplexed into local ECS messages (see the `network/receive` modules).
+- **Messages:** `MessageSender`/`MessageReceiver` components live on the connection entity (`Client` on the client, `ClientOf` on the server), not on player entities. Incoming messages are demultiplexed into local ECS messages (see the `network/receive` modules). The client mirrors this for outgoing traffic: gameplay systems write `Outbound*Message`s and `network/send` forwards them, so `MessageSender` is only touched there (the exception is `RequestChunks`, see the `network/send` module docs). Register every local message type with `add_message`; `init_resource::<Messages<_>>` never clears its queue.
 - **Protocol:** Channels, messages, and replicated components are registered in `crates/game/common/src/network/protocol`, after the lightyear client/server plugins.
 - **Chunk Streaming:** The client is the source of truth for which chunks it holds. It sends `RequestChunks` whenever it starts awaiting chunks (including ones it unloaded and needs again). The server queues requests per client in `ClientChunkTracker` and sends generated ones nearest-first. Never track "already sent" chunks on the server: the client unloads chunks on its own, and stale server state leaves permanent holes.
 - **Session Lifetime:** Exiting `ClientLifecycleState::InGame` (to the menu or error screen) tears the session down: the client connection entity is despawned, client chunks are cleared, and the singleplayer background server is told to exit. Lightyear's prediction systems assume exactly one `Client` entity, so never leave a stale one behind. `PredictionManager` is a global resource in lightyear 0.30 (inserted per session, removed in `end_session`), never a component of the client entity: Bevy 0.19 stores resources on entities, so spawning it with the client made despawning the client panic.
@@ -70,7 +70,7 @@ The project uses `just` as a command runner. A Nix flake is provided to ensure a
 ### Testing
 
 - **Integration Tests:** Client/server tests live in `crates/app/tests`. When driving apps manually with `app.update()`, call `app.finish()` and `app.cleanup()` first: `App::run` normally does this, and lightyear builds its replication systems in `Plugin::finish`.
-- **Headless Client:** `HeadlessClientPlugins` runs the client without a window or renderer, so render-owned resources like `ClientChunkManager` must be initialized by the test.
+- **Headless Client:** `HeadlessClientPlugins` runs the client without a window or renderer. Chunk streaming (`world::chunk`) still runs, but nothing is meshed, so chunks stay `DataReady`.
 
 ### Interactive Testing (BRP)
 
@@ -97,7 +97,8 @@ Unit and integration tests can't catch everything (UI flows, rendering, session 
 
 - `assets/`: Split into `client/` (fonts, shaders, textures), `server/` (config), and `shared/` (blocks, biomes).
 - `crates/`:
-  - `game/client/src/render/`: Custom render passes and GPU resource management.
+  - `game/client/src/world/`: Client chunk state (`ClientChunkManager`), distance-based chunk streaming, and decompression. No rendering.
+  - `game/client/src/render/`: Custom render passes, chunk meshing, and GPU resource management.
   - `game/client/src/network/`, `game/server/src/network/`: Connection handling, message demultiplexing, and sending.
   - `game/server/src/world/`: Terrain generation and chunk loading.
   - `game/common/src/network/protocol/`: Channels, messages, and replicated components.

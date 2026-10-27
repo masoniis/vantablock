@@ -1,4 +1,3 @@
-pub mod chunk_loading;
 pub mod phases;
 
 // INFO: ---------------------------
@@ -7,13 +6,9 @@ pub mod phases;
 
 use crate::lifecycle::ClientLifecycleState;
 use bevy::prelude::*;
-use chunk_loading::{manage_distance_based_chunk_loading_targets_system, unload_all_chunks_system};
-use common::{
-    lifecycle::{
-        load::{kickoff_loading_phase, loading_dag_is_complete, nuke_loading_dag},
-        state::transition_to,
-    },
-    world::chunk::ChunkCoord,
+use common::lifecycle::{
+    load::{kickoff_loading_phase, loading_dag_is_complete, nuke_loading_dag},
+    state::transition_to,
 };
 pub use phases::*;
 
@@ -40,19 +35,6 @@ impl Plugin for ClientLoadPlugin {
         app.add_systems(
             OnExit(ClientLifecycleState::Launching),
             nuke_loading_dag::<ClientLaunchLoadingPhase>,
-        );
-        app.add_systems(
-            OnExit(ClientLifecycleState::InGame),
-            unload_all_chunks_system,
-        );
-
-        app.add_systems(
-            PreUpdate,
-            manage_distance_based_chunk_loading_targets_system.run_if(
-                |q: Query<(&Camera, &ChunkCoord), (With<Camera3d>, Changed<ChunkCoord>)>| {
-                    q.iter().any(|(c, _)| c.is_active)
-                },
-            ),
         );
     }
 }
