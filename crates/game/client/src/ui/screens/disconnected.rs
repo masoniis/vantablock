@@ -10,7 +10,6 @@ use crate::{
 use bevy::{
     input_focus::{AutoFocus, tab_navigation::TabGroup},
     prelude::*,
-    text::LetterSpacing,
     ui_widgets::Activate,
 };
 
@@ -43,13 +42,10 @@ fn disconnected(reason: &str) -> impl Scene + use<> {
         backdrop()
         TabGroup
         Children [(
-            panel(palette::DANGER)
+            panel()
             Node { width: px(460) }
             Children [
-                (
-                    text("DISCONNECTED", Face::Display, 30.0, palette::DANGER)
-                    template_value(LetterSpacing::Px(3.0))
-                ),
+                text("Disconnected", Face::Strong, 22.0, palette::DANGER),
                 caption("Reason"),
                 (
                     text(&reason, Face::Mono, 14.0, palette::TEXT)

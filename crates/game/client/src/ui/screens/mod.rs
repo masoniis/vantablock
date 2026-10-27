@@ -18,7 +18,7 @@ fn status_card(title: &str, detail: &str) -> impl Scene + use<> {
     let title = title.to_uppercase();
     let detail = detail.to_owned();
     bsn! {
-        panel(palette::ACCENT)
+        panel()
         Node { width: px(360), align_items: AlignItems::Center, row_gap: px(14) }
         Children [
             (

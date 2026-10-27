@@ -24,13 +24,16 @@ pub fn text_field(initial: &str, max_characters: usize) -> impl Scene + use<> {
         Hovered
         TabIndex(0)
         Node {
-            // editable text lays out from the top of its node, so padding centers it
-            padding: UiRect::axes(px(12), px(10)),
-            border: px(2),
+            // as tall as a button, so the two line up in a row; editable text lays out from the
+            // top of its node, so the padding centers it
+            height: px(40),
+            padding: UiRect::axes(px(12), px(9)),
+            border: px(1),
+            border_radius: BorderRadius::all(px(10)),
             align_items: AlignItems::Center,
             overflow: Overflow::clip(),
         }
-        font(Face::Mono, 17.0)
+        font(Face::Mono, 16.0)
         TextColor(palette::TEXT)
         TextCursorStyle {
             color: palette::ACCENT,

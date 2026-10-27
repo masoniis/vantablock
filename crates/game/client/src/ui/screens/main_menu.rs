@@ -10,6 +10,7 @@ use crate::{
 use bevy::{
     input::{ButtonState, keyboard::KeyboardInput},
     input_focus::{FocusedInput, tab_navigation::TabGroup},
+    picking::Pickable,
     prelude::*,
     text::{EditableText, LetterSpacing},
     ui_widgets::Activate,
@@ -45,10 +46,25 @@ fn main_menu() -> impl Scene {
     bsn! {
         MainMenuUiRoot
         backdrop()
+        Node { align_items: AlignItems::FlexStart, padding: UiRect::left(px(56)) }
         TabGroup
         Children [
+            // a rail behind the column, separating it from the rest of the screen
             (
-                Node { width: px(380), flex_direction: FlexDirection::Column, row_gap: px(10) }
+                Node {
+                    position_type: PositionType::Absolute,
+                    left: px(0),
+                    top: px(0),
+                    width: px(392),
+                    height: percent(100),
+                    border: UiRect::right(px(1)),
+                }
+                BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.52))
+                BorderColor::all(palette::PANEL_BORDER)
+                Pickable::IGNORE
+            ),
+            (
+                Node { width: px(280), flex_direction: FlexDirection::Column, row_gap: px(10) }
                 Children [
                     title(),
                     (
@@ -62,14 +78,14 @@ fn main_menu() -> impl Scene {
                             });
                         })
                     ),
-                    (caption("Server address") Node { margin: UiRect::top(px(18)) }),
+                    (caption("Server address") Node { margin: UiRect::top(px(22)) }),
                     (
-                        Node { column_gap: px(8) }
+                        Node { column_gap: px(8), align_items: AlignItems::Center }
                         Children [
                             (
                                 text_field(DEFAULT_LOCAL_SERVER_ADDR, 64)
                                 ServerAddrInput
-                                Node { flex_grow: 1.0 }
+                                Node { flex_grow: 1.0, min_width: px(0) }
                                 on(join_on_enter)
                             ),
                             (
@@ -87,21 +103,12 @@ fn main_menu() -> impl Scene {
     }
 }
 
-/// The wordmark: a heavy title over an accent rule.
+/// The wordmark: a heavy title, small and left-aligned.
 fn title() -> impl Scene {
     bsn! {
-        Node { flex_direction: FlexDirection::Column, align_items: AlignItems::Center }
-        Children [
-            (
-                text("VANTABLOCK", Face::Display, 60.0, palette::TEXT)
-                template_value(LetterSpacing::Px(5.0))
-                TextShadow { offset: Vec2 { x: 0.0, y: 4.0 }, color: {palette::ACCENT_DEEP} }
-            ),
-            (
-                Node { width: px(56), height: px(4), margin: UiRect::top(px(10)) }
-                BackgroundColor(palette::ACCENT)
-            ),
-        ]
+        text("VANTABLOCK", Face::Display, 34.0, palette::TEXT)
+        template_value(LetterSpacing::Px(4.0))
+        TextShadow { offset: Vec2 { x: 0.0, y: 3.0 }, color: {palette::ACCENT_DEEP} }
     }
 }
 
