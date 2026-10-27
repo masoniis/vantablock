@@ -261,7 +261,7 @@ mod tests {
     use crate::world::{
         chunk::chunk_map::ChunkMap,
         chunk::components::NeedsGenerating,
-        chunk_loading::{ClientChunkTracker, manage_player_chunk_loading_system},
+        chunk::loading::{ClientChunkTracker, manage_player_chunk_loading_system},
     };
     use bevy::prelude::*;
     use common::world::chunk::ChunkCoord;

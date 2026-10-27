@@ -1,4 +1,4 @@
-use crate::{network::types::ClientConnection, world::chunk_loading::ClientChunkTracker};
+use crate::{network::types::ClientConnection, world::chunk::loading::ClientChunkTracker};
 use bevy::prelude::*;
 use common::{
     network::ServerMessage,
