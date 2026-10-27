@@ -126,13 +126,20 @@ pub fn unload_distant_chunks_system(
     });
 }
 
-/// Queues the chunks each client requested so they can be sent once generated.
+/// Queues the chunks each client requested so they can be sent once generated, and starts
+/// generating any the server doesn't have.
+///
+/// The client decides which chunks it needs, from its own (predicted) camera position, so it
+/// can ask for chunks just outside the ring the server generates around its view of the
+/// player. Without generating those here, they would stay pending forever and leave holes.
 pub fn queue_client_chunk_requests_system(
     // input
     mut requests: MessageReader<InboundRequestChunkMessage>,
 
     // output
     mut player_query: Query<(&LogicalPosition, &ClientConnection, &mut ClientChunkTracker)>,
+    mut chunk_manager: ResMut<ChunkMap>,
+    mut commands: Commands,
 ) {
     if requests.is_empty() {
         return;
@@ -156,6 +163,12 @@ pub fn queue_client_chunk_requests_system(
         for coord in coords {
             if is_within_request_range(player_chunk_pos, coord) {
                 tracker.pending.insert(coord);
+                if !chunk_manager.is_chunk_present(coord) {
+                    let entity = commands
+                        .spawn((NeedsGenerating, ChunkLod(0), ChunkCoord { pos: coord }))
+                        .id();
+                    chunk_manager.register_chunk(coord, entity);
+                }
             } else {
                 debug!(target:"server_chunk_loading", "Ignoring out of range chunk request {:?} from {:?}", coord, connection.client_entity);
             }
