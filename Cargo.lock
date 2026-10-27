@@ -7988,6 +7988,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29d5dcacd3a65"
 
 [[package]]
+name = "vantablock-app"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "crossbeam-channel",
+ "lightyear",
+ "tracing",
+ "vantablock-client",
+ "vantablock-common",
+ "vantablock-platform",
+ "vantablock-server",
+]
+
+[[package]]
 name = "vantablock-client"
 version = "0.1.0"
 dependencies = [
@@ -8014,45 +8028,14 @@ dependencies = [
  "tracing-subscriber",
  "tracing-tracy",
  "tracy-client",
- "vantablock-shared",
- "vantablock-utils",
+ "vantablock-common",
+ "vantablock-platform",
  "wesl",
  "zstd",
 ]
 
 [[package]]
-name = "vantablock-runner"
-version = "0.1.0"
-dependencies = [
- "bevy",
- "crossbeam-channel",
- "lightyear",
- "tracing",
- "vantablock-client",
- "vantablock-server",
- "vantablock-shared",
- "vantablock-utils",
-]
-
-[[package]]
-name = "vantablock-server"
-version = "0.1.0"
-dependencies = [
- "bevy",
- "criterion",
- "crossbeam",
- "leafwing-input-manager",
- "lightyear",
- "noise",
- "tracing",
- "tracing-subscriber",
- "vantablock-shared",
- "vantablock-utils",
- "zstd",
-]
-
-[[package]]
-name = "vantablock-shared"
+name = "vantablock-common"
 version = "0.1.0"
 dependencies = [
  "bevy",
@@ -8067,12 +8050,12 @@ dependencies = [
  "ron 0.11.0",
  "serde",
  "tracing",
- "vantablock-utils",
+ "vantablock-platform",
  "zstd",
 ]
 
 [[package]]
-name = "vantablock-utils"
+name = "vantablock-platform"
 version = "0.1.0"
 dependencies = [
  "directories",
@@ -8082,6 +8065,23 @@ dependencies = [
  "tracing-subscriber",
  "tracing-tracy",
  "tracy-client",
+]
+
+[[package]]
+name = "vantablock-server"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "criterion",
+ "crossbeam",
+ "leafwing-input-manager",
+ "lightyear",
+ "noise",
+ "tracing",
+ "tracing-subscriber",
+ "vantablock-common",
+ "vantablock-platform",
+ "zstd",
 ]
 
 [[package]]

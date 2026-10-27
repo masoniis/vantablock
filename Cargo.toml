@@ -1,10 +1,10 @@
 [workspace]
 members = [
-  "crates/client",
-  "crates/runner",
-  "crates/server",
-  "crates/shared",
-  "crates/utils",
+  "crates/app",
+  "crates/game/client",
+  "crates/game/common",
+  "crates/game/server",
+  "crates/platform",
 ]
 resolver = "3"
 
@@ -49,10 +49,10 @@ debug = false
 
 [workspace.dependencies]
 # other crates
-client = { path = "./crates/client", package = "vantablock-client" }
-server = { path = "./crates/server", package = "vantablock-server" }
-shared = { path = "./crates/shared", package = "vantablock-shared" }
-utils = { path = "./crates/utils", package = "vantablock-utils" }
+client = { path = "./crates/game/client", package = "vantablock-client" }
+server = { path = "./crates/game/server", package = "vantablock-server" }
+common = { path = "./crates/game/common", package = "vantablock-common" }
+platform = { path = "./crates/platform", package = "vantablock-platform" }
 
 # development deps
 criterion = { version = "0.5", features = ["html_reports"] }

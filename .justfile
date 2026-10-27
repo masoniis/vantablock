@@ -18,7 +18,7 @@ open_cmd := if os_family == "macos" { \
 project := "vantablock"
 client  := "vantablock-client"
 server  := "vantablock-server"
-runner  := "vantablock-runner"
+app     := "vantablock-app"
 
 # lists all available recipes, in file order so niche groups stay at the bottom
 [private]
@@ -32,27 +32,27 @@ default:
 # runs the client via debug profile
 [group("core")]
 client *args:
-    cargo run -p {{runner}} --bin vantablock {{args}}
+    cargo run -p {{app}} --bin vantablock {{args}}
 
 # runs the server via debug profile
 [group("core")]
 server *args:
-    cargo run -p {{runner}} --bin vantablock-server --no-default-features --features server {{args}}
+    cargo run -p {{app}} --bin vantablock-server --no-default-features --features server {{args}}
 
 # runs the client via max-optimization release profile
 [group("core")]
 release *args:
-    cargo run -p {{runner}} --bin vantablock --profile distribution --features distribution {{args}}
+    cargo run -p {{app}} --bin vantablock --profile distribution --features distribution {{args}}
 
 # runs the client with the bevy remote protocol (BRP) enabled for agent/tool control
 [group("core")]
 brp *args:
-    cargo run -p {{runner}} --bin vantablock --features brp {{args}}
+    cargo run -p {{app}} --bin vantablock --features brp {{args}}
 
 # builds the BRP-enabled client so the bevy_brp_mcp server can launch it
 [group("core")]
 brp-build *args:
-    cargo build -p {{runner}} --bin vantablock --features brp {{args}}
+    cargo build -p {{app}} --bin vantablock --features brp {{args}}
 
 alias run := client
 alias run-fast := release
@@ -133,13 +133,13 @@ ready *args:
 # packages the client for distribution
 [group("build")]
 package profile="distribution":
-    cargo build -p {{runner}} --bin vantablock --profile {{profile}} --features distribution
-    cargo packager -p {{runner}} --bin vantablock --profile {{ if profile == "dev" { "debug" } else { profile } }}
+    cargo build -p {{app}} --bin vantablock --profile {{profile}} --features distribution
+    cargo packager -p {{app}} --bin vantablock --profile {{ if profile == "dev" { "debug" } else { profile } }}
 
 # packages the server for distribution
 [group("build")]
 server-package profile="distribution":
-    cargo build -p {{runner}} --bin vantablock-server --no-default-features --features server --profile {{profile}}
+    cargo build -p {{app}} --bin vantablock-server --no-default-features --features server --profile {{profile}}
 
 # runs the texture processor utility
 [group("build")]
@@ -158,7 +158,7 @@ sign:
 # shows the ASM associated with a rust file (requires cargo-show-asm)
 [group("profiling")]
 asm path:
-    cargo asm -p {{runner}} --bin vantablock --color {{path}}
+    cargo asm -p {{app}} --bin vantablock --color {{path}}
 
 # launches tracy if it isn't already running, then runs the client with tracing
 [group("profiling")]
@@ -171,17 +171,17 @@ trace *args:
         TRACY_ENABLE_MEMORY=1
         tracy &
     fi
-    cargo run -p {{runner}} --bin vantablock --features tracy {{args}}
+    cargo run -p {{app}} --bin vantablock --features tracy {{args}}
 
 # runs the client with Bevy-specific debug features
 [group("profiling")]
 debug_bevy *args:
-    cargo run -p {{runner}} --bin vantablock --features bevy/trace,bevy/track_location,bevy/debug {{args}}
+    cargo run -p {{app}} --bin vantablock --features bevy/trace,bevy/track_location,bevy/debug {{args}}
 
 # runs the client with verbose wgpu logging
 [group("profiling")]
 debug_wgpu *args:
-    RUST_LOG=wgpu=trace cargo run -p {{runner}} --bin vantablock {{args}}
+    RUST_LOG=wgpu=trace cargo run -p {{app}} --bin vantablock {{args}}
 
 # targeted tracing, call without args to list targets found in source
 [group("profiling")]
@@ -205,7 +205,7 @@ debug *args:
     done
     export RUST_LOG="${log_targets%,},{{project}}=info"
     echo -e "\033[1;32mRunning with RUST_LOG=\033[0m$RUST_LOG"
-    cargo run -p {{runner}} --bin vantablock
+    cargo run -p {{app}} --bin vantablock
 
 # INFO: ---------------------------------
 #         advanced/niche commands
