@@ -63,6 +63,9 @@ pub fn on_initiate_connection(
     // made despawning the client panic. `end_session` removes it with the connection.
     commands.insert_resource(PredictionManager::default());
 
+    // also a global resource in lightyear 0.30: one on the client entity would be ignored
+    commands.insert_resource(input_timeline_config());
+
     // main client ent
     let client_entity = commands
         .spawn((
@@ -70,7 +73,6 @@ pub fn on_initiate_connection(
             PeerAddr(server_addr),
             Link::default(),
             ReplicationReceiver,
-            input_timeline_config(),
             NetcodeClient::new(auth, NetcodeConfig::default())
                 .expect("CRITICAL: Failed to create NetcodeClient!"),
             UdpIo::default(),
