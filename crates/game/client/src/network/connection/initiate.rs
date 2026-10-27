@@ -51,6 +51,11 @@ pub fn on_initiate_connection(
         protocol_id: 0,
     };
 
+    // enables rollback for predicted entities. It is a global resource, not a component of the
+    // client entity: in Bevy 0.19 a resource lives on an entity, so spawning it with the client
+    // made despawning the client panic. `end_session` removes it with the connection.
+    commands.insert_resource(PredictionManager::default());
+
     // main client ent
     let client_entity = commands
         .spawn((
@@ -58,8 +63,6 @@ pub fn on_initiate_connection(
             PeerAddr(server_addr),
             Link::default(),
             ReplicationReceiver,
-            // enables rollback for predicted entities
-            PredictionManager::default(),
             input_timeline_config(),
             NetcodeClient::new(auth, NetcodeConfig::default())
                 .expect("CRITICAL: Failed to create NetcodeClient!"),
