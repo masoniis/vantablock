@@ -4,6 +4,7 @@ use crate::{
         local_actions::ClientAction,
     },
     lifecycle::state::{ClientLifecycleState, InGameState},
+    network::connection::SessionWorld,
     showcase::{ApplyShowcase, SHOWCASES},
     ui::{
         theme::{Face, caption, palette, panel, text},
@@ -64,8 +65,8 @@ fn pause_menu() -> impl Scene {
                         ),
                         (
                             button("Showcase", ButtonTone::Normal)
-                            on(|_: On<Activate>, mut commands: Commands, page: Single<Entity, With<PauseMenuRoot>>| {
-                                show_page(&mut commands, Some(*page), showcase_page());
+                            on(|_: On<Activate>, mut commands: Commands, page: Single<Entity, With<PauseMenuRoot>>, world: Option<Res<SessionWorld>>| {
+                                show_page(&mut commands, Some(*page), showcase_page(world.as_deref().copied()));
                             })
                         ),
                         (
@@ -102,11 +103,13 @@ fn pause_menu() -> impl Scene {
     }
 }
 
-/// A list of the showcase scenes. Picking one jumps there and resumes the game.
-fn showcase_page() -> impl Scene {
-    let scenes: Vec<Box<dyn Scene>> = SHOWCASES
+/// A list of the showcase scenes for this world's terrain (all of them when joining a server,
+/// whose terrain the client doesn't know). Picking one jumps there and resumes the game.
+fn showcase_page(world: Option<SessionWorld>) -> impl Scene {
+    let mut scenes: Vec<Box<dyn Scene>> = SHOWCASES
         .iter()
         .enumerate()
+        .filter(|(_, showcase)| world.is_none_or(|world| world.0.shaper == showcase.shaper))
         .map(|(index, showcase)| -> Box<dyn Scene> {
             Box::new(bsn! {
                 button(showcase.name, ButtonTone::Normal)
@@ -117,6 +120,14 @@ fn showcase_page() -> impl Scene {
             })
         })
         .collect();
+    if scenes.is_empty() {
+        scenes.push(Box::new(text(
+            "No scenes for this terrain",
+            Face::Sans,
+            14.0,
+            palette::TEXT_DIM,
+        )));
+    }
 
     bsn! {
         PauseMenuRoot
