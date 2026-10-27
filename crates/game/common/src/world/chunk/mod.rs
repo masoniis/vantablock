@@ -14,7 +14,7 @@ pub use types::*;
 // ---------------------------------
 
 use bevy::app::{App, Plugin, PreUpdate};
-use systems::update_chunk_coords_system;
+pub use systems::update_chunk_coords_system;
 
 pub struct ChunkPlugin;
 

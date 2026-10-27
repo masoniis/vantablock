@@ -1,6 +1,7 @@
 use crate::{
     input::input_maps::get_default_player_action_input_map,
     player::components::{LocalPlayer, LocalPlayerCamera, LocalPlayerLook},
+    world::chunk::range::ChunkStreamingAnchor,
 };
 use bevy::prelude::*;
 use common::{player::PlayerAction, world::chunk::ChunkCoord};
@@ -19,6 +20,7 @@ pub fn dress_local_player(entity: Entity, spawn_pos: Vec3, commands: &mut Comman
         .entity(entity)
         .insert((
             LocalPlayer,
+            ChunkStreamingAnchor,
             LocalPlayerLook::default(),
             ActionState::<PlayerAction>::default(),
             get_default_player_action_input_map(),

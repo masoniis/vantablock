@@ -18,13 +18,13 @@ pub use manager::{ClientChunkManager, ClientChunkState, NeighborInfo};
 
 use crate::lifecycle::ClientLifecycleState;
 use bevy::prelude::*;
-use common::FixedUpdateSet;
+use common::{FixedUpdateSet, world::chunk::update_chunk_coords_system};
 use decompression::{
     DecompressedChunkMessage, apply_decompressed_chunk_data_system, decompress_chunk_data_system,
     poll_decompression_tasks_system,
 };
 use loading::{manage_distance_based_chunk_loading_targets_system, unload_all_chunks_system};
-use range::active_camera_changed_chunk;
+use range::streaming_anchor_changed_chunk;
 
 /// Owns the client's chunk state and streams chunk data from the server.
 pub struct ClientChunkPlugin;
@@ -36,7 +36,10 @@ impl Plugin for ClientChunkPlugin {
 
         app.add_systems(
             PreUpdate,
-            manage_distance_based_chunk_loading_targets_system.run_if(active_camera_changed_chunk),
+            manage_distance_based_chunk_loading_targets_system
+                // the anchor's chunk must already follow its position this frame
+                .after(update_chunk_coords_system)
+                .run_if(streaming_anchor_changed_chunk),
         );
 
         app.add_systems(

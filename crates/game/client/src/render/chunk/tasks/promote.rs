@@ -3,7 +3,7 @@ use crate::{
     render::chunk::tasks::{CheckForMeshing, WantsMeshing},
     world::chunk::{
         ClientChunkManager, ClientChunkState,
-        range::{ChunkCameraQuery, active_camera_chunk, is_within_horizontal_range},
+        range::{StreamingAnchorQuery, is_within_horizontal_range, streaming_center},
     },
 };
 use bevy::ecs::prelude::*;
@@ -16,13 +16,13 @@ pub fn promote_newly_generated_chunks_system(
         (Entity, &ChunkBlocksComponent, &ChunkCoord),
         Added<ChunkBlocksComponent>,
     >,
-    camera_query: ChunkCameraQuery,
+    anchor: StreamingAnchorQuery,
 
     // output
     mut chunk_manager: ResMut<ClientChunkManager>,
     mut commands: Commands,
 ) {
-    let Some(camera_chunk_pos) = active_camera_chunk(&camera_query) else {
+    let Some(camera_chunk_pos) = streaming_center(&anchor) else {
         return;
     };
 
@@ -59,13 +59,13 @@ pub fn promote_newly_generated_chunks_system(
 #[instrument(skip_all)]
 pub fn manage_distance_based_chunk_meshing_targets_system(
     // input
-    camera_query: ChunkCameraQuery,
+    anchor: StreamingAnchorQuery,
 
     // output
     mut chunk_manager: ResMut<ClientChunkManager>,
     mut commands: Commands,
 ) {
-    let Some(camera_chunk_pos) = active_camera_chunk(&camera_query) else {
+    let Some(camera_chunk_pos) = streaming_center(&anchor) else {
         return;
     };
 
@@ -85,7 +85,7 @@ pub fn manage_distance_based_chunk_meshing_targets_system(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bevy::prelude::{Camera, Camera3d, Update};
+    use bevy::prelude::Update;
     use common::world::chunk::ChunkLod;
 
     /// A chunk unloaded earlier in the same frame (its despawn still queued) must not be put
@@ -98,8 +98,7 @@ mod tests {
         app.add_systems(Update, promote_newly_generated_chunks_system);
 
         app.world_mut().spawn((
-            Camera3d::default(),
-            Camera::default(),
+            crate::world::chunk::range::ChunkStreamingAnchor,
             ChunkCoord { pos: IVec3::ZERO },
         ));
         let tracked = IVec3::new(1, 0, 0);
