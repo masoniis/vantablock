@@ -1,8 +1,10 @@
-use crate::prelude::*;
-use crate::render::chunk::{
-    BlockMeshAsset, ClientChunkManager, ClientChunkState, OpaqueMeshComponent,
-    TransparentMeshComponent,
-    tasks::{CheckForMeshing, WantsMeshing, components::ChunkMeshingTaskComponent},
+use crate::{
+    prelude::*,
+    render::chunk::{
+        BlockMeshAsset, OpaqueMeshComponent, TransparentMeshComponent,
+        tasks::{CheckForMeshing, WantsMeshing, components::ChunkMeshingTaskComponent},
+    },
+    world::chunk::{ClientChunkManager, ClientChunkState},
 };
 use bevy::{asset::Assets, ecs::prelude::*, prelude::*};
 use common::world::chunk::{CHUNK_SIDE_LENGTH, ChunkCoord};

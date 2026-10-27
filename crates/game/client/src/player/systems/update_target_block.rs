@@ -1,6 +1,6 @@
 use crate::player::{LocalPlayer, TargetedBlock};
 use crate::prelude::*;
-use crate::render::chunk::manager::ClientChunkManager;
+use crate::world::chunk::ClientChunkManager;
 use bevy::{
     ecs::relationship::Relationship,
     prelude::{Camera, Camera3d, ChildOf, Entity, GlobalTransform, Query, Res, ResMut, With},

@@ -70,7 +70,7 @@ The project uses `just` as a command runner. A Nix flake is provided to ensure a
 ### Testing
 
 - **Integration Tests:** Client/server tests live in `crates/app/tests`. When driving apps manually with `app.update()`, call `app.finish()` and `app.cleanup()` first: `App::run` normally does this, and lightyear builds its replication systems in `Plugin::finish`.
-- **Headless Client:** `HeadlessClientPlugins` runs the client without a window or renderer, so render-owned resources like `ClientChunkManager` must be initialized by the test.
+- **Headless Client:** `HeadlessClientPlugins` runs the client without a window or renderer. Chunk streaming (`world::chunk`) still runs, but nothing is meshed, so chunks stay `DataReady`.
 
 ### Interactive Testing (BRP)
 
@@ -97,7 +97,8 @@ Unit and integration tests can't catch everything (UI flows, rendering, session 
 
 - `assets/`: Split into `client/` (fonts, shaders, textures), `server/` (config), and `shared/` (blocks, biomes).
 - `crates/`:
-  - `game/client/src/render/`: Custom render passes and GPU resource management.
+  - `game/client/src/world/`: Client chunk state (`ClientChunkManager`), distance-based chunk streaming, and decompression. No rendering.
+  - `game/client/src/render/`: Custom render passes, chunk meshing, and GPU resource management.
   - `game/client/src/network/`, `game/server/src/network/`: Connection handling, message demultiplexing, and sending.
   - `game/server/src/world/`: Terrain generation and chunk loading.
   - `game/common/src/network/protocol/`: Channels, messages, and replicated components.

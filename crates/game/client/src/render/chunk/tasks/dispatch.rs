@@ -1,11 +1,13 @@
-use crate::prelude::*;
-use crate::render::{
-    block::BlockRenderDataRegistry,
-    chunk::{
-        ClientChunkManager, ClientChunkState,
-        meshing::build_chunk_mesh,
-        tasks::{CheckForMeshing, WantsMeshing, components::ChunkMeshingTaskComponent},
+use crate::{
+    prelude::*,
+    render::{
+        block::BlockRenderDataRegistry,
+        chunk::{
+            meshing::build_chunk_mesh,
+            tasks::{CheckForMeshing, WantsMeshing, components::ChunkMeshingTaskComponent},
+        },
     },
+    world::chunk::{ClientChunkManager, ClientChunkState},
 };
 use bevy::{ecs::prelude::*, prelude::*, tasks::AsyncComputeTaskPool};
 use common::world::{

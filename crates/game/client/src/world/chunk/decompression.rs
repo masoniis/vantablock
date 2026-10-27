@@ -1,13 +1,17 @@
 use crate::{
     network::InboundCompressedChunkMessage,
-    render::{
-        chunk::manager::{ClientChunkManager, ClientChunkState},
-        chunk::tasks::components::DecompressionTask,
-    },
+    world::chunk::{ClientChunkManager, ClientChunkState},
 };
-use bevy::{prelude::*, tasks::AsyncComputeTaskPool};
+use bevy::{
+    prelude::*,
+    tasks::{AsyncComputeTaskPool, Task},
+};
 use common::world::chunk::{ChunkBlocksComponent, ChunkCoord, ChunkLod};
 use futures_lite::future;
+
+/// Marks a chunk decompression task.
+#[derive(Component)]
+pub struct DecompressionTask(pub Task<(ChunkCoord, Vec<u8>)>);
 
 #[derive(Message)]
 pub struct DecompressedChunkMessage {

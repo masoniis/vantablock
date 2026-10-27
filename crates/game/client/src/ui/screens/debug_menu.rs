@@ -4,8 +4,8 @@
 use crate::{
     input::local_actions::ClientAction,
     player::LocalPlayer,
-    render::chunk::manager::{ClientChunkManager, ClientChunkState},
     ui::theme::{Face, font, palette},
+    world::chunk::{ClientChunkManager, ClientChunkState},
 };
 use bevy::{
     diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},

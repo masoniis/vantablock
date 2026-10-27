@@ -5,7 +5,7 @@
 //! mirrors how `receive` turns incoming network messages into `Inbound*Message`s.
 //!
 //! The one exception is `RequestChunks`, sent by
-//! `lifecycle::load::chunk_loading::manage_distance_based_chunk_loading_targets_system`. That
+//! `world::chunk::loading::manage_distance_based_chunk_loading_targets_system`. That
 //! system marks chunks as awaiting data in the same step, so it must know the request really
 //! went out (it bails without a connection); a queued message could be dropped and leave
 //! permanent holes.

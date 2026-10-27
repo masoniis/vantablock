@@ -1,13 +1,13 @@
-use crate::prelude::*;
-use crate::render::chunk::{
-    ClientChunkManager, ClientChunkState,
-    tasks::{CheckForMeshing, WantsMeshing},
+use crate::{
+    prelude::*,
+    render::chunk::tasks::{CheckForMeshing, WantsMeshing},
+    world::chunk::{
+        ClientChunkManager, ClientChunkState,
+        range::{ChunkCameraQuery, active_camera_chunk, is_within_horizontal_range},
+    },
 };
-use bevy::{ecs::prelude::*, prelude::*};
-use common::world::chunk::{
-    ChunkBlocksComponent, ChunkCoord, RENDER_DISTANCE, WORLD_MAX_Y_CHUNK, WORLD_MIN_Y_CHUNK,
-};
-use std::collections::HashSet;
+use bevy::ecs::prelude::*;
+use common::world::chunk::{ChunkBlocksComponent, ChunkCoord, RENDER_DISTANCE};
 
 /// A system that watches for newly generated chunks and promotes them to meshing if in range.
 pub fn promote_newly_generated_chunks_system(
@@ -16,34 +16,18 @@ pub fn promote_newly_generated_chunks_system(
         (Entity, &ChunkBlocksComponent, &ChunkCoord),
         Added<ChunkBlocksComponent>,
     >,
-    camera_query: Query<(&Camera, &ChunkCoord), With<Camera3d>>,
+    camera_query: ChunkCameraQuery,
 
     // output
     mut chunk_manager: ResMut<ClientChunkManager>,
     mut commands: Commands,
 ) {
-    let mut active_camera_chunk_pos = None;
-    for (camera, chunk_coord) in camera_query.iter() {
-        if camera.is_active {
-            active_camera_chunk_pos = Some(chunk_coord.pos);
-            break;
-        }
-    }
-
-    let Some(camera_chunk_pos) = active_camera_chunk_pos else {
+    let Some(camera_chunk_pos) = active_camera_chunk(&camera_query) else {
         return;
     };
 
     for (entity, _, coord) in new_data_query.iter() {
-        let dx = coord.pos.x - camera_chunk_pos.x;
-        let dy = coord.pos.y;
-        let dz = coord.pos.z - camera_chunk_pos.z;
-
-        let is_in_range = dx.abs() <= RENDER_DISTANCE
-            && (WORLD_MIN_Y_CHUNK..=WORLD_MAX_Y_CHUNK).contains(&dy)
-            && dz.abs() <= RENDER_DISTANCE;
-
-        if is_in_range {
+        if is_within_horizontal_range(camera_chunk_pos, coord.pos, RENDER_DISTANCE) {
             trace!(target: "chunk_loading", "Newly generated chunk at {} is in range, promoting to WantsMeshing", coord.pos);
             commands
                 .entity(entity)
@@ -68,37 +52,18 @@ pub fn promote_newly_generated_chunks_system(
 #[instrument(skip_all)]
 pub fn manage_distance_based_chunk_meshing_targets_system(
     // input
-    camera_query: Query<(&Camera, &ChunkCoord), With<Camera3d>>,
+    camera_query: ChunkCameraQuery,
 
     // output
     mut chunk_manager: ResMut<ClientChunkManager>,
     mut commands: Commands,
 ) {
-    let mut active_camera_chunk_pos = None;
-    for (camera, chunk_coord) in camera_query.iter() {
-        if camera.is_active {
-            active_camera_chunk_pos = Some(chunk_coord.pos);
-            break;
-        }
-    }
-
-    let Some(camera_chunk_pos) = active_camera_chunk_pos else {
+    let Some(camera_chunk_pos) = active_camera_chunk(&camera_query) else {
         return;
     };
 
-    let mut desired_mesh_chunks = HashSet::new();
-
-    for y in WORLD_MIN_Y_CHUNK..=WORLD_MAX_Y_CHUNK {
-        for z in -RENDER_DISTANCE..=RENDER_DISTANCE {
-            for x in -RENDER_DISTANCE..=RENDER_DISTANCE {
-                let coord = IVec3::new(camera_chunk_pos.x + x, y, camera_chunk_pos.z + z);
-                desired_mesh_chunks.insert(coord);
-            }
-        }
-    }
-
     for (coord, state) in chunk_manager.chunk_states.iter_mut() {
-        if desired_mesh_chunks.contains(coord)
+        if is_within_horizontal_range(camera_chunk_pos, *coord, RENDER_DISTANCE)
             && let ClientChunkState::DataReady { entity } = state
         {
             debug!(target:"chunk_meshing", "Promoting chunk {:?} to WantsMeshing", coord);

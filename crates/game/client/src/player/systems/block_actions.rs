@@ -1,7 +1,7 @@
 use crate::{
     network::{InboundBlockUpdateMessage, OutboundBreakBlockMessage, OutboundPlaceBlockMessage},
     player::{BreakBlockEvent, PlaceBlockEvent, TargetedBlock},
-    render::chunk::ClientChunkManager,
+    world::chunk::ClientChunkManager,
 };
 use bevy::ecs::prelude::*;
 use common::{
@@ -175,7 +175,7 @@ fn apply_block_edit(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::render::chunk::ClientChunkState;
+    use crate::world::chunk::ClientChunkState;
     use bevy::prelude::*;
     use common::world::{block::SOLID_BLOCK_ID, chunk::types::ChunkLod};
 
