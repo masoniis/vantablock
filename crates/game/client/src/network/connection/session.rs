@@ -3,7 +3,9 @@ use crate::{
     network::connection::NetworkErrorEvent,
 };
 use bevy::prelude::*;
-use lightyear::prelude::{Client, Connected, Connecting, Disconnect, Disconnected};
+use lightyear::prelude::{
+    Client, Connected, Connecting, Disconnect, Disconnected, PredictionManager,
+};
 
 pub fn handle_connections(
     trigger: On<Add, Connected>,
@@ -63,4 +65,5 @@ pub fn end_session(
         }
         commands.entity(entity).despawn();
     }
+    commands.remove_resource::<PredictionManager>();
 }
