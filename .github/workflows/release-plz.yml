@@ -118,7 +118,7 @@ jobs:
         run: |
           TAG=$(echo '${{ needs.release-plz-release.outputs.releases }}' | jq -r '.[] | select(.package_name == "vantablock-app") | .tag')
           if [ -z "$TAG" ] || [ "$TAG" == "null" ]; then
-            echo "Error: Could not find tag for app package."
+            echo "Error: Could not find tag for the app package."
             exit 1
           fi
           echo "tag=$TAG" >> $GITHUB_OUTPUT
