@@ -10,7 +10,7 @@ pub mod loading;
 pub mod manager;
 pub mod range;
 
-pub use manager::{ClientChunkManager, ClientChunkState, NeighborInfo};
+pub use manager::{ClientChunkManager, ClientChunkState};
 
 // INFO: ---------------------------
 //         plugin definition
@@ -18,7 +18,7 @@ pub use manager::{ClientChunkManager, ClientChunkState, NeighborInfo};
 
 use crate::lifecycle::ClientLifecycleState;
 use bevy::prelude::*;
-use common::{FixedUpdateSet, world::chunk::update_chunk_coords_system};
+use common::world::chunk::update_chunk_coords_system;
 use decompression::{
     DecompressedChunkMessage, apply_decompressed_chunk_data_system, decompress_chunk_data_system,
     poll_decompression_tasks_system,
@@ -47,11 +47,9 @@ impl Plugin for ClientChunkPlugin {
             (
                 decompress_chunk_data_system,
                 poll_decompression_tasks_system,
-            ),
-        );
-        app.add_systems(
-            FixedUpdate,
-            apply_decompressed_chunk_data_system.in_set(FixedUpdateSet::MainLogic),
+                apply_decompressed_chunk_data_system,
+            )
+                .chain(),
         );
 
         // the session's chunks belong to its server, so drop them when leaving the game

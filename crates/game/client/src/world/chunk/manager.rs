@@ -95,42 +95,4 @@ impl ClientChunkManager {
     pub fn mark_as_unloaded(&mut self, coord: IVec3) {
         self.chunk_states.remove(&coord);
     }
-
-    /// An iterator over all chunks needing meshing.
-    ///
-    /// Useful for throttling the number of meshing tasks started per frame.
-    pub fn iter_needs_meshing(&self) -> impl Iterator<Item = &IVec3> {
-        self.chunk_states.iter().filter_map(|(coord, state)| {
-            if matches!(state, ClientChunkState::NeedsMeshing { .. }) {
-                Some(coord)
-            } else {
-                None
-            }
-        })
-    }
-
-    /// Returns an iterator over all *existing* neighbors of a chunk.
-    pub fn iter_neighbors(&self, coord: IVec3) -> impl Iterator<Item = NeighborInfo> + '_ {
-        common::world::chunk::NEIGHBOR_OFFSETS
-            .into_iter()
-            .filter_map(move |offset| {
-                let neighbor_coord = coord + offset;
-                self.get_state(neighbor_coord)
-                    .and_then(|state| state.entity().map(|entity| (state, entity)))
-                    .map(|(state, entity)| NeighborInfo {
-                        offset,
-                        coord: neighbor_coord,
-                        state,
-                        entity,
-                    })
-            })
-    }
-}
-
-/// Holds information about a chunk's existing neighbor on the client.
-pub struct NeighborInfo {
-    pub offset: IVec3,
-    pub coord: IVec3,
-    pub state: ClientChunkState,
-    pub entity: Entity,
 }

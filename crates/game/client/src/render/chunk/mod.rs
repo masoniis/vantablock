@@ -12,19 +12,18 @@ pub use components::{OpaqueMeshComponent, TransparentMeshComponent};
 // ---------------------------------
 
 use crate::{
+    lifecycle::ClientLifecycleState,
     render::chunk::tasks::{
-        handle_dirty_chunks_system, manage_distance_based_chunk_meshing_targets_system,
-        poll_chunk_meshing_tasks, promote_newly_generated_chunks_system,
-        start_pending_meshing_tasks_system,
+        handle_dirty_chunks_system, poll_chunk_meshing_tasks, schedule_chunk_meshing_system,
     },
-    world::chunk::range::streaming_anchor_changed_chunk,
+    world::chunk::decompression::apply_decompressed_chunk_data_system,
 };
 use bevy::{
-    app::{App, FixedUpdate, Plugin, PreUpdate},
+    app::{App, Plugin, Update},
     asset::AssetApp,
     ecs::prelude::*,
+    state::condition::in_state,
 };
-use common::FixedUpdateSet;
 
 /// Meshes the chunks `world::chunk` holds and hands the meshes to the render world.
 pub struct ChunkMeshingPlugin;
@@ -33,22 +32,18 @@ impl Plugin for ChunkMeshingPlugin {
     fn build(&self, app: &mut App) {
         app.init_asset::<BlockMeshAsset>();
 
+        // polling before scheduling lets slots freed this frame be refilled this frame. Only in
+        // game: the block render registry it meshes with is loaded while launching.
         app.add_systems(
-            PreUpdate,
-            manage_distance_based_chunk_meshing_targets_system
-                .run_if(streaming_anchor_changed_chunk),
-        );
-
-        app.add_systems(PreUpdate, promote_newly_generated_chunks_system);
-
-        app.add_systems(
-            FixedUpdate,
+            Update,
             (
                 handle_dirty_chunks_system,
-                start_pending_meshing_tasks_system,
                 poll_chunk_meshing_tasks,
+                schedule_chunk_meshing_system,
             )
-                .in_set(FixedUpdateSet::MainLogic),
+                .chain()
+                .after(apply_decompressed_chunk_data_system)
+                .run_if(in_state(ClientLifecycleState::InGame)),
         );
     }
 }
