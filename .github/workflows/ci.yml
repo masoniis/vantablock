@@ -12,8 +12,12 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # debuginfo is unused in CI and bloats target/ enough to fill the runner disk
+  CARGO_PROFILE_DEV_DEBUG: 0
+
 jobs:
-  ci:
+  lint-and-test:
     # if it's a PR, only run if not a draft
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
@@ -34,6 +38,8 @@ jobs:
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
 
       - name: Check benchmarks
         run: cargo check --benches
@@ -41,6 +47,15 @@ jobs:
       - name: Run clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
+
       - name: Run tests
-        # bevy is linked dynamically, so doctest binaries need the toolchain's libstd on the loader path
-        run: LD_LIBRARY_PATH="$(rustc --print sysroot)/lib:$LD_LIBRARY_PATH" cargo test --workspace
+        run: cargo nextest run --workspace --profile ci
+
+      # nextest skips doctests; bevy/dynamic_linking makes their binaries load libstd and
+      # bevy_dylib as shared libraries
+      - name: Run doctests
+        run: |
+          export LD_LIBRARY_PATH="$(rustc --print target-libdir):$PWD/target/debug/deps:$LD_LIBRARY_PATH"
+          cargo test --workspace --doc

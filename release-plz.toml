@@ -4,25 +4,30 @@ changelog_path = "./CHANGELOG.md"
 publish = false            # don't publish to crates.io
 git_tag_enable = false     # default no tags for workspace crates
 git_release_enable = false # default no gh release for workspace crates
-release = false            # default no release for workspace crates
+release = true             # every crate takes part so commits to any of them bump the shared version
+git_only = true            # versions come from git tags, not crates.io
 release_always = true      # release whenever the version has no tag yet (a merged release PR or a deliberate bump)
 semver_check = false       # do not semver
+changelog_update = false   # only vantablock-app writes the single shared changelog
 
 # visual release/pr config
 git_release_type = "auto"   # mark as pre-release on gh if rc, otherwise normal release
 pr_labels = ["autorelease"]
-# TODO: more robust way to query version change than array index 0
 pr_body = """
-# **Vantablock**: {{ releases[0].previous_version }} -> {{ releases[0].next_version }}
+{% for release in releases %}{% if release.package == "vantablock-app" %}
+# **Vantablock**: {{ release.previous_version }} -> {{ release.next_version }}
 
-{{ releases[0].changelog }}
+{{ release.changelog }}
+{% endif %}{% endfor %}
 """
 
-# app package is the main release entrypoint
+# the app package is the main release entrypoint
 [[package]]
 name = "vantablock-app"
 release = true
-git_only = true                                 # rely on git tags instead of crates.io (fixed in release-plz 0.3.164+)
+changelog_update = true
+# the game lives in the other crates, so their commits belong in the one changelog
+changelog_include = ["vantablock-client", "vantablock-server", "vantablock-common", "vantablock-platform"]
 git_tag_enable = true                           # create tags
 git_release_enable = true                       # make a gh release
 git_release_name = "Vanta🅱️lock v{{ version }}" # release with game name since single-release

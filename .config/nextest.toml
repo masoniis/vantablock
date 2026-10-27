@@ -1,0 +1,4 @@
+[profile.ci]
+fail-fast = false
+# the test suite runs in under a minute, so a hang is a bug
+slow-timeout = { period = "180s", terminate-after = 2 }
