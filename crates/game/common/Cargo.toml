@@ -12,6 +12,9 @@ workspace = true
 name = "common"
 path = "src/lib.rs"
 
+[features]
+default = ["bevy/dynamic_linking"]
+
 [dependencies]
 platform = { workspace = true }
 

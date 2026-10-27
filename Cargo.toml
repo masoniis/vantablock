@@ -26,10 +26,14 @@ too_many_arguments = "allow"
 opt-level = 0
 debug = true
 
+# dependencies compile once, and an unoptimized bevy is too slow to run
+[profile.dev.package."*"]
+opt-level = 3
+
 # standard: fastish, but compiles quicker than distribution and keeps logging/debugging
+# (no lto: it fails to link against the dynamically linked bevy)
 [profile.release]
 opt-level = 3
-lto = "thin"
 debug = 1
 strip = false
 
@@ -49,9 +53,10 @@ debug = false
 
 [workspace.dependencies]
 # other crates
-client = { path = "./crates/game/client", package = "vantablock-client" }
-server = { path = "./crates/game/server", package = "vantablock-server" }
-common = { path = "./crates/game/common", package = "vantablock-common" }
+# no default features, so their dynamic linking only applies when built directly
+common = { path = "./crates/game/common", package = "vantablock-common", default-features = false }
+server = { path = "./crates/game/server", package = "vantablock-server", default-features = false }
+client = { path = "./crates/game/client", package = "vantablock-client", default-features = false }
 platform = { path = "./crates/platform", package = "vantablock-platform" }
 
 # development deps
