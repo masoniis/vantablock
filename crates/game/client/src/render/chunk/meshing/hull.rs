@@ -99,9 +99,9 @@ pub fn build_hull_mesh<R>(
         #[rustfmt::skip]
         mesh_plane!(1, 0..size, 0..size, |x, z| IVec3::new(x as i32, 0, z as i32));
         #[rustfmt::skip]
-        mesh_plane!(2, 0..size, 0..size, |y, z| IVec3::new(0, y as i32, z as i32));
+        mesh_plane!(2, 0..size, 0..size, |y, z| IVec3::new((size - 1) as i32, y as i32, z as i32));
         #[rustfmt::skip]
-        mesh_plane!(3, 0..size, 0..size, |y, z| IVec3::new((size - 1) as i32, y as i32, z as i32));
+        mesh_plane!(3, 0..size, 0..size, |y, z| IVec3::new(0, y as i32, z as i32));
         #[rustfmt::skip]
         mesh_plane!(4, 0..size, 0..size, |x, y| IVec3::new(x as i32, y as i32, (size - 1) as i32));
         #[rustfmt::skip]
@@ -113,4 +113,88 @@ pub fn build_hull_mesh<R>(
             build_mesh_assets(name, &faces, &[])
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::render::chunk::meshing::{PackedFace, dense::build_dense_mesh};
+    use common::world::chunk::{
+        ChunkDataOption, NeighborLODs, components::ChunkBlocksComponent, types::ChunkLod,
+    };
+    use std::collections::HashMap;
+
+    const STONE: BlockId = 1;
+
+    /// A registry where only the transparency lut matters (0 = air, 1 = stone).
+    fn registry() -> BlockRegistry {
+        BlockRegistry::from_raw(vec![true, false], Vec::new(), HashMap::new())
+    }
+
+    /// Builds a padded chunk of uniform stone whose neighbors are stone except for `air_neighbors`.
+    fn padded_with_air_neighbors(air_neighbors: &[IVec3]) -> PaddedChunk {
+        let stone =
+            ChunkDataOption::Generated(ChunkBlocksComponent::new_uniform(ChunkLod(0), STONE));
+        let air = ChunkDataOption::Generated(ChunkBlocksComponent::new_uniform_empty(ChunkLod(0)));
+
+        let mut chunks: [[[ChunkDataOption; 3]; 3]; 3] = Default::default();
+        for (x, plane) in chunks.iter_mut().enumerate() {
+            for (y, row) in plane.iter_mut().enumerate() {
+                for (z, cell) in row.iter_mut().enumerate() {
+                    let offset = IVec3::new(x as i32 - 1, y as i32 - 1, z as i32 - 1);
+                    *cell = if air_neighbors.contains(&offset) {
+                        air.clone()
+                    } else {
+                        stone.clone()
+                    };
+                }
+            }
+        }
+
+        PaddedChunk::new(&chunks, ChunkLod(0), NeighborLODs::default(), Vec::new())
+    }
+
+    fn sorted_faces(
+        mesh: (
+            Option<crate::render::chunk::meshing::OpaqueMeshData>,
+            Option<crate::render::chunk::meshing::TransparentMeshData>,
+        ),
+    ) -> Vec<PackedFace> {
+        let mut faces = mesh.0.map(|m| m.faces.to_vec()).unwrap_or_default();
+        faces.sort();
+        faces
+    }
+
+    /// The hull mesher is an optimization of the dense mesher, so for a uniform chunk both
+    /// must emit exactly the same faces regardless of which neighbors are open.
+    #[test]
+    fn hull_matches_dense_for_every_open_side() {
+        let registry = registry();
+        let texture_lut = vec![[0u32; 6]; 2];
+
+        for open in common::world::chunk::NEIGHBOR_OFFSETS {
+            let padded = padded_with_air_neighbors(&[open]);
+
+            let hull = sorted_faces(build_hull_mesh(
+                "hull",
+                &padded,
+                &registry,
+                &(),
+                STONE,
+                &texture_lut,
+            ));
+            let dense = sorted_faces(build_dense_mesh(
+                "dense",
+                &padded,
+                &registry,
+                &(),
+                &texture_lut,
+            ));
+
+            assert_eq!(
+                hull, dense,
+                "hull and dense disagree with open neighbor {open}"
+            );
+        }
+    }
 }
