@@ -49,8 +49,8 @@ pub fn spawn_connecting_ui(mut commands: Commands, asset_server: Res<AssetServer
                     parent.spawn((
                         Text::new("Connecting..."),
                         TextFont {
-                            font: font.clone(),
-                            font_size: 32.0,
+                            font: FontSource::Handle(font.clone()),
+                            font_size: FontSize::Px(32.0),
                             ..Default::default()
                         },
                         TextColor(Color::WHITE),
@@ -59,8 +59,8 @@ pub fn spawn_connecting_ui(mut commands: Commands, asset_server: Res<AssetServer
                     parent.spawn((
                         Text::new("Establishing connection..."),
                         TextFont {
-                            font: font.clone(),
-                            font_size: 16.0,
+                            font: FontSource::Handle(font.clone()),
+                            font_size: FontSize::Px(16.0),
                             ..Default::default()
                         },
                         TextColor(Color::srgb(0.7, 0.7, 0.7)),

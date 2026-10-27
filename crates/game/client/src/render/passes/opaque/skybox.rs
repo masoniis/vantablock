@@ -1,10 +1,6 @@
 use crate::render::resources::{CentralCameraViewBindGroupLayout, EnvironmentBindGroupLayout};
 use crate::render::shaders::{SKYBOX_FRAG_SHADER_HANDLE, SKYBOX_VERT_SHADER_HANDLE};
-use bevy::{
-    core_pipeline::core_3d,
-    ecs::prelude::*,
-    render::{render_resource::*, view::ViewTarget},
-};
+use bevy::{core_pipeline::core_3d, ecs::prelude::*, render::render_resource::*};
 use tracing::instrument;
 
 /// A key that uniquely identifies a specialized skybox pipeline.
@@ -39,7 +35,7 @@ impl SpecializedRenderPipeline for OpaqueSkyboxPipeline {
 
     fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
         let format = if key.hdr {
-            ViewTarget::TEXTURE_FORMAT_HDR
+            TextureFormat::Rgba16Float
         } else {
             TextureFormat::Rgba8UnormSrgb
         };
@@ -52,8 +48,8 @@ impl SpecializedRenderPipeline for OpaqueSkyboxPipeline {
 
         let depth_stencil = Some(DepthStencilState {
             format: core_3d::CORE_3D_DEPTH_FORMAT,
-            depth_write_enabled: false,
-            depth_compare: CompareFunction::Equal,
+            depth_write_enabled: Some(false),
+            depth_compare: Some(CompareFunction::Equal),
             stencil: StencilState::default(),
             bias: DepthBiasState::default(),
         });
@@ -61,7 +57,7 @@ impl SpecializedRenderPipeline for OpaqueSkyboxPipeline {
         RenderPipelineDescriptor {
             label: Some("Skybox Pipeline".into()),
             layout: vec![self.view_layout.clone(), self.environment_layout.clone()],
-            push_constant_ranges: vec![],
+            immediate_size: 0,
             vertex: VertexState {
                 shader: SKYBOX_VERT_SHADER_HANDLE,
                 shader_defs: vec![],

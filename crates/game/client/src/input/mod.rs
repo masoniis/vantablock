@@ -22,21 +22,22 @@ use crate::{
 };
 use bevy::{
     app::{App, Plugin, PreUpdate, Update},
-    prelude::{IntoScheduleConfigs, OnEnter, OnExit, SystemCondition, in_state},
+    prelude::{IntoScheduleConfigs, Name, OnEnter, OnExit, SystemCondition, in_state},
     render::extract_resource::ExtractResourcePlugin,
 };
-use leafwing_input_manager::{
-    common_conditions::action_just_pressed, plugin::InputManagerPlugin, prelude::ActionState,
-};
+use leafwing_input_manager::{common_conditions::action_just_pressed, plugin::InputManagerPlugin};
 
 pub struct ClientInputPlugin;
 
 impl Plugin for ClientInputPlugin {
     fn build(&self, app: &mut App) {
-        // leafwing input manager for local actions
+        // leafwing input manager for local actions, kept on one app-lifetime entity (its
+        // `InputMap` requires the `ActionState`)
         app.add_plugins(InputManagerPlugin::<ClientAction>::default());
-        app.init_resource::<ActionState<ClientAction>>()
-            .insert_resource(get_default_client_action_input_map());
+        app.world_mut().spawn((
+            Name::new("ClientActions"),
+            get_default_client_action_input_map(),
+        ));
 
         // INFO: ------------------------------------
         //         resources & render plugins
@@ -75,8 +76,9 @@ impl Plugin for ClientInputPlugin {
             (
                 // set desired cursor state on pause action
                 toggle_pause_system.run_if(
-                    action_just_pressed(ClientAction::TogglePause)
-                        .and(in_state(InGameState::Playing).or(in_state(InGameState::Paused))),
+                    action_just_pressed(ClientAction::TogglePause).and_then(
+                        in_state(InGameState::Playing).or_else(in_state(InGameState::Paused)),
+                    ),
                 ),
                 // toggle opaque wireframe mode
                 toggle_opaque_wireframe_mode_system

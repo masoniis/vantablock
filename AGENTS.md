@@ -74,7 +74,7 @@ The project uses `just` as a command runner. A Nix flake is provided to ensure a
 
 Unit and integration tests can't catch everything (UI flows, rendering, session lifecycle). Use the Bevy Remote Protocol to drive the real game and verify changes end to end.
 
-- **Setup:** The client's `brp` cargo feature adds `bevy_brp_extras`, which serves BRP on `localhost:15702`. The `bevy_brp_mcp` server (in the nix devshell, or `cargo install bevy_brp_mcp --version 0.19.0`) is registered in `.mcp.json`. The `bevy_brp_*` versions must match the Bevy release (0.19.x for Bevy 0.18).
+- **Setup:** The client's `brp` cargo feature adds `bevy_brp_extras`, which serves BRP on `localhost:15702`. The `bevy_brp_mcp` server (in the nix devshell, or `cargo install bevy_brp_mcp --version 0.19.0`) is registered in `.mcp.json`. The `bevy_brp_*` versions must match the Bevy release (0.22.x for Bevy 0.19).
 - **Workflow:** Run `just brp-build`, then launch with the `brp_launch` tool (target `vantablock`); it runs the already-built binary, so rebuild after code changes. Drive it with `brp_extras_*` input tools, inspect with `world_query`/`world_get_components`, check `brp_extras_screenshot` images, read logs with `brp_read_log`, and stop it with `brp_shutdown`.
 - **Without MCP:** BRP is plain JSON-RPC over HTTP, e.g. `curl -s -X POST localhost:15702 -d '{"jsonrpc":"2.0","id":1,"method":"world.query","params":{"data":{},"filter":{"with":["client::player::components::LocalPlayer"]}}}'`.
 - **Mouse Coordinates:** `move_mouse` positions are logical window pixels. Screenshots are physical pixels, so divide by the window scale factor (2.0 on Retina) to aim clicks.

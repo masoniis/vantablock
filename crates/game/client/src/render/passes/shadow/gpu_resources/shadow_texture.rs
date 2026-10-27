@@ -3,9 +3,9 @@ use bevy::{
     ecs::prelude::*,
     render::{
         render_resource::{
-            AddressMode, CompareFunction, Extent3d, FilterMode, Sampler, SamplerDescriptor,
-            Texture, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
-            TextureView,
+            AddressMode, CompareFunction, Extent3d, FilterMode, MipmapFilterMode, Sampler,
+            SamplerDescriptor, Texture, TextureDescriptor, TextureDimension, TextureFormat,
+            TextureUsages, TextureView,
         },
         renderer::RenderDevice,
     },
@@ -59,7 +59,7 @@ impl FromWorld for ShadowDepthTextureResource {
             address_mode_w: AddressMode::ClampToEdge,
             mag_filter: FilterMode::Linear,
             min_filter: FilterMode::Linear,
-            mipmap_filter: FilterMode::Nearest,
+            mipmap_filter: MipmapFilterMode::Nearest,
             compare: Some(CompareFunction::LessEqual),
             ..Default::default()
         });

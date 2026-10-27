@@ -217,7 +217,7 @@ impl ChunkStorageManager {
 
         // if exceed hardware limit, panic for now
         let limits = device.limits();
-        let max_buffer_size = limits.max_storage_buffer_binding_size as u64;
+        let max_buffer_size = limits.max_storage_buffer_binding_size;
         if new_size > max_buffer_size {
             new_size = max_buffer_size;
             if required_end_byte > max_buffer_size {

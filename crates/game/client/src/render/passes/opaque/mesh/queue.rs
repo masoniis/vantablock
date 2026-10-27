@@ -55,7 +55,8 @@ pub fn queue_opaque_system(
         // specialize pipelines for this view's MSAA and HDR settings
         let mesh_key = Opaque3dPipelineKey {
             msaa_samples: msaa.samples(),
-            hdr: extracted_view.hdr,
+            hdr: extracted_view.target_format
+                == bevy::render::render_resource::TextureFormat::Rgba16Float,
             mode: *render_mode,
         };
         opaque_phase.mesh_pipeline_id = Some(specialized_world_pipelines.specialize(
@@ -66,7 +67,8 @@ pub fn queue_opaque_system(
 
         let skybox_key = OpaqueSkyboxPipelineKey {
             msaa_samples: msaa.samples(),
-            hdr: extracted_view.hdr,
+            hdr: extracted_view.target_format
+                == bevy::render::render_resource::TextureFormat::Rgba16Float,
         };
         opaque_phase.skybox_pipeline_id = Some(specialized_skybox_pipelines.specialize(
             &pipeline_cache,

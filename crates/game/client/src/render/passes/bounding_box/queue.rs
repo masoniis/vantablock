@@ -50,7 +50,7 @@ pub fn queue_wireframe_system(
     for (view, msaa, mut phase) in views_query.iter_mut() {
         let key = WireframePipelineKey {
             msaa_samples: msaa.samples(),
-            hdr: view.hdr,
+            hdr: view.target_format == bevy::render::render_resource::TextureFormat::Rgba16Float,
         };
         phase.pipeline_id =
             Some(specialized_pipelines.specialize(&pipeline_cache, &wireframe_pipeline, key));

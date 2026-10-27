@@ -46,8 +46,8 @@ pub fn spawn_settings_ui(mut commands: Commands, asset_server: Res<AssetServer>)
             parent.spawn((
                 Text::new("PAUSED"),
                 TextFont {
-                    font: font.clone(),
-                    font_size: 64.0,
+                    font: FontSource::Handle(font.clone()),
+                    font_size: FontSize::Px(64.0),
                     ..Default::default()
                 },
                 TextColor(Color::WHITE),
@@ -98,8 +98,8 @@ fn spawn_button(
             parent.spawn((
                 Text::new(label),
                 TextFont {
-                    font,
-                    font_size: 32.0,
+                    font: FontSource::Handle(font),
+                    font_size: FontSize::Px(32.0),
                     ..Default::default()
                 },
                 TextColor(Color::WHITE),

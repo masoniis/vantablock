@@ -100,7 +100,7 @@ fn setup_crossbeam_connection(server_app: &mut App, client_app: &mut App) -> (En
     let client_entity = client_app
         .world_mut()
         .spawn((
-            Client::default(),
+            Client,
             Link::default(),
             client_io, // client crossbeam io
         ))

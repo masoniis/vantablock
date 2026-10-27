@@ -12,7 +12,7 @@ use crate::{
 use bevy::{
     core_pipeline::core_3d::{self},
     ecs::prelude::*,
-    render::{render_resource::*, view::ViewTarget},
+    render::render_resource::*,
 };
 
 /// A key that uniquely identifies a specialized world opaque pipeline.
@@ -54,7 +54,7 @@ impl SpecializedRenderPipeline for Opaque3dPipeline {
 
     fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
         let format = if key.hdr {
-            ViewTarget::TEXTURE_FORMAT_HDR
+            TextureFormat::Rgba16Float
         } else {
             TextureFormat::Rgba8UnormSrgb
         };
@@ -67,8 +67,8 @@ impl SpecializedRenderPipeline for Opaque3dPipeline {
 
         let depth_stencil = Some(DepthStencilState {
             format: core_3d::CORE_3D_DEPTH_FORMAT,
-            depth_write_enabled: true,
-            depth_compare: CompareFunction::GreaterEqual,
+            depth_write_enabled: Some(true),
+            depth_compare: Some(CompareFunction::GreaterEqual),
             stencil: StencilState::default(),
             bias: DepthBiasState::default(),
         });
@@ -91,7 +91,7 @@ impl SpecializedRenderPipeline for Opaque3dPipeline {
                 self.texture_layout.clone(),
                 self.chunk_storage_layout.clone(),
             ],
-            push_constant_ranges: vec![],
+            immediate_size: 0,
             vertex: VertexState {
                 shader: OPAQUE_VERT_SHADER_HANDLE,
                 shader_defs: vec![],

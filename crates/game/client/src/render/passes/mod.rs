@@ -8,7 +8,6 @@ pub mod transparent;
 // ---------------------------------
 
 use crate::render::{
-    VantablockNode,
     passes::{
         bounding_box::WireframeRenderPassPlugin, opaque::OpaqueRenderPassPlugin,
         shadow::ShadowRenderPassPlugin, transparent::TransparentRenderPassPlugin,
@@ -23,7 +22,7 @@ use crate::render::{
 use bevy::prelude::IntoScheduleConfigs;
 use bevy::{
     app::{App, Plugin},
-    render::{Render, RenderSystems, render_graph::RenderGraphExt},
+    render::{Render, RenderSystems},
 };
 
 /// A plugin that sets up all the necessary resources and render
@@ -40,42 +39,6 @@ impl Plugin for WorldRenderPassesPlugin {
         // shared world uniform resources
         app.init_resource::<ChunkStorageBindGroupLayout>();
         app.init_resource::<ChunkStorageManager>();
-    }
-}
-
-/// A plugin responsible ONLY for wiring the edges between nodes in the render graph.
-/// This must be added AFTER all pass plugins to ensure all nodes exist.
-pub struct RenderGraphEdgesPlugin;
-
-impl Plugin for RenderGraphEdgesPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_render_graph_edges(
-            bevy::core_pipeline::core_3d::graph::Core3d,
-            (
-                bevy::core_pipeline::core_3d::graph::Node3d::StartMainPass,
-                VantablockNode::ShadowPass,
-                bevy::core_pipeline::core_3d::graph::Node3d::MainOpaquePass,
-            ),
-        );
-
-        app.add_render_graph_edges(
-            bevy::core_pipeline::core_3d::graph::Core3d,
-            (
-                bevy::core_pipeline::core_3d::graph::Node3d::MainOpaquePass,
-                VantablockNode::OpaquePass,
-                VantablockNode::TransparentPass,
-                bevy::core_pipeline::core_3d::graph::Node3d::MainTransparentPass,
-            ),
-        );
-
-        app.add_render_graph_edges(
-            bevy::core_pipeline::core_3d::graph::Core3d,
-            (
-                bevy::core_pipeline::core_3d::graph::Node3d::MainTransparentPass,
-                VantablockNode::BoundingBoxPass,
-                bevy::core_pipeline::core_3d::graph::Node3d::EndMainPass,
-            ),
-        );
     }
 }
 

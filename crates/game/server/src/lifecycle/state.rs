@@ -1,4 +1,4 @@
-use bevy::prelude::{AppExtStates, StateSet, SubStates};
+use bevy::prelude::{AppExtStates, SubStates};
 use common::lifecycle::state::AppState;
 
 /// Detailed lifecycle state of the dedicated or local background server.

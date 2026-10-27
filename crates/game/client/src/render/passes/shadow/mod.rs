@@ -7,11 +7,10 @@ pub mod render;
 // ---------------------------------
 
 use crate::render::passes::shadow::prepare::update_shadow_view_buffer_system;
-use crate::render::passes::shadow::render::ShadowRenderPassNode;
-use crate::render::scheduling::VantablockNode;
+use crate::render::passes::shadow::render::shadow_pass;
 use bevy::app::{App, Plugin};
+use bevy::core_pipeline::{Core3d, Core3dSystems, core_3d::main_opaque_pass_3d};
 use bevy::prelude::IntoScheduleConfigs;
-use bevy::render::render_graph::{RenderGraphExt, ViewNodeRunner};
 use bevy::render::{Render, RenderSystems};
 use gpu_resources::{
     ShadowDepthTextureResource, ShadowPassPipeline, ShadowViewBuffer,
@@ -31,13 +30,16 @@ impl Plugin for ShadowRenderPassPlugin {
             update_shadow_view_buffer_system.in_set(RenderSystems::Prepare),
         );
 
-        // INFO: ----------------------------------
-        //         render graph integration
-        // ----------------------------------------
+        // INFO: ---------------------------------
+        //         camera schedule wiring
+        // ---------------------------------------
 
-        app.add_render_graph_node::<ViewNodeRunner<ShadowRenderPassNode>>(
-            bevy::core_pipeline::core_3d::graph::Core3d,
-            VantablockNode::ShadowPass,
+        // the shadow map is rendered before the main opaque pass samples it
+        app.add_systems(
+            Core3d,
+            shadow_pass
+                .before(main_opaque_pass_3d)
+                .in_set(Core3dSystems::MainPass),
         );
     }
 
