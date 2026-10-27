@@ -11,7 +11,9 @@ use std::sync::Arc;
 //         thread buffer pooll
 // -----------------------------------
 
-/// The maximum number of faces a solid chunk hull can have.
+/// Initial capacity of the thread-local face buffers: the six boundary planes of a uniform chunk
+/// (the hull). Dense chunks can emit far more faces, in which case the buffer grows and keeps
+/// its larger capacity for that thread.
 const INITIAL_FACE_CAPACITY: usize = CHUNK_SIDE_LENGTH * CHUNK_SIDE_LENGTH * 6;
 
 thread_local! {
@@ -97,12 +99,14 @@ pub const AO_OFFSETS: [[[IVec3; 3]; 4]; 6] = [
 
 /// Represents the 4 levels of Ambient Occlusion.
 /// 0 = No Occlusion (Brightest), 3 = Max Occlusion (Darkest).
+///
+/// The brightness values live in `AO_VALUES` in `vertex_pulling.wesl`; keep them in sync.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AoLevel {
     None = 0,   // 1.0 brightness
-    Low = 1,    // 0.7 brightness
-    Medium = 2, // 0.4 brightness
+    Low = 1,    // 0.8 brightness
+    Medium = 2, // 0.5 brightness
     High = 3,   // 0.2 brightness
 }
 

@@ -30,7 +30,9 @@ pub fn is_in_bounds(coord: IVec3) -> bool {
     (WORLD_MIN_Y_CHUNK..=WORLD_MAX_Y_CHUNK).contains(&pos_y)
 }
 
-/// Queries for chunks needing meshing and starts a limited number of tasks per frame.
+/// Starts a meshing task for every chunk that wants one and has all its neighbors generated.
+///
+/// There is no per-frame cap: tasks run on the `AsyncComputeTaskPool` and queue there.
 #[instrument(skip_all)]
 #[allow(clippy::type_complexity)]
 pub fn start_pending_meshing_tasks_system(

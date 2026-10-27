@@ -1,5 +1,6 @@
 use super::block_texture_registry::{TextureId, TextureRegistryResource};
 use crate::prelude::*;
+use crate::render::chunk::meshing::PackedFace;
 use crate::render::texture::error::TextureLoadError;
 use bevy::asset::RenderAssetUsages;
 use bevy::prelude::Image;
@@ -77,6 +78,14 @@ impl BlockTextureProcessor {
                 ));
             }
             images.push(img);
+        }
+
+        // packed faces store the texture id in a few bits, so more layers would silently wrap
+        if images.len() > PackedFace::MAX_TEXTURES {
+            return Err(TextureLoadError::TooManyTextures {
+                count: images.len(),
+                max: PackedFace::MAX_TEXTURES,
+            });
         }
 
         // 3. Stitch
