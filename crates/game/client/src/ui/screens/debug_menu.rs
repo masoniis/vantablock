@@ -4,6 +4,7 @@
 use crate::{
     input::local_actions::ClientAction,
     player::LocalPlayer,
+    render::chunk::ChunkMesh,
     ui::theme::{Face, font, palette},
     world::chunk::{ClientChunkMap, ClientChunkState},
 };
@@ -152,6 +153,7 @@ fn update_debug_menu_system(
     diagnostics: Res<DiagnosticsStore>,
     player_query: Query<(&LogicalPosition, &ChunkCoord, &PlayerLook), With<LocalPlayer>>,
     chunk_map: Res<ClientChunkMap>,
+    chunk_meshes: Query<&ChunkMesh>,
     mut columns: Query<(Entity, &mut DebugColumn)>,
     mut writer: TextUiWriter,
     children: Query<&Children>,
@@ -208,13 +210,17 @@ fn update_debug_menu_system(
     }
 
     // INFO: world and chunk state, right
-    let (mut meshing, mut needs_meshing, mut awaiting) = (0, 0, 0);
-    for state in chunk_map.chunk_states.values() {
-        match state {
-            ClientChunkState::Meshing { .. } => meshing += 1,
-            ClientChunkState::NeedsMeshing { .. } => needs_meshing += 1,
-            ClientChunkState::AwaitingData => awaiting += 1,
-            _ => {}
+    let awaiting = chunk_map
+        .chunk_states
+        .values()
+        .filter(|state| **state == ClientChunkState::AwaitingData)
+        .count();
+    let (mut meshing, mut needs_meshing) = (0, 0);
+    for mesh in &chunk_meshes {
+        match mesh {
+            ChunkMesh::Meshing => meshing += 1,
+            ChunkMesh::Queued => needs_meshing += 1,
+            ChunkMesh::Meshed => {}
         }
     }
 

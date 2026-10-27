@@ -190,7 +190,7 @@ mod tests {
         app.world_mut()
             .resource_mut::<ClientChunkMap>()
             .chunk_states
-            .insert(pos, ClientChunkState::MeshComplete { entity });
+            .insert(pos, ClientChunkState::Loaded { entity });
         entity
     }
 

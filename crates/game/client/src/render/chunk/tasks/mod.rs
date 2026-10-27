@@ -6,9 +6,12 @@
 //!    from the queue, and free task slots go to the nearest queued chunks whose neighbors all
 //!    have data. `task` builds and spawns that work.
 //!
-//! The scheduler re-decides everything from `ClientChunkMap` every frame instead of
-//! reacting to "a neighbor arrived" signals, so a chunk can't be stranded by a missed signal
-//! or a stale marker: if it is queued and in range, it is meshed as soon as it can be.
+//! Each chunk entity's meshing state is its `ChunkMesh` component (`Queued`, `Meshing`,
+//! `Meshed`); `world::chunk` only tracks whether its data arrived. The scheduler re-decides
+//! everything from that state every frame instead of reacting to "a neighbor arrived"
+//! signals, so a chunk can't be stranded by a missed signal: if it is queued and in range, it
+//! is meshed as soon as it can be. Because the state lives on the entity, unloading the chunk
+//! removes it too.
 
 pub mod dirty;
 pub mod poll;

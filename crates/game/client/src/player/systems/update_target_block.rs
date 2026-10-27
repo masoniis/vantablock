@@ -90,10 +90,8 @@ fn get_block_at_world_pos(
     let (chunk_coord, local_pos) = ChunkCoord::world_to_chunk_and_local_pos(world_pos);
 
     // only get if chunk has data
-    let state = chunk_map.get_state(chunk_coord)?;
-    if state.is_generated()
-        && let Some(actual_entity) = state.entity()
-        && let Ok(chunk_blocks) = chunks_query.get(actual_entity)
+    if let Some(entity) = chunk_map.get_entity(chunk_coord)
+        && let Ok(chunk_blocks) = chunks_query.get(entity)
     {
         return Some(match chunk_blocks.get_view() {
             ChunkView::Uniform(block_id) => block_id,

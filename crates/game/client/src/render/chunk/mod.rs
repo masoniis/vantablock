@@ -5,7 +5,7 @@ pub mod tasks;
 
 pub use asset::BlockMeshAsset;
 pub use common::world::chunk::ChunkMeshDirty;
-pub use components::{OpaqueMeshComponent, TransparentMeshComponent};
+pub use components::{ChunkMesh, OpaqueMeshComponent, TransparentMeshComponent};
 
 // INFO: ---------------------------
 //         plugin definition

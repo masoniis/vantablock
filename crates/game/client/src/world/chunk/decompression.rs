@@ -77,7 +77,7 @@ pub fn apply_decompressed_chunk_data_system(
                 // spawn the entity now that we have data
                 let entity = commands.spawn((ChunkCoord { pos: coord }, blocks)).id();
 
-                chunk_map.mark_as_data_ready(coord, entity);
+                chunk_map.mark_as_loaded(coord, entity);
             }
             Some(_) => {
                 debug!(

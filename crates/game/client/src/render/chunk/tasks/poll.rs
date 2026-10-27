@@ -1,11 +1,10 @@
 use crate::{
     prelude::*,
     render::chunk::{
-        BlockMeshAsset, OpaqueMeshComponent, TransparentMeshComponent,
+        BlockMeshAsset, ChunkMesh, OpaqueMeshComponent, TransparentMeshComponent,
         meshing::{OpaqueMeshData, TransparentMeshData},
         tasks::task::ChunkMeshingTaskComponent,
     },
-    world::chunk::{ClientChunkMap, ClientChunkState},
 };
 use bevy::{asset::Assets, ecs::prelude::*, prelude::*};
 use common::world::chunk::{CHUNK_SIDE_LENGTH, ChunkCoord};
@@ -18,14 +17,18 @@ use crossbeam::channel::TryRecvError;
 #[instrument(skip_all)]
 pub fn poll_chunk_meshing_tasks(
     // input
-    tasks_query: Query<(Entity, &ChunkMeshingTaskComponent, &ChunkCoord)>,
+    mut tasks_query: Query<(
+        Entity,
+        &ChunkMeshingTaskComponent,
+        &ChunkCoord,
+        Option<&mut ChunkMesh>,
+    )>,
 
     // output
     mut commands: Commands,
-    mut chunk_map: ResMut<ClientChunkMap>,
     mut mesh_assets: ResMut<Assets<BlockMeshAsset>>,
 ) {
-    for (entity, task, coord) in tasks_query.iter() {
+    for (entity, task, coord, mesh) in &mut tasks_query {
         let meshes = match task.receiver.try_recv() {
             Ok(meshes) => Some(meshes),
             Err(TryRecvError::Empty) => continue,
@@ -35,28 +38,26 @@ pub fn poll_chunk_meshing_tasks(
             .entity(entity)
             .remove::<ChunkMeshingTaskComponent>();
 
-        match (chunk_map.get_state(coord.pos), meshes) {
-            (Some(ClientChunkState::Meshing { entity: tracked }), Some(meshes))
-                if tracked == entity =>
-            {
+        let Some(mut mesh) = mesh else {
+            debug!(target: "chunk_loading", "Discarding the mesh of {coord}, which is no longer wanted");
+            continue;
+        };
+        match (*mesh, meshes) {
+            (ChunkMesh::Meshing, Some(meshes)) => {
                 trace!(target: "chunk_loading", "Chunk meshing finished for {coord}");
                 attach_meshes(&mut commands, &mut mesh_assets, entity, coord, meshes);
-                chunk_map.mark_as_mesh_complete(coord.pos, entity);
+                *mesh = ChunkMesh::Meshed;
             }
             // an edit landed while the task ran: show this (now stale) mesh meanwhile, and keep
             // the chunk queued so the scheduler remeshes it with the edit
-            (Some(ClientChunkState::NeedsMeshing { entity: tracked }), Some(meshes))
-                if tracked == entity =>
-            {
+            (ChunkMesh::Queued, Some(meshes)) => {
                 attach_meshes(&mut commands, &mut mesh_assets, entity, coord, meshes);
             }
-            (Some(ClientChunkState::Meshing { entity: tracked }), None) if tracked == entity => {
+            (ChunkMesh::Meshing, None) => {
                 warn!(target: "chunk_loading", "Meshing task for {coord} failed, queueing it again");
-                chunk_map.mark_as_needs_meshing(coord.pos, entity);
+                *mesh = ChunkMesh::Queued;
             }
-            _ => {
-                debug!(target: "chunk_loading", "Discarding the mesh of {coord}, which is no longer tracked");
-            }
+            _ => {}
         }
     }
 }
@@ -94,37 +95,35 @@ mod tests {
     use crossbeam::channel::unbounded;
 
     /// Runs `poll_chunk_meshing_tasks` once for a chunk whose in-flight task returns `result`,
-    /// with the chunk map already in `state`, and returns the state afterwards.
+    /// with its mesh state already `state`, and returns the entity's mesh state afterwards.
     fn poll_with_state(
-        state: fn(Entity) -> ClientChunkState,
+        state: Option<ChunkMesh>,
         result: (Option<OpaqueMeshData>, Option<TransparentMeshData>),
-    ) -> ClientChunkState {
-        let coord = IVec3::new(2, 1, 3);
+    ) -> (Option<ChunkMesh>, bool) {
         let mut app = App::new();
-        app.init_resource::<ClientChunkMap>();
         app.init_resource::<Assets<BlockMeshAsset>>();
         app.add_systems(Update, poll_chunk_meshing_tasks);
 
         let (sender, receiver) = unbounded();
         sender.send(result).unwrap();
-        let entity = app
-            .world_mut()
-            .spawn((
-                ChunkCoord { pos: coord },
-                ChunkMeshingTaskComponent { receiver },
-            ))
-            .id();
-        app.world_mut()
-            .resource_mut::<ClientChunkMap>()
-            .chunk_states
-            .insert(coord, state(entity));
+        let mut chunk = app.world_mut().spawn((
+            ChunkCoord {
+                pos: IVec3::new(2, 1, 3),
+            },
+            ChunkMeshingTaskComponent { receiver },
+        ));
+        if let Some(state) = state {
+            chunk.insert(state);
+        }
+        let entity = chunk.id();
 
         app.update();
 
-        app.world()
-            .resource::<ClientChunkMap>()
-            .get_state(coord)
-            .unwrap()
+        let chunk = app.world().entity(entity);
+        (
+            chunk.get::<ChunkMesh>().copied(),
+            chunk.contains::<ChunkMeshingTaskComponent>(),
+        )
     }
 
     fn some_mesh() -> OpaqueMeshData {
@@ -137,50 +136,27 @@ mod tests {
     #[test]
     fn finished_mesh_completes_a_meshing_chunk() {
         for result in [(None, None), (Some(some_mesh()), None)] {
-            let state = poll_with_state(|entity| ClientChunkState::Meshing { entity }, result);
-            assert!(matches!(state, ClientChunkState::MeshComplete { .. }));
+            let (state, _) = poll_with_state(Some(ChunkMesh::Meshing), result);
+            assert_eq!(state, Some(ChunkMesh::Meshed));
         }
     }
 
-    /// Regression: an edit during meshing marks the chunk `NeedsMeshing`. The finished (stale)
-    /// mesh used to overwrite that with `MeshComplete`, so the edit never got remeshed.
+    /// Regression: an edit during meshing queues the chunk again. The finished (stale) mesh used
+    /// to overwrite that with "complete", so the edit never got remeshed.
     #[test]
     fn edit_during_meshing_keeps_the_remesh_queued() {
         for result in [(None, None), (Some(some_mesh()), None)] {
-            let state = poll_with_state(|entity| ClientChunkState::NeedsMeshing { entity }, result);
-            assert!(matches!(state, ClientChunkState::NeedsMeshing { .. }));
+            let (state, _) = poll_with_state(Some(ChunkMesh::Queued), result);
+            assert_eq!(state, Some(ChunkMesh::Queued));
         }
     }
 
-    /// A task whose chunk was un-queued or unloaded meanwhile must still give up its slot, or
-    /// the scheduler's in-flight count grows until meshing stops.
+    /// A task whose chunk was un-queued meanwhile must still give up its slot, or the
+    /// scheduler's in-flight count grows until meshing stops.
     #[test]
     fn finished_task_always_frees_its_slot() {
-        let mut app = App::new();
-        app.init_resource::<ClientChunkMap>();
-        app.init_resource::<Assets<BlockMeshAsset>>();
-        app.add_systems(Update, poll_chunk_meshing_tasks);
-
-        let (sender, receiver) = unbounded();
-        sender.send((Some(some_mesh()), None)).unwrap();
-        let coord = IVec3::new(2, 1, 3);
-        let entity = app
-            .world_mut()
-            .spawn((
-                ChunkCoord { pos: coord },
-                ChunkMeshingTaskComponent { receiver },
-            ))
-            .id();
-        app.world_mut()
-            .resource_mut::<ClientChunkMap>()
-            .mark_as_data_ready(coord, entity);
-
-        app.update();
-
-        assert!(
-            !app.world()
-                .entity(entity)
-                .contains::<ChunkMeshingTaskComponent>()
-        );
+        let (state, has_task) = poll_with_state(None, (Some(some_mesh()), None));
+        assert_eq!(state, None);
+        assert!(!has_task);
     }
 }

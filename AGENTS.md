@@ -66,13 +66,14 @@ The project uses `just` as a command runner. A Nix flake is provided to ensure a
 - **UI:** Screens are `bsn!` scenes composed from `ui::theme` (palette, fonts, text) and `ui::widgets` (buttons, text fields, keycaps), with behavior attached through `on(...)` observers. The pause menu's controls list is read from `input::input_maps::{PLAYER_KEYS, CLIENT_KEYS}`, which also build the input maps.
 - **Shaders:** Written in WESL (`assets/client/shader/`). The `VantablockShaderPlugin` handles shader registration.
 - **Assets:** Configured via RON files (e.g., `assets/server/config.ron`, `assets/shared/block/*.ron`, `assets/shared/biome/`).
-- **Chunk Meshing:** One scheduler (`render/chunk/tasks/schedule.rs`) re-decides every frame from `ClientChunkMap` which chunks to mesh: it queues chunks in render distance, un-queues ones that left, and gives a capped number of task slots to the nearest queued chunks whose neighbors all have data. Keep chunk state in the manager; don't drive it with marker components or one-shot "neighbor arrived" signals, which strand chunks when a signal is missed. Streaming and meshing are centered on the `ChunkStreamingAnchor` (the local player), not the camera.
+- **Chunk Layers:** A client chunk is one entity that each module adds its own components to. `world::chunk` owns which chunks exist (`ClientChunkMap`: awaiting data, or loaded on an entity) and the block data; `render::chunk` owns the `ChunkMesh` state and the mesh components. Despawning the entity on unload removes every layer at once, so nothing can point at a dead chunk.
+- **Chunk Meshing:** One scheduler (`render/chunk/tasks/schedule.rs`) re-decides every frame which chunks to mesh: it queues loaded chunks in render distance, un-queues ones that left, and gives a capped number of task slots to the nearest queued chunks whose neighbors all have data. Don't drive meshing with marker components or one-shot "neighbor arrived" signals, which strand chunks when a signal is missed. Streaming and meshing are centered on the `ChunkStreamingAnchor` (the local player), not the camera.
 - **Optimization:** Prioritize data-oriented design (DOD) to keep the "hot path" (rendering and chunk generation) efficient.
 
 ### Testing
 
 - **Integration Tests:** Client/server tests live in `crates/app/tests`. When driving apps manually with `app.update()`, call `app.finish()` and `app.cleanup()` first: `App::run` normally does this, and lightyear builds its replication systems in `Plugin::finish`.
-- **Headless Client:** `HeadlessClientPlugins` runs the client without a window or renderer. Chunk streaming (`world::chunk`) still runs, but nothing is meshed, so chunks stay `DataReady`.
+- **Headless Client:** `HeadlessClientPlugins` runs the client without a window or renderer. Chunk streaming (`world::chunk`) still runs, but nothing is meshed, so chunk entities never get a `ChunkMesh`.
 
 ### Interactive Testing (BRP)
 

@@ -52,7 +52,7 @@ pub fn manage_distance_based_chunk_loading_targets_system(
     // identify new chunks to load
     let mut requested = Vec::new();
     for coord in chunks_in_horizontal_range(center, LOAD_DISTANCE) {
-        if !chunk_map.is_chunk_present_or_loading(coord) {
+        if !chunk_map.is_tracked(coord) {
             chunk_map.mark_as_awaiting_data(coord);
             requested.push(ChunkCoord { pos: coord });
         }
