@@ -6,7 +6,7 @@ use server::network::receive::ecs_messages::InboundRequestChunkMessage;
 use server::network::types::ClientConnection;
 use server::world::chunk::chunk_map::ChunkMap;
 use server::world::chunk::components::{ActiveChunk, ModifiedChunk};
-use server::world::chunk_loading::{
+use server::world::chunk::loading::{
     ClientChunkTracker, queue_client_chunk_requests_system, sync_chunk_data_to_clients_system,
     unload_distant_chunks_system,
 };
