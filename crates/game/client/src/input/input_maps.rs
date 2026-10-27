@@ -1,28 +1,82 @@
 use crate::input::local_actions::ClientAction;
 use bevy::prelude::{KeyCode, MouseButton};
 use common::player::PlayerAction;
-use leafwing_input_manager::prelude::InputMap;
-use leafwing_input_manager::user_input::mouse::MouseScrollAxis;
+use leafwing_input_manager::{prelude::InputMap, user_input::mouse::MouseScrollAxis};
+
+/// Default keys for the networked player actions. The pause menu's controls list reads these, so
+/// it always shows what is actually bound. Mouse bindings are added separately.
+pub const PLAYER_KEYS: &[(PlayerAction, &[KeyCode])] = &[
+    (PlayerAction::MoveForward, &[KeyCode::KeyW]),
+    (PlayerAction::MoveBackward, &[KeyCode::KeyS]),
+    (PlayerAction::MoveLeft, &[KeyCode::KeyA]),
+    (PlayerAction::MoveRight, &[KeyCode::KeyD]),
+    (PlayerAction::MoveFaster, &[KeyCode::ShiftLeft]),
+    // game time control
+    (PlayerAction::JumpGameTimeForward, &[KeyCode::ArrowRight]),
+    (PlayerAction::JumpGameTimeBackward, &[KeyCode::ArrowLeft]),
+    (PlayerAction::PauseGameTime, &[KeyCode::Space]),
+];
+
+/// Default keys for the client-only actions (`Zoom` is the mouse wheel, bound separately).
+pub const CLIENT_KEYS: &[(ClientAction, &[KeyCode])] = &[
+    // menus
+    (ClientAction::TogglePause, &[KeyCode::Escape]),
+    (ClientAction::ToggleDebugMenu, &[KeyCode::F3]),
+    // debug/analysis tools
+    (
+        ClientAction::ToggleDiagnostics,
+        &[KeyCode::F1, KeyCode::KeyU],
+    ),
+    (
+        ClientAction::ToggleOpaqueWireframeMode,
+        &[KeyCode::F2, KeyCode::KeyO],
+    ),
+    (ClientAction::ToggleChunkBorders, &[KeyCode::KeyB]),
+    // showcase actions
+    (ClientAction::Showcase0, &[KeyCode::Digit0]),
+    (ClientAction::Showcase1, &[KeyCode::Digit1]),
+    (ClientAction::Showcase2, &[KeyCode::Digit2]),
+    (ClientAction::Showcase3, &[KeyCode::Digit3]),
+    (ClientAction::Showcase4, &[KeyCode::Digit4]),
+    (ClientAction::Showcase5, &[KeyCode::Digit5]),
+    (ClientAction::Showcase6, &[KeyCode::Digit6]),
+    (ClientAction::Showcase7, &[KeyCode::Digit7]),
+    (ClientAction::Showcase8, &[KeyCode::Digit8]),
+    (ClientAction::Showcase9, &[KeyCode::Digit9]),
+];
+
+/// The default keys bound to a player action.
+pub fn player_keys(action: PlayerAction) -> &'static [KeyCode] {
+    keys_in(PLAYER_KEYS, action)
+}
+
+/// The default keys bound to a client action.
+pub fn client_keys(action: ClientAction) -> &'static [KeyCode] {
+    keys_in(CLIENT_KEYS, action)
+}
+
+fn keys_in<A: PartialEq>(
+    table: &'static [(A, &'static [KeyCode])],
+    action: A,
+) -> &'static [KeyCode] {
+    table
+        .iter()
+        .find(|(a, _)| *a == action)
+        .map_or(&[], |(_, keys)| keys)
+}
 
 /// Provides the default input mapping for the game.
 pub fn get_default_player_action_input_map() -> InputMap<PlayerAction> {
     let mut input_map = InputMap::default();
-
-    // movement
-    input_map.insert(PlayerAction::MoveForward, KeyCode::KeyW);
-    input_map.insert(PlayerAction::MoveBackward, KeyCode::KeyS);
-    input_map.insert(PlayerAction::MoveLeft, KeyCode::KeyA);
-    input_map.insert(PlayerAction::MoveRight, KeyCode::KeyD);
-    input_map.insert(PlayerAction::MoveFaster, KeyCode::ShiftLeft);
+    for &(action, keys) in PLAYER_KEYS {
+        for &key in keys {
+            input_map.insert(action, key);
+        }
+    }
 
     // core player actions
     input_map.insert(PlayerAction::PrimaryInteract, MouseButton::Left);
     input_map.insert(PlayerAction::SecondaryInteract, MouseButton::Right);
-
-    // game time control
-    input_map.insert(PlayerAction::JumpGameTimeForward, KeyCode::ArrowRight);
-    input_map.insert(PlayerAction::JumpGameTimeBackward, KeyCode::ArrowLeft);
-    input_map.insert(PlayerAction::PauseGameTime, KeyCode::Space);
 
     input_map
 }
@@ -30,32 +84,11 @@ pub fn get_default_player_action_input_map() -> InputMap<PlayerAction> {
 /// Provides the default local input mapping for the game.
 pub fn get_default_client_action_input_map() -> InputMap<ClientAction> {
     let mut input_map = InputMap::default();
-
-    // continuous inputs
     input_map.insert_axis(ClientAction::Zoom, MouseScrollAxis::Y);
-
-    // misc
-    input_map.insert(ClientAction::TogglePause, KeyCode::Escape);
-
-    // debug/analysis tools
-    input_map.insert(ClientAction::ToggleDiagnostics, KeyCode::F1);
-    input_map.insert(ClientAction::ToggleDiagnostics, KeyCode::KeyU);
-    input_map.insert(ClientAction::ToggleDebugMenu, KeyCode::F3);
-    input_map.insert(ClientAction::ToggleOpaqueWireframeMode, KeyCode::F2);
-    input_map.insert(ClientAction::ToggleOpaqueWireframeMode, KeyCode::KeyO);
-    input_map.insert(ClientAction::ToggleChunkBorders, KeyCode::KeyB);
-
-    // showcase actions
-    input_map.insert(ClientAction::Showcase0, KeyCode::Digit0);
-    input_map.insert(ClientAction::Showcase1, KeyCode::Digit1);
-    input_map.insert(ClientAction::Showcase2, KeyCode::Digit2);
-    input_map.insert(ClientAction::Showcase3, KeyCode::Digit3);
-    input_map.insert(ClientAction::Showcase4, KeyCode::Digit4);
-    input_map.insert(ClientAction::Showcase5, KeyCode::Digit5);
-    input_map.insert(ClientAction::Showcase6, KeyCode::Digit6);
-    input_map.insert(ClientAction::Showcase7, KeyCode::Digit7);
-    input_map.insert(ClientAction::Showcase8, KeyCode::Digit8);
-    input_map.insert(ClientAction::Showcase9, KeyCode::Digit9);
-
+    for &(action, keys) in CLIENT_KEYS {
+        for &key in keys {
+            input_map.insert(action, key);
+        }
+    }
     input_map
 }

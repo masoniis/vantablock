@@ -61,6 +61,7 @@ The project uses `just` as a command runner. A Nix flake is provided to ensure a
 
 ### Graphics & Shaders
 
+- **UI:** Screens are `bsn!` scenes composed from `ui::theme` (palette, fonts, text) and `ui::widgets` (buttons, text fields, keycaps), with behavior attached through `on(...)` observers. The pause menu's controls list is read from `input::input_maps::{PLAYER_KEYS, CLIENT_KEYS}`, which also build the input maps.
 - **Shaders:** Written in WESL (`assets/client/shader/`). The `VantablockShaderPlugin` handles shader registration.
 - **Assets:** Configured via RON files (e.g., `assets/server/config.ron`, `assets/shared/block/*.ron`, `assets/shared/biome/`).
 - **Optimization:** Prioritize data-oriented design (DOD) to keep the "hot path" (rendering and chunk generation) efficient.
@@ -78,7 +79,7 @@ Unit and integration tests can't catch everything (UI flows, rendering, session 
 - **Workflow:** Run `just brp-build`, then launch with the `brp_launch` tool (target `vantablock`); it runs the already-built binary, so rebuild after code changes. Drive it with `brp_extras_*` input tools, inspect with `world_query`/`world_get_components`, check `brp_extras_screenshot` images, read logs with `brp_read_log`, and stop it with `brp_shutdown`.
 - **Without MCP:** BRP is plain JSON-RPC over HTTP, e.g. `curl -s -X POST localhost:15702 -d '{"jsonrpc":"2.0","id":1,"method":"world.query","params":{"data":{},"filter":{"with":["client::player::components::LocalPlayer"]}}}'`.
 - **Mouse Coordinates:** `move_mouse` positions are logical window pixels. Screenshots are physical pixels, so divide by the window scale factor (2.0 on Retina) to aim clicks.
-- **Inspecting State:** Only components with `#[derive(Reflect)]` and `#[reflect(Component)]` are visible to BRP; add both to anything worth inspecting. App states are not reflected, but the F3 debug menu's `Text` (position, chunk counts, chunks awaiting server data, meshing queue) can be read with a `world_query` on `bevy_ui::widget::text::Text`.
+- **Inspecting State:** Only components with `#[derive(Reflect)]` and `#[reflect(Component)]` are visible to BRP; add both to anything worth inspecting. App states are not reflected, but the F3 debug menu's text (position, chunk counts, chunks awaiting server data, meshing queue) can be read with a `world_query` on `bevy_ui::widget::text::TextSpan`, and setting `client::ui::screens::debug_menu::DebugMenuState.visible` opens it (F3 is often captured by macOS).
 - **Expectations:** In debug builds, terrain takes several seconds to mesh after joining, so an early screenshot showing only sky is normal. Check the meshing queue before concluding rendering is broken.
 - **Smoke Test:** After networking or lifecycle changes, check this loop: Singleplayer → hold W (position changes) → move mouse (`PlayerLook` follows) → Escape → Disconnect (lands on the main menu) → Singleplayer again, repeated a few times without a panic or a second `PredictionManager`.
 

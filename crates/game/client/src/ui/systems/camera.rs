@@ -1,3 +1,4 @@
+use crate::ui::theme::palette;
 use bevy::prelude::*;
 
 /// Marker for the temporary main menu camera.
@@ -16,7 +17,15 @@ pub fn spawn_menu_camera_system(
 
     info!("Spawning 2d menu camera.");
 
-    commands.spawn((MainMenuCamera, Camera2d));
+    // clear to the backdrop, so a frame drawn before the UI is ready still looks like ours
+    commands.spawn((
+        MainMenuCamera,
+        Camera2d,
+        Camera {
+            clear_color: ClearColorConfig::Custom(palette::BACKDROP_BOTTOM),
+            ..default()
+        },
+    ));
 }
 
 /// A system that despawns the temporary lobby camera.
