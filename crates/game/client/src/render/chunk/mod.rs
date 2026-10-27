@@ -15,8 +15,10 @@ pub use manager::{ClientChunkManager, ClientChunkState};
 
 use crate::render::chunk::tasks::{
     apply_decompressed_chunk_data_system, decompress_chunk_data_system,
-    decompression::DecompressedChunkMessage, manage_distance_based_chunk_meshing_targets_system,
+    decompression::DecompressedChunkMessage, handle_dirty_chunks_system,
+    manage_distance_based_chunk_meshing_targets_system, poll_chunk_meshing_tasks,
     poll_decompression_tasks_system, promote_newly_generated_chunks_system,
+    start_pending_meshing_tasks_system,
 };
 use bevy::{
     app::{App, FixedUpdate, Plugin, PreUpdate, Update},
@@ -58,9 +60,9 @@ impl Plugin for ChunkMeshingPlugin {
             FixedUpdate,
             (
                 apply_decompressed_chunk_data_system,
-                tasks::start_meshing::handle_dirty_chunks_system,
-                tasks::systems::start_pending_meshing_tasks_system,
-                tasks::systems::poll_chunk_meshing_tasks,
+                handle_dirty_chunks_system,
+                start_pending_meshing_tasks_system,
+                poll_chunk_meshing_tasks,
             )
                 .in_set(FixedUpdateSet::MainLogic),
         );
