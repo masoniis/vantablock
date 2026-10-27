@@ -6,11 +6,11 @@ VantaBlock is a high-performance, block-based game engine built with Rust, lever
 
 - **Core Technology:** Rust, Bevy (ECS), WGPU, WESL (WebGPU Shading Language), lightyear (networking), leafwing-input-manager (input).
 - **Architecture:** Multi-crate Cargo workspace:
-  - `crates/client`: Frontend, UI, custom rendering pipeline, input, and client-side prediction of the local player.
-  - `crates/server`: Authoritative simulation, including terrain generation, chunk loading, and block edits.
-  - `crates/shared`: Code both sides need: the network protocol, shared player simulation, chunk data, block/biome registries, and the lifecycle/loading DAG.
-  - `crates/runner`: The binaries (`vantablock`, `vantablock-server`), the singleplayer orchestrator, and client/server integration tests.
-  - `crates/utils`: Common utilities including logging, tracing, and global path management.
+  - `crates/game/client`: Frontend, UI, custom rendering pipeline, input, and client-side prediction of the local player.
+  - `crates/game/server`: Authoritative simulation, including terrain generation, chunk loading, and block edits.
+  - `crates/game/common`: Code both sides need: the network protocol, shared player simulation, chunk data, block/biome registries, and the lifecycle/loading DAG.
+  - `crates/app`: The binaries (`vantablock`, `vantablock-server`), the singleplayer orchestrator, and client/server integration tests.
+  - `crates/platform`: Common utilities including logging, tracing, and global path management.
 - **Key Features:**
   - **Vertex Pulling:** Optimized face rendering where 6 vertices share a single 32-bit float in a GPU buffer.
   - **Custom Render Graph:** Specialized passes for opaque, transparent, skybox, and shadow rendering.
@@ -34,7 +34,7 @@ The project uses `just` as a command runner. A Nix flake is provided to ensure a
 
 ### Tooling & Environment
 
-- **Worktrees:** Asset and dev-data paths are baked in at compile time from `CARGO_MANIFEST_DIR` (`crates/utils/src/paths.rs`). Never point a git worktree at the main checkout's `target/` (`CARGO_TARGET_DIR`): cargo can reuse the worktree's artifacts, and the main binary then loads assets from the worktree path. If that happens, run `cargo clean -p vantablock-utils`.
+- **Worktrees:** Asset and dev-data paths are baked in at compile time from `CARGO_MANIFEST_DIR` (`crates/platform/src/paths.rs`). Never point a git worktree at the main checkout's `target/` (`CARGO_TARGET_DIR`): cargo can reuse the worktree's artifacts, and the main binary then loads assets from the worktree path. If that happens, run `cargo clean -p vantablock-platform`.
 - **Searching:** Always exclude the `target/` directory when searching (e.g., `grep --exclude-dir=target`). It contains large build artifacts that can overwhelm search results and consume excessive context.
 - **Environment Setup:** Use `nix develop` or `direnv allow` if using Nix.
 - **Formatting:** `just fmt` (runs `nix fmt` which handles Rust and WGSL/WESL).
@@ -45,9 +45,9 @@ The project uses `just` as a command runner. A Nix flake is provided to ensure a
 
 ### ECS & Simulation
 
-- **Separation of Concerns:** Keep simulation logic in `shared` (when both sides run it) or `server` (when it is authoritative only). Rendering logic must be strictly separated into the client `render` modules and extracted into Bevy's `RenderApp`.
-- **Fixed Timestep:** Simulation runs in `FixedUpdate` at `TICKS_PER_SECOND` (`crates/shared/src/time`). Visuals are smoothed toward simulation state every frame in the client (`crates/client/src/network/graphics`).
-- **Entity Synchronization:** Meshes and world data are synchronized to the render world via `SyncToRenderWorld` and custom extraction systems (see `crates/client/src/render/mod.rs`).
+- **Separation of Concerns:** Keep simulation logic in `common` (when both sides run it) or `server` (when it is authoritative only). Rendering logic must be strictly separated into the client `render` modules and extracted into Bevy's `RenderApp`.
+- **Fixed Timestep:** Simulation runs in `FixedUpdate` at `TICKS_PER_SECOND` (`crates/game/common/src/time`). Visuals are smoothed toward simulation state every frame in the client (`crates/game/client/src/network/graphics`).
+- **Entity Synchronization:** Meshes and world data are synchronized to the render world via `SyncToRenderWorld` and custom extraction systems (see `crates/game/client/src/render/mod.rs`).
 
 ### Networking
 
@@ -55,7 +55,7 @@ The project uses `just` as a command runner. A Nix flake is provided to ensure a
 - **Prediction:** The server spawns players with `PredictionTarget` for the owner and `InterpolationTarget` for everyone else. On the client, `Predicted` identifies the local player and `Interpolated` identifies remote players. Never overwrite predicted components (`LogicalPosition`, `PlayerLook`) outside the fixed-step simulation, or the prediction history diverges and causes rollbacks.
 - **Inputs:** Player intents go through leafwing `PlayerAction`s, which lightyear buffers and sends per tick. Write custom input values (such as look angles) in `InputSystems::WriteClientInputs` in `FixedPreUpdate`.
 - **Messages:** `MessageSender`/`MessageReceiver` components live on the connection entity (`Client` on the client, `ClientOf` on the server), not on player entities. Incoming messages are demultiplexed into local ECS messages (see the `network/receive` modules).
-- **Protocol:** Channels, messages, and replicated components are registered in `crates/shared/src/network/protocol`, after the lightyear client/server plugins.
+- **Protocol:** Channels, messages, and replicated components are registered in `crates/game/common/src/network/protocol`, after the lightyear client/server plugins.
 - **Chunk Streaming:** The client is the source of truth for which chunks it holds. It sends `RequestChunks` whenever it starts awaiting chunks (including ones it unloaded and needs again). The server queues requests per client in `ClientChunkTracker` and sends generated ones nearest-first. Never track "already sent" chunks on the server: the client unloads chunks on its own, and stale server state leaves permanent holes.
 - **Session Lifetime:** Exiting `ClientLifecycleState::InGame` (to the menu or error screen) tears the session down: the client connection entity is despawned, client chunks are cleared, and the singleplayer background server is told to exit. Lightyear's prediction systems assume exactly one `Client` entity, so never leave a stale one behind.
 
@@ -67,7 +67,7 @@ The project uses `just` as a command runner. A Nix flake is provided to ensure a
 
 ### Testing
 
-- **Integration Tests:** Client/server tests live in `crates/runner/tests`. When driving apps manually with `app.update()`, call `app.finish()` and `app.cleanup()` first: `App::run` normally does this, and lightyear builds its replication systems in `Plugin::finish`.
+- **Integration Tests:** Client/server tests live in `crates/app/tests`. When driving apps manually with `app.update()`, call `app.finish()` and `app.cleanup()` first: `App::run` normally does this, and lightyear builds its replication systems in `Plugin::finish`.
 - **Headless Client:** `HeadlessClientPlugins` runs the client without a window or renderer, so render-owned resources like `ClientChunkManager` must be initialized by the test.
 
 ### Interactive Testing (BRP)
@@ -95,10 +95,10 @@ Unit and integration tests can't catch everything (UI flows, rendering, session 
 
 - `assets/`: Split into `client/` (fonts, shaders, textures), `server/` (config), and `shared/` (blocks, biomes).
 - `crates/`:
-  - `client/src/render/`: Custom render passes and GPU resource management.
-  - `client/src/network/`, `server/src/network/`: Connection handling, message demultiplexing, and sending.
-  - `server/src/world/`: Terrain generation and chunk loading.
-  - `shared/src/network/protocol/`: Channels, messages, and replicated components.
-  - `shared/src/player/`: Shared player components and movement simulation.
-  - `utils/src/logger.rs`: Centralized logging configuration.
+  - `game/client/src/render/`: Custom render passes and GPU resource management.
+  - `game/client/src/network/`, `game/server/src/network/`: Connection handling, message demultiplexing, and sending.
+  - `game/server/src/world/`: Terrain generation and chunk loading.
+  - `game/common/src/network/protocol/`: Channels, messages, and replicated components.
+  - `game/common/src/player/`: Shared player components and movement simulation.
+  - `platform/src/logger.rs`: Centralized logging configuration.
 - `target/`: Build artifacts (ignored by git).

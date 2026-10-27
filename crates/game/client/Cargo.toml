@@ -1,0 +1,104 @@
+[package]
+name = "vantablock-client"
+description = "client for vantablock"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+name = "client"
+path = "src/lib.rs"
+
+[lints]
+workspace = true
+
+[[bench]]
+name = "meshing_benchmarks"
+harness = false
+
+[features]
+dev = ["bevy/dev", "bevy/bevy_dev_tools"]
+tracy = ["dep:tracy-client", "dep:tracing-tracy"]
+distribution = ["tracing/release_max_level_error"]
+brp = [
+  "dep:bevy_brp_extras",
+  "bevy/png",
+] # exposes brp on localhost:15702 for inspection/automation
+
+[build-dependencies]
+wesl = { workspace = true } # shader compliation from WESL to WGSL
+
+[dev-dependencies]
+criterion = { workspace = true }
+
+# INFO: --------------------------
+#         util bin scripts
+# --------------------------------
+
+[[bin]]
+name = "texture_processor"
+path = "tools/texture_processor.rs"
+
+[dependencies]
+platform = { workspace = true }
+common = { workspace = true }
+
+# INFO: --------------------------------
+#         logging/error handling
+# --------------------------------------
+
+time = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracy-client = { workspace = true, optional = true }
+tracing-tracy = { workspace = true, optional = true }
+
+# INFO: ------------------
+#         graphics
+# ------------------------
+
+wesl = { workspace = true }             # preprocessor
+image = { workspace = true }
+bytemuck = { workspace = true }         # gpu friendly data
+offset-allocator = { workspace = true } # gpu buffer allocation
+
+# INFO: --------------------------
+#         simulation logic
+# --------------------------------
+
+bevy = { workspace = true, features = [
+  "default_app",      # core app (input, window, state, etc)
+  "default_platform", # core OS features, windowing, input, etc
+  "3d_bevy_render",   # bevy 3d render pass/graph and subapp
+  "ui_bevy_render",   # additional bevy ui render support
+  "bevy_asset",       # asset management
+  "bevy_state",       # state machines
+] }
+leafwing-input-manager = { workspace = true }
+lightyear = { workspace = true, features = [
+  "client",        # lightyear client core (plugin, etc)
+  "interpolation", # smoothing intended for more pleasing visuals
+  "prediction",    # for local predictions agaisnt server to get snappy feedback
+] }
+futures-lite = { workspace = true } # future utils
+
+# INFO: ---------------
+#         platform
+# ---------------------
+
+sysinfo = { workspace = true }
+derive_more = { workspace = true }
+serde = { workspace = true }       # serializing
+rand = { workspace = true }        # rng
+ron = { workspace = true }         # parsing RON files
+zstd = { workspace = true }
+noise = { workspace = true }       # gen random noise
+crossbeam = { workspace = true }   # thread comms
+glob = { workspace = true }        # reading dirs
+directories = { workspace = true } # platform-specific dirs
+
+# INFO: ---------------------
+#         dev tooling
+# ---------------------------
+
+bevy_brp_extras = { workspace = true, optional = true }
