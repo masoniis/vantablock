@@ -18,6 +18,8 @@ pub struct VantablockUiPlugin;
 
 impl Plugin for VantablockUiPlugin {
     fn build(&self, app: &mut App) {
+        app.add_plugins(systems::WindowRevealPlugin);
+
         // screen plugins
         app.add_plugins((
             screens::LaunchingClientScreenPlugin,
