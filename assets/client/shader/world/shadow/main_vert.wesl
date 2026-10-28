@@ -1,5 +1,5 @@
-import package::world::lib::face_unpacking::{unpack_face_geometry};
-import package::world::lib::vertex_pulling::{pull_global_vertex_position};
+import super::super::lib::face_unpacking::{unpack_face_geometry};
+import super::super::lib::vertex_pulling::{pull_global_vertex_position};
 import super::lib::sun_camera_uniform::{SunCameraUniform};
 
 struct ChunkRenderData {

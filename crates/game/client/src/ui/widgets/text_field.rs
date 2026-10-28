@@ -4,7 +4,7 @@ use bevy::{
     picking::hover::Hovered,
     prelude::*,
     text::{EditableText, TextCursorStyle},
-    ui_widgets::SelectAllOnFocus,
+    ui_widgets::{SelectAllOnFocus, TextInput},
 };
 
 /// Marks a styled single-line text field for [`style_text_fields`].
@@ -18,8 +18,9 @@ pub fn text_field(initial: &str, max_characters: usize) -> impl Scene + use<> {
     editable.allow_newlines = false;
     bsn! {
         TextField
-        template_value(editable)
-        template_value(TextLayout::no_wrap())
+        TextInput
+        editable
+        TextLayout::no_wrap()
         SelectAllOnFocus
         Hovered
         TabIndex(0)
@@ -33,7 +34,7 @@ pub fn text_field(initial: &str, max_characters: usize) -> impl Scene + use<> {
             align_items: AlignItems::Center,
             overflow: Overflow::clip(),
         }
-        font(Face::Mono, 16.0)
+        @font(Face::Mono, 16.0)
         TextColor(palette::TEXT)
         TextCursorStyle {
             color: palette::ACCENT,

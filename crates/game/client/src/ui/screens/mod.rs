@@ -17,15 +17,15 @@ fn status_card(title: &str, detail: &str) -> impl Scene + use<> {
     let title = title.to_uppercase();
     let detail = detail.to_owned();
     bsn! {
-        panel()
+        @panel()
         Node { width: px(360), align_items: AlignItems::Center, row_gap: px(14) }
         Children [
-            (
-                text(&title, Face::Display, 22.0, palette::TEXT)
-                template_value(LetterSpacing::Px(3.0))
-            ),
-            text(&detail, Face::Sans, 14.0, palette::TEXT_DIM),
-            spinner(),
+            @text(&title, Face::Display, 22.0, palette::TEXT)
+            LetterSpacing::Px(3.0)
+            --
+            @text(&detail, Face::Sans, 14.0, palette::TEXT_DIM)
+            --
+            @spinner()
         ]
     }
 }

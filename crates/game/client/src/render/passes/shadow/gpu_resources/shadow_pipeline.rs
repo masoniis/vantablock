@@ -1,7 +1,7 @@
 use super::shadow_view_uniform::ShadowViewBindGroupLayout;
 use crate::render::chunk::gpu_storage::ChunkStorageBindGroupLayout;
 use crate::render::passes::shadow::gpu_resources::SHADOW_DEPTH_FORMAT;
-use crate::render::shaders::SHADOW_VERT_SHADER_HANDLE;
+use crate::render::shaders::{WorldShader, WorldShaders};
 use bevy::ecs::prelude::*;
 use bevy::mesh::PrimitiveTopology;
 use bevy::render::render_resource::{
@@ -20,6 +20,9 @@ impl FromWorld for ShadowPassPipeline {
     fn from_world(world: &mut World) -> Self {
         let view_layout = world.resource::<ShadowViewBindGroupLayout>();
         let chunk_layout = world.resource::<ChunkStorageBindGroupLayout>();
+        let shader = world
+            .resource::<WorldShaders>()
+            .get(WorldShader::ShadowVert);
 
         let shadow_depth_stencil = Some(DepthStencilState {
             format: SHADOW_DEPTH_FORMAT,
@@ -37,8 +40,9 @@ impl FromWorld for ShadowPassPipeline {
             ],
             immediate_size: 0,
             vertex: VertexState {
-                shader: SHADOW_VERT_SHADER_HANDLE,
+                shader,
                 shader_defs: vec![],
+                constants: vec![],
                 entry_point: Some("vs_main".into()),
                 buffers: vec![],
             },

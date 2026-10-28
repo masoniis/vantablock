@@ -97,14 +97,11 @@ fn debug_overlay() -> impl Scene {
         // behind the menus, so the pause scrim dims it along with the game
         GlobalZIndex(-1)
         Children [
-            (
-                template_value(DebugColumn { side: Side::Left, shape: Vec::new() })
-                Node { flex_direction: FlexDirection::Column, align_items: AlignItems::FlexStart }
-            ),
-            (
-                template_value(DebugColumn { side: Side::Right, shape: Vec::new() })
-                Node { flex_direction: FlexDirection::Column, align_items: AlignItems::FlexEnd }
-            ),
+            DebugColumn { side: Side::Left, shape: Vec::new() }
+            Node { flex_direction: FlexDirection::Column, align_items: AlignItems::FlexStart }
+            --
+            DebugColumn { side: Side::Right, shape: Vec::new() }
+            Node { flex_direction: FlexDirection::Column, align_items: AlignItems::FlexEnd }
         ]
     }
 }
@@ -300,12 +297,12 @@ fn line_scene(line: &Line) -> impl Scene + use<> {
         .iter()
         .map(|(text, color)| {
             let (text, color) = (text.clone(), *color);
-            bsn! { TextSpan(text) font(Face::Mono, FONT_SIZE) TextColor(color) }
+            bsn! { TextSpan(text) @font(Face::Mono, FONT_SIZE) TextColor(color) }
         })
         .collect();
     bsn! {
         Text("")
-        font(Face::Mono, FONT_SIZE)
+        @font(Face::Mono, FONT_SIZE)
         Node { padding: UiRect::axes(px(4), px(1)) }
         BackgroundColor(palette::OVERLAY_LINE)
         Children [ {spans} ]

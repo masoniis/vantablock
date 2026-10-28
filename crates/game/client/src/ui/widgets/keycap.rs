@@ -17,7 +17,7 @@ pub fn keycap(label: &str) -> impl Scene + use<> {
         }
         BackgroundColor(palette::SURFACE)
         BorderColor::all(palette::BORDER)
-        Children [ text(&label, Face::Mono, 12.0, palette::TEXT) ]
+        Children [ @text(&label, Face::Mono, 12.0, palette::TEXT) ]
     }
 }
 

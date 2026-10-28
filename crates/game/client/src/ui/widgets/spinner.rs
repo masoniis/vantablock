@@ -15,11 +15,11 @@ pub fn spinner() -> impl Scene {
     bsn! {
         Node { width: px(TRACK_WIDTH), height: px(4) }
         BackgroundColor(palette::PANEL_BORDER)
-        Children [(
+        Children [
             SpinnerBlock
             Node { position_type: PositionType::Absolute, width: px(BLOCK_WIDTH), height: percent(100) }
             BackgroundColor(palette::ACCENT)
-        )]
+        ]
     }
 }
 

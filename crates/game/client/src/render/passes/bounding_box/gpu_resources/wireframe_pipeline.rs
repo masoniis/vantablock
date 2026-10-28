@@ -1,12 +1,15 @@
 use crate::render::passes::bounding_box::WireframeObjectBindGroupLayout;
 use crate::render::passes::bounding_box::gpu_resources::WireframeVertex;
-use crate::render::shaders::{WIREFRAME_FRAG_SHADER_HANDLE, WIREFRAME_VERT_SHADER_HANDLE};
 use crate::render::{
-    environment::EnvironmentBindGroupLayout, view::CentralCameraViewBindGroupLayout,
+    environment::EnvironmentBindGroupLayout,
+    shaders::{WorldShader, WorldShaders},
+    view::CentralCameraViewBindGroupLayout,
 };
+use bevy::asset::Handle;
 use bevy::core_pipeline::core_3d;
 use bevy::ecs::prelude::*;
 use bevy::render::render_resource::*;
+use bevy::shader::Shader;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct WireframePipelineKey {
@@ -20,6 +23,8 @@ pub struct WireframePipeline {
     pub view_layout: BindGroupLayoutDescriptor,
     pub environment_layout: BindGroupLayoutDescriptor,
     pub object_layout: BindGroupLayoutDescriptor,
+    pub vertex_shader: Handle<Shader>,
+    pub fragment_shader: Handle<Shader>,
 }
 
 impl FromWorld for WireframePipeline {
@@ -27,11 +32,14 @@ impl FromWorld for WireframePipeline {
         let view_layout = world.resource::<CentralCameraViewBindGroupLayout>();
         let environment_layout = world.resource::<EnvironmentBindGroupLayout>();
         let object_layout = world.resource::<WireframeObjectBindGroupLayout>();
+        let shaders = world.resource::<WorldShaders>();
 
         Self {
             view_layout: view_layout.descriptor.clone(),
             environment_layout: environment_layout.descriptor.clone(),
             object_layout: object_layout.descriptor.clone(),
+            vertex_shader: shaders.get(WorldShader::WireframeVert),
+            fragment_shader: shaders.get(WorldShader::WireframeFrag),
         }
     }
 }
@@ -55,14 +63,16 @@ impl SpecializedRenderPipeline for WireframePipeline {
             ],
             immediate_size: 0,
             vertex: VertexState {
-                shader: WIREFRAME_VERT_SHADER_HANDLE,
+                shader: self.vertex_shader.clone(),
                 shader_defs: vec![],
+                constants: vec![],
                 entry_point: Some("vs_main".into()),
                 buffers: vec![WireframeVertex::desc()],
             },
             fragment: Some(FragmentState {
-                shader: WIREFRAME_FRAG_SHADER_HANDLE,
+                shader: self.fragment_shader.clone(),
                 shader_defs: vec![],
+                constants: vec![],
                 entry_point: Some("fs_main".into()),
                 targets: vec![Some(ColorTargetState {
                     format,

@@ -17,11 +17,11 @@ pub fn start_udp_server(mut commands: Commands) {
 
     let server_entity = commands
         .spawn((
-            Server::default(),
+            Server,
             Link::default(),
             NetcodeServer::new(NetcodeConfig::default()),
             LocalAddr(server_addr),
-            ServerUdpIo::default(),
+            ServerUdpIo,
         ))
         .id();
 

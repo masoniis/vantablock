@@ -28,8 +28,8 @@ fn spawn_launching_client_screen(mut commands: Commands) {
     info!("Spawning Launching UI...");
     commands
         .spawn_scene(bsn! {
-            backdrop()
-            Children [ status_card("Launching", "Baking assets and building the geometry library") ]
+            @backdrop()
+            Children [ @status_card("Launching", "Baking assets and building the geometry library") ]
         })
         .insert(DespawnOnExit(ClientLifecycleState::Launching));
 }

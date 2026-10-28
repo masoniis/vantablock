@@ -1,7 +1,7 @@
-import package::world::main_passes::lib::geometry_bindings::{
+import super::super::lib::geometry_bindings::{
   environment, texture_array, texture_sampler, camera
 };
-import package::world::main_passes::lib::environment_uniform::{
+import super::super::lib::environment_uniform::{
   calculate_sky_color
 };
 

@@ -44,62 +44,55 @@ fn pause_menu() -> impl Scene {
     // docked left, so the game stays visible on the right
     bsn! {
         PauseMenuRoot
-        docked()
+        @docked()
         TabGroup
-        Children [(
+        Children [
             Node { column_gap: px(12), align_items: AlignItems::FlexStart }
             Children [
-                (
-                    panel()
-                    Node { width: px(280), padding: UiRect::all(px(28)), row_gap: px(10) }
+                @panel()
+                Node { width: px(280), padding: UiRect::all(px(28)), row_gap: px(10) }
+                Children [
+                    @text("Paused", Face::Strong, 24.0, palette::TEXT)
+                    Node { margin: UiRect::bottom(px(10)) }
+                    --
+                    @button("Resume", ButtonTone::Primary)
+                    on(|_: On<Activate>, mut next: ResMut<NextState<InGameState>>| {
+                        next.set(InGameState::Playing);
+                    })
+                    --
+                    @button("Showcase", ButtonTone::Normal)
+                    on(|_: On<Activate>, mut commands: Commands, page: Single<Entity, With<PauseMenuRoot>>, world: Option<Res<SessionWorld>>| {
+                        show_page(&mut commands, Some(*page), showcase_page(world.as_deref().copied()));
+                    })
+                    --
+                    @button("Disconnect", ButtonTone::Danger)
+                    on(|_: On<Activate>, mut next: ResMut<NextState<ClientLifecycleState>>| {
+                        // leaving the game disconnects and cleans up the session
+                        next.set(ClientLifecycleState::MainMenu);
+                    })
+                    --
+                    Node {
+                        column_gap: px(8),
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::Center,
+                        margin: UiRect::top(px(8)),
+                    }
                     Children [
-                        (
-                            text("Paused", Face::Strong, 24.0, palette::TEXT)
-                            Node { margin: UiRect::bottom(px(10)) }
-                        ),
-                        (
-                            button("Resume", ButtonTone::Primary)
-                            on(|_: On<Activate>, mut next: ResMut<NextState<InGameState>>| {
-                                next.set(InGameState::Playing);
-                            })
-                        ),
-                        (
-                            button("Showcase", ButtonTone::Normal)
-                            on(|_: On<Activate>, mut commands: Commands, page: Single<Entity, With<PauseMenuRoot>>, world: Option<Res<SessionWorld>>| {
-                                show_page(&mut commands, Some(*page), showcase_page(world.as_deref().copied()));
-                            })
-                        ),
-                        (
-                            button("Disconnect", ButtonTone::Danger)
-                            on(|_: On<Activate>, mut next: ResMut<NextState<ClientLifecycleState>>| {
-                                // leaving the game disconnects and cleans up the session
-                                next.set(ClientLifecycleState::MainMenu);
-                            })
-                        ),
-                        (
-                            Node {
-                                column_gap: px(8),
-                                align_items: AlignItems::Center,
-                                justify_content: JustifyContent::Center,
-                                margin: UiRect::top(px(8)),
-                            }
-                            Children [
-                                keycap("Esc"),
-                                text("to resume", Face::Sans, 13.0, palette::TEXT_DIM),
-                            ]
-                        ),
+                        @keycap("Esc")
+                        --
+                        @text("to resume", Face::Sans, 13.0, palette::TEXT_DIM)
                     ]
-                ),
-                (
-                    panel()
-                    Node { width: px(400), row_gap: px(6) }
-                    Children [
-                        text("Controls", Face::Strong, 18.0, palette::TEXT),
-                        {controls()},
-                    ]
-                ),
+                ]
+                --
+                @panel()
+                Node { width: px(400), row_gap: px(6) }
+                Children [
+                    @text("Controls", Face::Strong, 18.0, palette::TEXT)
+                    --
+                    {controls()}
+                ]
             ]
-        )]
+        ]
     }
 }
 
@@ -112,7 +105,7 @@ fn showcase_page(world: Option<SessionWorld>) -> impl Scene {
         .filter(|(_, showcase)| world.is_none_or(|world| world.0.shaper == showcase.shaper))
         .map(|(index, showcase)| -> Box<dyn Scene> {
             Box::new(bsn! {
-                button(showcase.name, ButtonTone::Normal)
+                @button(showcase.name, ButtonTone::Normal)
                 on(move |_: On<Activate>, mut commands: Commands, mut next: ResMut<NextState<InGameState>>| {
                     commands.trigger(ApplyShowcase(index));
                     next.set(InGameState::Playing);
@@ -131,26 +124,24 @@ fn showcase_page(world: Option<SessionWorld>) -> impl Scene {
 
     bsn! {
         PauseMenuRoot
-        docked()
+        @docked()
         TabGroup
-        Children [(
-            panel()
+        Children [
+            @panel()
             Node { width: px(280), padding: UiRect::all(px(28)), row_gap: px(10) }
             Children [
-                (
-                    text("Showcase", Face::Strong, 24.0, palette::TEXT)
-                    Node { margin: UiRect::bottom(px(10)) }
-                ),
-                {scenes},
-                (
-                    button("Back", ButtonTone::Quiet)
-                    Node { margin: UiRect::top(px(8)) }
-                    on(|_: On<Activate>, mut commands: Commands, page: Single<Entity, With<PauseMenuRoot>>| {
-                        show_page(&mut commands, Some(*page), pause_menu());
-                    })
-                ),
+                @text("Showcase", Face::Strong, 24.0, palette::TEXT)
+                Node { margin: UiRect::bottom(px(10)) }
+                --
+                {scenes}
+                --
+                @button("Back", ButtonTone::Quiet)
+                Node { margin: UiRect::top(px(8)) }
+                on(|_: On<Activate>, mut commands: Commands, page: Single<Entity, With<PauseMenuRoot>>| {
+                    show_page(&mut commands, Some(*page), pause_menu());
+                })
             ]
-        )]
+        ]
     }
 }
 
@@ -213,7 +204,7 @@ fn controls() -> Vec<Box<dyn Scene>> {
 
 fn section(title: &str) -> Box<dyn Scene> {
     Box::new(bsn! {
-        caption(title)
+        @caption(title)
         Node { margin: UiRect { top: px(10), bottom: px(2) } }
     })
 }
@@ -226,8 +217,9 @@ fn row(label: &str, keys: Box<dyn Scene>) -> Box<dyn Scene> {
             min_height: px(26),
         }
         Children [
-            text(label, Face::Sans, 14.0, palette::TEXT),
-            ({keys}),
+            @text(label, Face::Sans, 14.0, palette::TEXT)
+            --
+            @keys
         ]
     })
 }

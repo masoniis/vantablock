@@ -1,5 +1,5 @@
 import super::bindings::{camera, objects, VertexInput};
-import package::world::lib::wireframe_vertex::{WireframeVertex};
+import super::super::super::lib::wireframe_vertex::{WireframeVertex};
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,

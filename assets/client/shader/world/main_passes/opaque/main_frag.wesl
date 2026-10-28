@@ -1,10 +1,10 @@
-import package::world::main_passes::lib::geometry_bindings::{
+import super::super::lib::geometry_bindings::{
   texture_array, texture_sampler, camera, environment, shadow_camera, shadow_map, shadow_sampler
 };
-import package::world::main_passes::lib::environment_uniform::{
+import super::super::lib::environment_uniform::{
   calculate_sky_color
 };
-import package::world::shadow::lib::calculate_shadow::{calculate_shadow_from_world};
+import super::super::super::shadow::lib::calculate_shadow::{calculate_shadow_from_world};
 
 @fragment
 fn fs_main(

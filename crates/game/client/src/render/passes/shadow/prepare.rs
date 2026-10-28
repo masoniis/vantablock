@@ -4,9 +4,10 @@ use crate::render::passes::opaque::queue::Opaque3dRenderPhase;
 use crate::render::passes::shadow::gpu_resources::SHADOW_MAP_RESOLUTION;
 use crate::render::passes::shadow::gpu_resources::{ShadowViewBuffer, ShadowViewData};
 use bevy::ecs::prelude::*;
-use bevy::math::Vec4Swizzles;
+use bevy::math::{Vec4Swizzles, proj};
 use bevy::render::renderer::RenderQueue;
 use bevy::render::view::ExtractedView;
+use glam::camera::rh::view::look_at_mat4;
 
 /// The max distance at which shadows render
 const SHADOW_DISTANCE: f32 = 256.0;
@@ -43,7 +44,7 @@ pub fn update_shadow_view_buffer_system(
     let camera_position = extracted_view.world_from_view.translation();
     let sun_target = camera_position;
     let sun_position = sun_target + sun_direction * 1024.0; // sun is "far away" from target
-    let sun_view_mat = Mat4::look_at_rh(sun_position, sun_target, light_up);
+    let sun_view_mat = look_at_mat4(sun_position, sun_target, light_up);
 
     // camera view and inverse matrices
     let view_matrix = extracted_view.world_from_view.to_matrix().inverse();
@@ -125,7 +126,7 @@ pub fn update_shadow_view_buffer_system(
     let near_plane = -max_light_space.z;
     let far_plane = -min_light_space.z;
 
-    let light_proj_matrix = Mat4::orthographic_rh(
+    let light_proj_matrix = proj::orthographic(
         snapped_min_x,
         snapped_max_x, // left, right
         snapped_min_y,

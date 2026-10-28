@@ -1,5 +1,3 @@
-import package::world::lib::face::{unpack_face, UnpackedFace, UnpackedGeometry, unpack_face_geometry};
-
 // INFO: -----------------------
 //         lookup tables
 // -----------------------------

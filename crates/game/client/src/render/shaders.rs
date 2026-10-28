@@ -1,103 +1,158 @@
-// INFO: -------------------------------
-//         static shader handles
-// -------------------------------------
+//! The world shaders: WESL modules under `assets/client/shader/world`, which Bevy loads as assets
+//! (each entry module pulls in its `lib` imports) and composes when a pipeline is queued. Editing a
+//! module hot-reloads every pipeline that imports it when the asset watcher is on.
+//!
+//! [`compose_wgsl`] runs the same composition headlessly, so tests catch a broken shader.
 
-// opaque shader handles
-pub const OPAQUE_VERT_SHADER_HANDLE: Handle<Shader> =
-    uuid_handle!("7c4f1e9a-2b5d-4c3f-8e6a-0d2b1f9c8e7a");
-pub const OPAQUE_FRAG_SHADER_HANDLE: Handle<Shader> =
-    uuid_handle!("3e8a1d2c-5b4f-6e9a-0d7c-2b3a1f4e5d6c");
-pub const SKYBOX_VERT_SHADER_HANDLE: Handle<Shader> =
-    uuid_handle!("9b2a5d4c-8e1f-7a0c-3d6f-9b2e5a1c8d4e");
-pub const SKYBOX_FRAG_SHADER_HANDLE: Handle<Shader> =
-    uuid_handle!("2f5e8d1c-4b7a-0d9e-3f6a-2b5d1c4e7f8a");
+use bevy::{
+    asset::uuid::Uuid,
+    prelude::*,
+    render::RenderApp,
+    shader::{ShaderCache, ShaderCacheSource},
+};
+use std::path::Path;
 
-// transparent shader handles
-pub const TRANSPARENT_VERT_SHADER_HANDLE: Handle<Shader> =
-    uuid_handle!("5a1e8d7c-4b3f-2a9e-0d6c-5b2a0f1e4d7c");
-pub const TRANSPARENT_FRAG_SHADER_HANDLE: Handle<Shader> =
-    uuid_handle!("9d2c5a1b-0e7f-3a6d-4e1f-8c2b5d4a7e9f");
+/// Where the world modules live, relative to the asset root.
+pub const SHADER_ROOT: &str = "client/shader/world";
 
-// wireframe shader handles
-pub const WIREFRAME_VERT_SHADER_HANDLE: Handle<Shader> =
-    uuid_handle!("8a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d");
-pub const WIREFRAME_FRAG_SHADER_HANDLE: Handle<Shader> =
-    uuid_handle!("4d5e6f7a-8b9c-0d1e-2f3a-4b5c6d7e8f9a");
+/// An entry module of the world shaders.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum WorldShader {
+    OpaqueVert,
+    OpaqueFrag,
+    SkyboxVert,
+    SkyboxFrag,
+    TransparentVert,
+    TransparentFrag,
+    WireframeVert,
+    WireframeFrag,
+    ShadowVert,
+}
 
-// shadow shader handles
-pub const SHADOW_VERT_SHADER_HANDLE: Handle<Shader> =
-    uuid_handle!("1a7d4c8e-3b5a-0f2c-7d6e-1b9a4d8c5e3f");
+impl WorldShader {
+    pub const ALL: [Self; 9] = [
+        Self::OpaqueVert,
+        Self::OpaqueFrag,
+        Self::SkyboxVert,
+        Self::SkyboxFrag,
+        Self::TransparentVert,
+        Self::TransparentFrag,
+        Self::WireframeVert,
+        Self::WireframeFrag,
+        Self::ShadowVert,
+    ];
 
-// INFO: ---------------------------
-//         plugin definition
-// ---------------------------------
+    /// The module's asset path.
+    pub const fn path(self) -> &'static str {
+        match self {
+            Self::OpaqueVert => "client/shader/world/main_passes/opaque/main_vert.wesl",
+            Self::OpaqueFrag => "client/shader/world/main_passes/opaque/main_frag.wesl",
+            Self::SkyboxVert => "client/shader/world/main_passes/skybox/main_vert.wesl",
+            Self::SkyboxFrag => "client/shader/world/main_passes/skybox/main_frag.wesl",
+            Self::TransparentVert => "client/shader/world/main_passes/transparent/main_vert.wesl",
+            Self::TransparentFrag => "client/shader/world/main_passes/transparent/main_frag.wesl",
+            Self::WireframeVert => "client/shader/world/main_passes/wireframe/main_vert.wesl",
+            Self::WireframeFrag => "client/shader/world/main_passes/wireframe/main_frag.wesl",
+            Self::ShadowVert => "client/shader/world/shadow/main_vert.wesl",
+        }
+    }
+}
 
-use bevy::asset::uuid_handle;
-use bevy::prelude::*;
-use wesl_core::include_wesl;
+/// Strong handles to every entry module, so they and their imports stay loaded (and hot-reload)
+/// for the renderer's lifetime. Lives in the render world, where the pipelines are queued.
+#[derive(Resource)]
+pub struct WorldShaders([Handle<Shader>; WorldShader::ALL.len()]);
 
-/// A plugin that registers all the WESL shaders needed for rendering
+impl WorldShaders {
+    pub fn load(assets: &AssetServer) -> Self {
+        Self(WorldShader::ALL.map(|shader| assets.load(shader.path())))
+    }
+
+    pub fn get(&self, shader: WorldShader) -> Handle<Shader> {
+        self.0[shader as usize].clone()
+    }
+}
+
+/// A plugin that loads the world shaders for the render world's pipelines.
 pub struct VantablockShaderPlugin;
 
 impl Plugin for VantablockShaderPlugin {
     fn build(&self, app: &mut App) {
-        let mut shaders = app.world_mut().resource_mut::<Assets<Shader>>();
+        // loaded at build time, so the handles exist before any pipeline is built in `finish`
+        let shaders = WorldShaders::load(app.world().resource::<AssetServer>());
+        if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
+            render_app.insert_resource(shaders);
+        }
+    }
+}
 
-        // INFO: -------------------------
-        //         opaque & skybox
-        // -------------------------------
+/// Composes `shader` into WGSL the way the pipeline cache does, reading every world module from
+/// `assets_dir` (the repository's `assets` in tests).
+pub fn compose_wgsl(assets_dir: &Path, shader: WorldShader) -> Result<String, String> {
+    let mut cache = ShaderCache::<String, ()>::new((), |_, source, _| match source {
+        ShaderCacheSource::Wgsl(wgsl) => Ok(wgsl),
+        ShaderCacheSource::SpirV(_) => unreachable!("the world shaders are WESL"),
+    });
+    let mut modules = vec![assets_dir.join(SHADER_ROOT)];
+    let mut entry = None;
+    let mut next_id = 1u128;
+    while let Some(path) = modules.pop() {
+        let entries = std::fs::read_dir(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+        for file in entries {
+            let file = file.map_err(|e| e.to_string())?.path();
+            if file.is_dir() {
+                modules.push(file);
+                continue;
+            }
+            if file.extension().is_none_or(|ext| ext != "wesl") {
+                continue;
+            }
+            let source = std::fs::read_to_string(&file).map_err(|e| e.to_string())?;
+            let asset_path = file
+                .strip_prefix(assets_dir)
+                .map_err(|e| e.to_string())?
+                .to_string_lossy()
+                .replace('\\', "/");
+            let id = AssetId::Uuid {
+                uuid: Uuid::from_u128(next_id),
+            };
+            next_id += 1;
+            if asset_path == shader.path() {
+                entry = Some(id);
+            }
+            cache.set_shader(id, Shader::from_wesl(source, asset_path));
+        }
+    }
+    let entry = entry.ok_or_else(|| format!("{} not found", shader.path()))?;
+    cache
+        .get(0, entry, &[])
+        .map(|wgsl| (*wgsl).clone())
+        .map_err(|e| e.to_string())
+}
 
-        let _ = shaders.insert(
-            &OPAQUE_VERT_SHADER_HANDLE,
-            Shader::from_wgsl(include_wesl!("opaque_vert"), "opaque_vert.wesl"),
-        );
-        let _ = shaders.insert(
-            &OPAQUE_FRAG_SHADER_HANDLE,
-            Shader::from_wgsl(include_wesl!("opaque_frag"), "opaque_frag.wesl"),
-        );
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-        let _ = shaders.insert(
-            &SKYBOX_VERT_SHADER_HANDLE,
-            Shader::from_wgsl(include_wesl!("skybox_vert"), "skybox_vert.wesl"),
-        );
-        let _ = shaders.insert(
-            &SKYBOX_FRAG_SHADER_HANDLE,
-            Shader::from_wgsl(include_wesl!("skybox_frag"), "skybox_frag.wesl"),
-        );
-
-        // INFO: ---------------------
-        //         transparent
-        // ---------------------------
-
-        let _ = shaders.insert(
-            &TRANSPARENT_VERT_SHADER_HANDLE,
-            Shader::from_wgsl(include_wesl!("transparent_vert"), "transparent_vert.wesl"),
-        );
-        let _ = shaders.insert(
-            &TRANSPARENT_FRAG_SHADER_HANDLE,
-            Shader::from_wgsl(include_wesl!("transparent_frag"), "transparent_frag.wesl"),
-        );
-
-        // INFO: -------------------
-        //         wireframe
-        // -------------------------
-
-        let _ = shaders.insert(
-            &WIREFRAME_VERT_SHADER_HANDLE,
-            Shader::from_wgsl(include_wesl!("wireframe_vert"), "wireframe_vert.wesl"),
-        );
-        let _ = shaders.insert(
-            &WIREFRAME_FRAG_SHADER_HANDLE,
-            Shader::from_wgsl(include_wesl!("wireframe_frag"), "wireframe_frag.wesl"),
-        );
-
-        // INFO: ----------------
-        //         shadow
-        // ----------------------
-
-        let _ = shaders.insert(
-            &SHADOW_VERT_SHADER_HANDLE,
-            Shader::from_wgsl(include_wesl!("shadow_vert"), "shadow_vert.wesl"),
-        );
+    /// Every entry module composes and passes naga validation, so a broken shader fails the
+    /// tests instead of only the running game.
+    #[test]
+    fn every_world_shader_composes_and_validates() {
+        let assets = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../assets");
+        for shader in WorldShader::ALL {
+            let wgsl = compose_wgsl(&assets, shader)
+                .unwrap_or_else(|e| panic!("failed to compose {shader:?}:\n{e}"));
+            let module = naga::front::wgsl::parse_str(&wgsl).unwrap_or_else(|e| {
+                panic!("failed to parse {shader:?}:\n{}", e.emit_to_string(&wgsl))
+            });
+            naga::valid::Validator::new(
+                naga::valid::ValidationFlags::all(),
+                naga::valid::Capabilities::all(),
+            )
+            .validate(&module)
+            .unwrap_or_else(|e| {
+                panic!("{shader:?} failed validation:\n{}", e.emit_to_string(&wgsl))
+            });
+        }
     }
 }

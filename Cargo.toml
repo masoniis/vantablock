@@ -74,18 +74,18 @@ tracy-client = "=0.18.5"
 tracing-tracy = "=0.11.4"
 
 # graphics deps
-wesl = { version = "0.6.0", features = ["naga-ext"] }                                                               # shader compliation from WESL to WGSL
-wesl-core = "0.1.0"  # include_wesl! for the compiled shaders
 offset-allocator = "0.2.0"                                                   # gpu buffer allocation
 bytemuck = { version = "1.25", features = ["derive"] }                       # gpu friendly data
+glam = "0.33"                                                                # glam's camera functions (bevy re-exports only the projections)
 image = { version = "0.25.6", default-features = false, features = ["png"] }
 
 # game dependencies
-bevy = { version = "0.19.1", default-features = false, features = [
+bevy = { version = "0.20.0", default-features = false, features = [
   "bevy_state",
+  "bevy_curve", # Ease/Curve, which the replicated player state implements for interpolation
 ] }
-leafwing-input-manager = "0.21.0"
-lightyear = { version = "0.30.1", default-features = false, features = [
+leafwing-input-manager = "0.22.0"
+lightyear = { version = "0.31.0", default-features = false, features = [
   "replication", # allows replicating components between server and client
   "leafwing",    # leafwing input support with built-in rollback
   "crossbeam",   # enables crossbeam as an IO layer (for client as the host on same machine)
@@ -94,7 +94,7 @@ lightyear = { version = "0.30.1", default-features = false, features = [
 ] }
 
 # development tooling
-bevy_brp_extras = "0.22.10" # remote protocol (BRP) methods for agent-driven testing, pinned to bevy 0.19
+bevy_brp_extras = "0.23.0" # remote protocol (BRP) methods for agent-driven testing, pinned to bevy 0.20
 
 # general utilities
 futures-lite = "2.6.1" # future utils

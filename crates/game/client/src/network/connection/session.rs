@@ -8,7 +8,7 @@ use lightyear::prelude::{
 };
 
 pub fn handle_connections(
-    trigger: On<Add, Connected>,
+    trigger: On<Add<Connected>>,
     mut next_in_game_state: ResMut<NextState<InGameState>>,
 ) {
     let server_entity = trigger.entity;

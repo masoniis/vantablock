@@ -1,8 +1,12 @@
-use crate::render::shaders::{SKYBOX_FRAG_SHADER_HANDLE, SKYBOX_VERT_SHADER_HANDLE};
 use crate::render::{
-    environment::EnvironmentBindGroupLayout, view::CentralCameraViewBindGroupLayout,
+    environment::EnvironmentBindGroupLayout,
+    shaders::{WorldShader, WorldShaders},
+    view::CentralCameraViewBindGroupLayout,
 };
-use bevy::{core_pipeline::core_3d, ecs::prelude::*, render::render_resource::*};
+use bevy::{
+    asset::Handle, core_pipeline::core_3d, ecs::prelude::*, render::render_resource::*,
+    shader::Shader,
+};
 use tracing::instrument;
 
 /// A key that uniquely identifies a specialized skybox pipeline.
@@ -17,6 +21,8 @@ pub struct OpaqueSkyboxPipelineKey {
 pub struct OpaqueSkyboxPipeline {
     pub view_layout: BindGroupLayoutDescriptor,
     pub environment_layout: BindGroupLayoutDescriptor,
+    pub vertex_shader: Handle<Shader>,
+    pub fragment_shader: Handle<Shader>,
 }
 
 impl FromWorld for OpaqueSkyboxPipeline {
@@ -24,10 +30,13 @@ impl FromWorld for OpaqueSkyboxPipeline {
     fn from_world(world: &mut World) -> Self {
         let view_layout = world.resource::<CentralCameraViewBindGroupLayout>();
         let environment_layout = world.resource::<EnvironmentBindGroupLayout>();
+        let shaders = world.resource::<WorldShaders>();
 
         Self {
             view_layout: view_layout.descriptor.clone(),
             environment_layout: environment_layout.descriptor.clone(),
+            vertex_shader: shaders.get(WorldShader::SkyboxVert),
+            fragment_shader: shaders.get(WorldShader::SkyboxFrag),
         }
     }
 }
@@ -61,14 +70,16 @@ impl SpecializedRenderPipeline for OpaqueSkyboxPipeline {
             layout: vec![self.view_layout.clone(), self.environment_layout.clone()],
             immediate_size: 0,
             vertex: VertexState {
-                shader: SKYBOX_VERT_SHADER_HANDLE,
+                shader: self.vertex_shader.clone(),
                 shader_defs: vec![],
+                constants: vec![],
                 entry_point: Some("vs_main".into()),
                 buffers: vec![],
             },
             fragment: Some(FragmentState {
-                shader: SKYBOX_FRAG_SHADER_HANDLE,
+                shader: self.fragment_shader.clone(),
                 shader_defs: vec![],
+                constants: vec![],
                 entry_point: Some("fs_main".into()),
                 targets: fragment_target.to_vec(),
             }),

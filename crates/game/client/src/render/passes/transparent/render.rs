@@ -15,14 +15,18 @@ use bevy::{
         StoreOp,
     },
     render::renderer::{RenderContext, ViewQuery},
-    render::view::{ViewDepthTexture, ViewTarget},
+    render::view::{ViewDepthStencilTexture, ViewTarget},
 };
 
 /// Draws the transparent meshes. Runs in the `Core3d` schedule of every view that has a
 /// transparent phase.
 #[instrument(skip_all, name = "transparent_render_pass")]
 pub fn transparent_pass(
-    view: ViewQuery<(&ViewTarget, &Transparent3dRenderPhase, &ViewDepthTexture)>,
+    view: ViewQuery<(
+        &ViewTarget,
+        &Transparent3dRenderPhase,
+        &ViewDepthStencilTexture,
+    )>,
     mesh_storage: Option<Res<RenderMeshStorageResource>>,
     view_buffer: Option<Res<CentralCameraViewUniform>>,
     material_bind_group: Option<Res<TextureArrayUniforms>>,
@@ -74,7 +78,7 @@ pub fn transparent_pass(
                 label: Some("Transparent Pass"),
                 color_attachments: &[Some(view_target.get_color_attachment())],
                 depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
-                    view: depth_texture.view(),
+                    view: &depth_texture.attachment.texture.default_view,
                     depth_ops: Some(Operations {
                         load: LoadOp::Load,
                         store: StoreOp::Store,

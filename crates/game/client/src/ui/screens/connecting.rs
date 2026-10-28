@@ -20,8 +20,8 @@ fn spawn_connecting_ui(mut commands: Commands) {
     commands
         .spawn_scene(bsn! {
             ConnectingUiRoot
-            backdrop()
-            Children [ status_card("Connecting", "Establishing connection") ]
+            @backdrop()
+            Children [ @status_card("Connecting", "Establishing connection") ]
         })
         .insert(DespawnOnExit(InGameState::Connecting));
 }
