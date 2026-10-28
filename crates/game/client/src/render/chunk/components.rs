@@ -25,3 +25,16 @@ impl TransparentMeshComponent {
         Self { mesh_handle }
     }
 }
+
+/// Where a chunk is in the meshing lifecycle. The scheduler adds it (as `Queued`) when a loaded
+/// chunk is within render distance and removes it if the chunk leaves while still queued; a
+/// chunk without it is not wanted for meshing.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ChunkMesh {
+    /// Waiting for a task slot and for all 26 neighbours to have data.
+    Queued,
+    /// A meshing task is in flight.
+    Meshing,
+    /// Its current meshes are attached (or it has nothing visible).
+    Meshed,
+}

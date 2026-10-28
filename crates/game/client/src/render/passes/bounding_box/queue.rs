@@ -1,6 +1,6 @@
 use crate::player::TargetedBlock;
 use crate::{
-    input::systems::toggle_chunk_borders::ChunkBoundsToggle,
+    debug::chunk_borders::ChunkBoundsToggle,
     prelude::*,
     render::passes::bounding_box::gpu_resources::{
         WireframeObjectBuffer, WireframeObjectData, object_binding::WireframeObjectBindGroupLayout,

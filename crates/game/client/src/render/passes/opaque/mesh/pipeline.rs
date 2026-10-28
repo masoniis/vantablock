@@ -1,12 +1,12 @@
 use crate::{
-    input::systems::toggle_opaque_wireframe::OpaqueRenderMode,
+    debug::wireframe::OpaqueRenderMode,
     prelude::*,
     render::{
-        resources::{
-            CentralCameraViewBindGroupLayout, EnvironmentBindGroupLayout,
-            TextureArrayBindGroupLayout, world_uniforms::ChunkStorageBindGroupLayout,
-        },
+        chunk::ChunkStorageBindGroupLayout,
+        environment::EnvironmentBindGroupLayout,
         shaders::{OPAQUE_FRAG_SHADER_HANDLE, OPAQUE_VERT_SHADER_HANDLE},
+        texture::TextureArrayBindGroupLayout,
+        view::CentralCameraViewBindGroupLayout,
     },
 };
 use bevy::{

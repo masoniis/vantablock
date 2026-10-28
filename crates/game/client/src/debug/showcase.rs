@@ -3,15 +3,11 @@
 //! page, which triggers [`ApplyShowcase`].
 
 use crate::{
-    network::OutboundTeleportMessage,
+    network::{OutboundSetTimeOfDayMessage, OutboundTeleportMessage},
     player::{LocalPlayer, LocalPlayerLook},
 };
 use bevy::prelude::*;
-use common::{
-    time::{SECONDS_IN_A_DAY, WorldClockResource},
-    world::terrain::TerrainShaperKind,
-};
-use std::time::Duration;
+use common::world::terrain::TerrainShaperKind;
 
 pub struct Showcase {
     pub name: &'static str,
@@ -97,13 +93,13 @@ impl Plugin for ShowcasePlugin {
     }
 }
 
-/// Asks the server to move the player (its position is predicted, so only the server may set
-/// it), and sets the look and the client's world clock directly.
+/// Asks the server to move the player and set the time of day (both are authoritative on the
+/// server), and sets the look directly.
 fn apply_showcase(
     trigger: On<ApplyShowcase>,
     mut teleports: MessageWriter<OutboundTeleportMessage>,
+    mut times: MessageWriter<OutboundSetTimeOfDayMessage>,
     mut look: Query<&mut LocalPlayerLook, With<LocalPlayer>>,
-    mut world_clock: ResMut<WorldClockResource>,
 ) {
     let Some(showcase) = SHOWCASES.get(trigger.event().0) else {
         return;
@@ -121,5 +117,7 @@ fn apply_showcase(
         look.pitch = showcase.pitch.to_radians();
     }
 
-    world_clock.time_of_day = Duration::from_secs_f32(SECONDS_IN_A_DAY * showcase.time_of_day);
+    times.write(OutboundSetTimeOfDayMessage {
+        fraction: showcase.time_of_day,
+    });
 }

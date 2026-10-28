@@ -1,7 +1,6 @@
 use crate::prelude::*;
-use crate::render::resources::world_uniforms::ChunkStorageManager;
 use crate::render::{
-    data::RenderMeshStorageResource,
+    chunk::{ChunkGpuStorage, RenderMeshStorageResource},
     passes::opaque::{extract::OpaqueRenderMeshComponent, queue::Opaque3dRenderPhase},
     passes::shadow::gpu_resources::{
         ShadowDepthTextureResource, ShadowPassPipeline, ShadowViewBuffer,
@@ -23,7 +22,7 @@ pub fn shadow_pass(
     shadow_view_buffer: Option<Res<ShadowViewBuffer>>,
     shadow_depth_texture: Option<Res<ShadowDepthTextureResource>>,
     mesh_storage: Option<Res<RenderMeshStorageResource>>,
-    chunk_memory_manager: Option<Res<ChunkStorageManager>>,
+    gpu_storage: Option<Res<ChunkGpuStorage>>,
     pipeline_cache: Res<PipelineCache>,
     render_meshes: Query<&OpaqueRenderMeshComponent>,
     mut render_context: RenderContext,
@@ -34,13 +33,13 @@ pub fn shadow_pass(
         Some(shadow_view_buffer),
         Some(shadow_depth_texture),
         Some(mesh_storage),
-        Some(chunk_memory_manager),
+        Some(gpu_storage),
     ) = (
         pipeline_res,
         shadow_view_buffer,
         shadow_depth_texture,
         mesh_storage,
-        chunk_memory_manager,
+        gpu_storage,
     )
     else {
         return;
@@ -72,7 +71,7 @@ pub fn shadow_pass(
 
     render_pass.set_pipeline(pipeline.unwrap());
     render_pass.set_bind_group(0, &shadow_view_buffer.bind_group, &[]);
-    render_pass.set_bind_group(1, &chunk_memory_manager.bind_group, &[]);
+    render_pass.set_bind_group(1, &gpu_storage.bind_group, &[]);
 
     // iterate directly over the phase passed into the method
     for item in opaque_phase.items.iter() {

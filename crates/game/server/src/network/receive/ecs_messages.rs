@@ -31,3 +31,9 @@ pub struct InboundTeleportMessage {
     pub player: Entity,
     pub position: Vec3,
 }
+
+#[derive(Message, Clone)]
+pub struct InboundSetTimeOfDayMessage {
+    pub player: Entity,
+    pub fraction: f32,
+}

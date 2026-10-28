@@ -5,7 +5,7 @@ use lightyear::prelude::MessageSender;
 use server::network::receive::ecs_messages::InboundRequestChunkMessage;
 use server::network::types::ClientConnection;
 use server::world::chunk::chunk_map::ChunkMap;
-use server::world::chunk::components::{ActiveChunk, ModifiedChunk};
+use server::world::chunk::components::{ActiveChunk, ModifiedChunk, NeedsGenerating};
 use server::world::chunk::loading::{
     ClientChunkTracker, queue_client_chunk_requests_system, sync_chunk_data_to_clients_system,
     unload_distant_chunks_system,
@@ -128,6 +128,33 @@ fn test_requested_chunk_waits_for_generation() {
     assert!(
         server.pending().is_empty(),
         "chunk should be sent once generated"
+    );
+}
+
+/// Regression: the server only generated chunks around its own view of the player, so a
+/// requested chunk just outside that ring (the client's camera can sit in a different chunk)
+/// stayed pending forever, and its neighbors never meshed.
+#[test]
+fn test_requested_chunk_outside_generation_ring_is_generated() {
+    let mut server = TestServer::new();
+    let coord = IVec3::new(common::world::chunk::LOAD_DISTANCE + 1, 0, 0);
+
+    server.request(coord);
+    server.app.update();
+
+    assert!(server.pending().contains(&coord));
+    let entity = server
+        .app
+        .world()
+        .resource::<ChunkMap>()
+        .get_chunk(coord)
+        .expect("requested chunk should be registered for generation");
+    assert!(
+        server
+            .app
+            .world()
+            .entity(entity)
+            .contains::<NeedsGenerating>()
     );
 }
 

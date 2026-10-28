@@ -4,12 +4,14 @@ use std::time::Duration;
 
 /// Number of seconds it takes for a day/night cycle to complete
 pub const SECONDS_IN_A_DAY: f32 = 600.0;
-/// number of seconds to jump when using jump forward/backward commands
-#[allow(dead_code)]
-const JUMP_CLOCK_DISTANCE: f32 = 30.0;
+/// Number of seconds the time-jump keys move the clock by.
+pub const JUMP_CLOCK_DISTANCE: f32 = 30.0;
 
 /// A resource that tracks the in-game date and time.
-#[derive(Resource, Debug)]
+///
+/// The server's clock is authoritative: clients run their own copy between syncs and snap it to
+/// every `ServerMessage::SyncTime`.
+#[derive(Resource, Debug, Clone, Copy, PartialEq)]
 pub struct WorldClockResource {
     /// The total number of full days that have passed since the world began.
     pub total_days: u64,
@@ -17,6 +19,8 @@ pub struct WorldClockResource {
     pub time_of_day: Duration,
     /// The duration of a full in-game day.
     pub day_duration: Duration,
+    /// Whether the clock is stopped.
+    pub paused: bool,
 }
 
 impl Default for WorldClockResource {
@@ -25,6 +29,7 @@ impl Default for WorldClockResource {
             total_days: 0,
             time_of_day: Duration::from_secs_f32(SECONDS_IN_A_DAY * 0.70),
             day_duration: Duration::from_secs_f32(SECONDS_IN_A_DAY),
+            paused: false,
         }
     }
 }
@@ -33,6 +38,23 @@ impl WorldClockResource {
     /// Returns the current time of day as a value from 0.0 (midnight) to 1.0 (next midnight).
     pub fn day_night_cycle_value(&self) -> f32 {
         self.time_of_day.as_secs_f32() / SECONDS_IN_A_DAY
+    }
+
+    /// Moves the clock by `seconds` (negative goes back), rolling over into the next or previous
+    /// day. It never goes before the start of day zero.
+    pub fn jump(&mut self, seconds: f32) {
+        // f64 so per-tick advances stay exact deep into a long-running world
+        let day = self.day_duration.as_secs_f64();
+        let total =
+            (self.total_days as f64 * day + self.time_of_day.as_secs_f64() + seconds as f64)
+                .max(0.0);
+        self.total_days = (total / day).floor() as u64;
+        self.time_of_day = Duration::from_secs_f64(total.rem_euclid(day));
+    }
+
+    /// Sets the time within the current day, as a fraction from 0.0 (midnight) to 1.0.
+    pub fn set_time_of_day(&mut self, fraction: f32) {
+        self.time_of_day = self.day_duration.mul_f32(fraction.rem_euclid(1.0));
     }
 }
 
@@ -48,52 +70,35 @@ pub fn update_world_clock_system(
     // Output
     mut world_clock: ResMut<WorldClockResource>,
 ) {
-    world_clock.time_of_day += time.delta();
-
-    if world_clock.time_of_day >= world_clock.day_duration {
-        let day_dur = world_clock.day_duration;
-        world_clock.time_of_day -= day_dur;
-        world_clock.total_days += 1;
+    if world_clock.paused {
+        return;
     }
+    let delta = time.delta_secs();
+    world_clock.jump(delta);
 }
 
-/// A system that jumps the in game world clock forward
-///
-/// Should run before update_world_clock_system
-#[instrument(skip_all)]
-#[allow(dead_code)]
-pub fn jump_world_clock_forward_system(
-    // Output
-    mut world_clock: ResMut<WorldClockResource>,
-) {
-    world_clock.time_of_day += Duration::from_secs_f32(JUMP_CLOCK_DISTANCE);
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    if world_clock.time_of_day >= world_clock.day_duration {
-        let day_dur = world_clock.day_duration;
-        world_clock.time_of_day -= day_dur;
-        world_clock.total_days += 1;
-    }
-}
+    #[test]
+    fn jumps_roll_over_days_both_ways() {
+        let mut clock = WorldClockResource {
+            total_days: 1,
+            time_of_day: Duration::from_secs(10),
+            ..Default::default()
+        };
 
-/// A system that jumps the in game world clock backwards
-///
-/// Should run before update_world_clock_system
-#[instrument(skip_all)]
-#[allow(dead_code)]
-pub fn jump_world_clock_backwards_system(
-    // Output
-    mut world_clock: ResMut<WorldClockResource>,
-) {
-    let jump_dist = Duration::from_secs_f32(JUMP_CLOCK_DISTANCE);
+        clock.jump(-30.0);
+        assert_eq!(clock.total_days, 0);
+        assert!((clock.time_of_day.as_secs_f32() - (SECONDS_IN_A_DAY - 20.0)).abs() < 0.01);
 
-    // subtract 30 seconds, wrapping day if needed
-    if let Some(new_time) = world_clock.time_of_day.checked_sub(jump_dist) {
-        world_clock.time_of_day = new_time;
-    } else if world_clock.total_days > 0 {
-        world_clock.total_days -= 1;
-        let underflow_by = jump_dist - world_clock.time_of_day;
-        world_clock.time_of_day = world_clock.day_duration - underflow_by;
-    } else {
-        world_clock.time_of_day = Duration::ZERO;
+        clock.jump(40.0);
+        assert_eq!(clock.total_days, 1);
+        assert!((clock.time_of_day.as_secs_f32() - 20.0).abs() < 0.01);
+
+        // never before the start of day zero
+        clock.jump(-10_000.0);
+        assert_eq!((clock.total_days, clock.time_of_day), (0, Duration::ZERO));
     }
 }

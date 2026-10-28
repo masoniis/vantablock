@@ -4,8 +4,9 @@
 use crate::{
     input::local_actions::ClientAction,
     player::LocalPlayer,
+    render::chunk::ChunkMesh,
     ui::theme::{Face, font, palette},
-    world::chunk::{ClientChunkManager, ClientChunkState},
+    world::chunk::{ClientChunkMap, ClientChunkState},
 };
 use bevy::{
     diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
@@ -42,9 +43,9 @@ pub struct DebugMenuState {
     pub visible: bool,
 }
 
-pub struct DebugMenuPlugin;
+pub struct DebugOverlayPlugin;
 
-impl Plugin for DebugMenuPlugin {
+impl Plugin for DebugOverlayPlugin {
     fn build(&self, app: &mut App) {
         if !app.is_plugin_added::<FrameTimeDiagnosticsPlugin>() {
             app.add_plugins(FrameTimeDiagnosticsPlugin::default());
@@ -151,7 +152,8 @@ fn grade(value: f64, good: f64, bad: f64) -> Color {
 fn update_debug_menu_system(
     diagnostics: Res<DiagnosticsStore>,
     player_query: Query<(&LogicalPosition, &ChunkCoord, &PlayerLook), With<LocalPlayer>>,
-    chunk_manager: Res<ClientChunkManager>,
+    chunk_map: Res<ClientChunkMap>,
+    chunk_meshes: Query<&ChunkMesh>,
     mut columns: Query<(Entity, &mut DebugColumn)>,
     mut writer: TextUiWriter,
     children: Query<&Children>,
@@ -208,20 +210,24 @@ fn update_debug_menu_system(
     }
 
     // INFO: world and chunk state, right
-    let (mut meshing, mut needs_meshing, mut awaiting) = (0, 0, 0);
-    for state in chunk_manager.chunk_states.values() {
-        match state {
-            ClientChunkState::Meshing { .. } => meshing += 1,
-            ClientChunkState::NeedsMeshing { .. } => needs_meshing += 1,
-            ClientChunkState::AwaitingData => awaiting += 1,
-            _ => {}
+    let awaiting = chunk_map
+        .chunk_states
+        .values()
+        .filter(|state| **state == ClientChunkState::AwaitingData)
+        .count();
+    let (mut meshing, mut needs_meshing) = (0, 0);
+    for mesh in &chunk_meshes {
+        match mesh {
+            ChunkMesh::Meshing => meshing += 1,
+            ChunkMesh::Queued => needs_meshing += 1,
+            ChunkMesh::Meshed => {}
         }
     }
 
     let right = vec![
         Line::default()
             .label("Chunks loaded")
-            .value(chunk_manager.chunk_states.len().to_string()),
+            .value(chunk_map.chunk_states.len().to_string()),
         Line::default()
             .label("Render distance")
             .value(RENDER_DISTANCE.to_string()),

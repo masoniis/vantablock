@@ -12,7 +12,7 @@
 
 mod block_actions;
 mod ecs_messages;
-mod teleport;
+mod showcase;
 
 pub use ecs_messages::*;
 
@@ -29,16 +29,17 @@ impl Plugin for NetworkSendPlugin {
         app.add_message::<OutboundBreakBlockMessage>();
         app.add_message::<OutboundPlaceBlockMessage>();
         app.add_message::<OutboundTeleportMessage>();
+        app.add_message::<OutboundSetTimeOfDayMessage>();
 
         app.add_systems(
             Update,
             (
                 send_block_action_messages_system,
-                send_teleport_messages_system,
+                send_showcase_messages_system,
             ),
         );
     }
 }
 
 pub use block_actions::send_block_action_messages_system;
-pub use teleport::send_teleport_messages_system;
+pub use showcase::send_showcase_messages_system;

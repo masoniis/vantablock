@@ -16,6 +16,7 @@ pub fn translate_client_network_messages(
     mut ev_break_block: MessageWriter<InboundBreakBlockMessage>,
     mut ev_place_block: MessageWriter<InboundPlaceBlockMessage>,
     mut ev_teleport: MessageWriter<InboundTeleportMessage>,
+    mut ev_set_time: MessageWriter<InboundSetTimeOfDayMessage>,
 ) {
     for (player, mut receiver) in query.iter_mut() {
         for message in receiver.receive() {
@@ -38,9 +39,8 @@ pub fn translate_client_network_messages(
                 ClientMessage::Teleport { position } => {
                     ev_teleport.write(InboundTeleportMessage { player, position });
                 }
-                ClientMessage::RequestTimeJump { amount: _ } => {
-                    // TODO: implement time jump handling
-                    warn!("RequestTimeJump received but not yet implemented");
+                ClientMessage::SetTimeOfDay { fraction } => {
+                    ev_set_time.write(InboundSetTimeOfDayMessage { player, fraction });
                 }
             }
         }

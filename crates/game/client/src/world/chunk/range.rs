@@ -1,29 +1,39 @@
-use bevy::{ecs::prelude::*, math::IVec3, prelude::*};
+use bevy::{ecs::prelude::*, math::IVec3};
 use common::world::chunk::{ChunkCoord, WORLD_MAX_Y_CHUNK, WORLD_MIN_Y_CHUNK};
 
-/// The cameras chunk streaming and meshing are centered on.
-pub type ChunkCameraQuery<'w, 's> =
-    Query<'w, 's, (&'static Camera, &'static ChunkCoord), With<Camera3d>>;
+/// Marks the entity chunk streaming and meshing are centered on: the local player.
+///
+/// The player's `ChunkCoord` follows its predicted `LogicalPosition`, the same position the
+/// server streams around. (The camera's follows its `GlobalTransform`, which is still zero on
+/// the first frame and would request chunks around the origin.)
+#[derive(Component, Default, Clone, Copy)]
+pub struct ChunkStreamingAnchor;
 
-/// The chunk coordinate of the active 3D camera, if there is one.
-pub fn active_camera_chunk(camera_query: &ChunkCameraQuery) -> Option<IVec3> {
-    camera_query
-        .iter()
-        .find(|(camera, _)| camera.is_active)
-        .map(|(_, coord)| coord.pos)
+/// The anchor of chunk streaming and meshing.
+pub type StreamingAnchorQuery<'w, 's> =
+    Query<'w, 's, &'static ChunkCoord, With<ChunkStreamingAnchor>>;
+
+/// The chunk the streaming anchor is in, if there is one (there is none outside a session).
+pub fn streaming_center(anchor: &StreamingAnchorQuery) -> Option<IVec3> {
+    anchor.single().ok().map(|coord| coord.pos)
 }
 
-/// Run condition: the active 3D camera moved into a different chunk this frame.
-pub fn active_camera_changed_chunk(
-    camera_query: Query<(&Camera, &ChunkCoord), (With<Camera3d>, Changed<ChunkCoord>)>,
+/// Run condition: the streaming anchor moved into a different chunk (or just appeared).
+pub fn streaming_anchor_changed_chunk(
+    anchor: Query<(), (With<ChunkStreamingAnchor>, Changed<ChunkCoord>)>,
 ) -> bool {
-    camera_query.iter().any(|(camera, _)| camera.is_active)
+    !anchor.is_empty()
+}
+
+/// Whether a chunk coordinate is inside the world's vertical bounds.
+pub fn is_in_bounds(coord: IVec3) -> bool {
+    (WORLD_MIN_Y_CHUNK..=WORLD_MAX_Y_CHUNK).contains(&coord.y)
 }
 
 /// Whether `coord` is inside the world's vertical bounds and within `radius` chunks of
 /// `center` horizontally (chebyshev distance, matching the square loaded area).
 pub fn is_within_horizontal_range(center: IVec3, coord: IVec3, radius: i32) -> bool {
-    (WORLD_MIN_Y_CHUNK..=WORLD_MAX_Y_CHUNK).contains(&coord.y)
+    is_in_bounds(coord)
         && (coord.x - center.x).abs() <= radius
         && (coord.z - center.z).abs() <= radius
 }
@@ -56,7 +66,7 @@ mod tests {
                 .all(|c| is_within_horizontal_range(center, *c, radius))
         );
 
-        // the camera's own height never matters, only the world's vertical bounds do
+        // the anchor's own height never matters, only the world's vertical bounds do
         let high_center = center.with_y(1000);
         assert!(is_within_horizontal_range(
             high_center,

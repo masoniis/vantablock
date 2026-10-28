@@ -19,7 +19,7 @@ pub fn poll_chunk_generation_tasks(
 
     // output
     mut commands: Commands,
-    mut chunk_manager: ResMut<ChunkMap>,
+    mut chunk_map: ResMut<ChunkMap>,
 ) {
     // poll all generation tasks
     for (entity, generation_task_component, coord) in tasks_query.iter_mut() {
@@ -59,7 +59,7 @@ pub fn poll_chunk_generation_tasks(
                     coord
                 );
                 commands.entity(entity).despawn();
-                chunk_manager.unregister_chunk(coord.pos);
+                chunk_map.unregister_chunk(coord.pos);
             }
         }
     }

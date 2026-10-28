@@ -44,8 +44,9 @@ fn sending_a_message() {
                 }
 
                 let test_msg = ServerMessage::SyncTime {
-                    game_time: 42.0,
-                    tick: 0,
+                    total_days: 3,
+                    time_of_day: 42.0,
+                    paused: true,
                 };
 
                 let (entity, mut sender) = sender_query
@@ -78,9 +79,13 @@ fn sending_a_message() {
                 info_once!("Checking client receiver for messages...");
                 for message in receiver.receive() {
                     info_once!("Message received: {:?}", message);
-                    if let ServerMessage::SyncTime { game_time, tick } = message {
-                        assert_eq!(game_time, 42.0);
-                        assert_eq!(tick, 0);
+                    if let ServerMessage::SyncTime {
+                        total_days,
+                        time_of_day,
+                        paused,
+                    } = message
+                    {
+                        assert_eq!((total_days, time_of_day, paused), (3, 42.0, true));
                         found = true;
                     }
                 }

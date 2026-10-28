@@ -1,6 +1,6 @@
 use super::shadow_view_uniform::ShadowViewBindGroupLayout;
+use crate::render::chunk::gpu_storage::ChunkStorageBindGroupLayout;
 use crate::render::passes::shadow::gpu_resources::SHADOW_DEPTH_FORMAT;
-use crate::render::resources::world_uniforms::ChunkStorageBindGroupLayout;
 use crate::render::shaders::SHADOW_VERT_SHADER_HANDLE;
 use bevy::ecs::prelude::*;
 use bevy::mesh::PrimitiveTopology;

@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use crate::render::data::{ExtractedSun, RenderTimeResource};
+use crate::render::environment::{ExtractedSun, RenderTimeResource};
 use bevy::ecs::prelude::*;
 use bevy::render::render_resource::{
     BindGroup, BindGroupEntry, Buffer, BufferDescriptor, BufferUsages,

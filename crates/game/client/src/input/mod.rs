@@ -12,18 +12,13 @@ use crate::{
         input_maps::get_default_client_action_input_map,
         local_actions::ClientAction,
         resources::CursorMovement,
-        systems::{
-            lock_cursor_system, toggle_chunk_borders::ChunkBoundsToggle,
-            toggle_chunk_borders_system, toggle_opaque_wireframe::OpaqueRenderMode,
-            toggle_opaque_wireframe_mode_system, toggle_pause_system, unlock_cursor_system,
-        },
+        systems::{lock_cursor_system, toggle_pause_system, unlock_cursor_system},
     },
     lifecycle::state::{ClientLifecycleState, InGameState},
 };
 use bevy::{
     app::{App, Plugin, PreUpdate, Update},
     prelude::{IntoScheduleConfigs, Name, OnEnter, OnExit, SystemCondition, in_state},
-    render::extract_resource::ExtractResourcePlugin,
 };
 use leafwing_input_manager::{common_conditions::action_just_pressed, plugin::InputManagerPlugin};
 
@@ -43,9 +38,6 @@ impl Plugin for ClientInputPlugin {
         //         resources & render plugins
         // ------------------------------------------
         app.insert_resource(CursorMovement::default());
-        app.insert_resource(OpaqueRenderMode::default());
-        app.insert_resource(ChunkBoundsToggle::default());
-        app.add_plugins(ExtractResourcePlugin::<ChunkBoundsToggle>::default());
 
         // INFO: --------------------------------------------
         //         state-transition cursor management
@@ -80,12 +72,6 @@ impl Plugin for ClientInputPlugin {
                         in_state(InGameState::Playing).or_else(in_state(InGameState::Paused)),
                     ),
                 ),
-                // toggle opaque wireframe mode
-                toggle_opaque_wireframe_mode_system
-                    .run_if(action_just_pressed(ClientAction::ToggleOpaqueWireframeMode)),
-                // toggle chunk borders
-                toggle_chunk_borders_system
-                    .run_if(action_just_pressed(ClientAction::ToggleChunkBorders)),
             )
                 .run_if(in_state(ClientLifecycleState::InGame)),
         );

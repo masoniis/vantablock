@@ -1,7 +1,9 @@
 use crate::render::passes::bounding_box::WireframeObjectBindGroupLayout;
-use crate::render::resources::{CentralCameraViewBindGroupLayout, EnvironmentBindGroupLayout};
+use crate::render::passes::bounding_box::gpu_resources::WireframeVertex;
 use crate::render::shaders::{WIREFRAME_FRAG_SHADER_HANDLE, WIREFRAME_VERT_SHADER_HANDLE};
-use crate::render::types::WireframeVertex;
+use crate::render::{
+    environment::EnvironmentBindGroupLayout, view::CentralCameraViewBindGroupLayout,
+};
 use bevy::core_pipeline::core_3d;
 use bevy::ecs::prelude::*;
 use bevy::render::render_resource::*;

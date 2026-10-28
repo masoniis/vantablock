@@ -1,7 +1,7 @@
 use crate::{
     network::{InboundBlockUpdateMessage, OutboundBreakBlockMessage, OutboundPlaceBlockMessage},
     player::{BreakBlockEvent, PlaceBlockEvent, TargetedBlock},
-    world::chunk::ClientChunkManager,
+    world::chunk::{ChunkEdited, ClientChunkMap},
 };
 use bevy::ecs::prelude::*;
 use common::{
@@ -9,7 +9,7 @@ use common::{
     world::block::block_registry::{AIR_BLOCK_ID, BlockId},
     world::chunk::{
         CHUNK_SIDE_LENGTH,
-        components::{ChunkBlocksComponent, ChunkCoord, ChunkMeshDirty},
+        components::{ChunkBlocksComponent, ChunkCoord},
     },
 };
 
@@ -84,7 +84,7 @@ pub fn place_targeted_block_system(
 pub fn handle_break_block_events_system(
     // input
     mut events: MessageReader<BreakBlockEvent>,
-    chunk_manager: Res<ClientChunkManager>,
+    chunk_map: Res<ClientChunkMap>,
 
     // output
     mut blocks_query: Query<&mut ChunkBlocksComponent>,
@@ -94,7 +94,7 @@ pub fn handle_break_block_events_system(
         apply_block_edit(
             event.world_pos,
             AIR_BLOCK_ID,
-            &chunk_manager,
+            &chunk_map,
             &mut blocks_query,
             &mut commands,
         );
@@ -106,7 +106,7 @@ pub fn handle_break_block_events_system(
 pub fn handle_place_block_events_system(
     // input
     mut events: MessageReader<PlaceBlockEvent>,
-    chunk_manager: Res<ClientChunkManager>,
+    chunk_map: Res<ClientChunkMap>,
 
     // output
     mut blocks_query: Query<&mut ChunkBlocksComponent>,
@@ -116,7 +116,7 @@ pub fn handle_place_block_events_system(
         apply_block_edit(
             event.target_pos,
             event.block_id,
-            &chunk_manager,
+            &chunk_map,
             &mut blocks_query,
             &mut commands,
         );
@@ -126,17 +126,17 @@ pub fn handle_place_block_events_system(
 /// Writes `block_id` at `world_pos` into the loaded chunk containing it and marks that chunk
 /// (plus any neighbor sharing the edited border) for remeshing.
 ///
-/// Chunks are looked up through the `ClientChunkManager`, which only tracks chunk entities.
+/// Chunks are looked up through the `ClientChunkMap`, which only tracks chunk entities.
 fn apply_block_edit(
     world_pos: IVec3,
     block_id: BlockId,
-    chunk_manager: &ClientChunkManager,
+    chunk_map: &ClientChunkMap,
     blocks_query: &mut Query<&mut ChunkBlocksComponent>,
     commands: &mut Commands,
 ) {
     let chunk_pos = ChunkCoord::world_to_chunk_pos(world_pos.as_vec3());
 
-    let Some(entity) = chunk_manager.get_entity(chunk_pos) else {
+    let Some(entity) = chunk_map.get_entity(chunk_pos) else {
         return;
     };
     let Ok(mut chunk_blocks) = blocks_query.get_mut(entity) else {
@@ -152,7 +152,7 @@ fn apply_block_edit(
         block_id,
     );
 
-    commands.entity(entity).insert(ChunkMeshDirty);
+    commands.entity(entity).insert(ChunkEdited);
 
     // blocks on a chunk border change the neighbor's visible faces and ambient occlusion too
     let max_idx = (CHUNK_SIDE_LENGTH - 1) as i32;
@@ -166,8 +166,8 @@ fn apply_block_edit(
             continue;
         };
 
-        if let Some(neighbor_entity) = chunk_manager.get_entity(chunk_pos + neighbor_offset) {
-            commands.entity(neighbor_entity).insert(ChunkMeshDirty);
+        if let Some(neighbor_entity) = chunk_map.get_entity(chunk_pos + neighbor_offset) {
+            commands.entity(neighbor_entity).insert(ChunkEdited);
         }
     }
 }
@@ -188,15 +188,15 @@ mod tests {
             ))
             .id();
         app.world_mut()
-            .resource_mut::<ClientChunkManager>()
+            .resource_mut::<ClientChunkMap>()
             .chunk_states
-            .insert(pos, ClientChunkState::MeshComplete { entity });
+            .insert(pos, ClientChunkState::Loaded { entity });
         entity
     }
 
     fn app() -> App {
         let mut app = App::new();
-        app.init_resource::<ClientChunkManager>();
+        app.init_resource::<ClientChunkMap>();
         app.add_message::<BreakBlockEvent>();
         app.add_systems(Update, handle_break_block_events_system);
         app
@@ -224,10 +224,10 @@ mod tests {
         app.update();
 
         let world = app.world();
-        assert!(world.entity(chunk).contains::<ChunkMeshDirty>());
-        assert!(world.entity(east).contains::<ChunkMeshDirty>());
-        assert!(!world.entity(north).contains::<ChunkMeshDirty>());
-        assert!(!world.entity(camera).contains::<ChunkMeshDirty>());
+        assert!(world.entity(chunk).contains::<ChunkEdited>());
+        assert!(world.entity(east).contains::<ChunkEdited>());
+        assert!(!world.entity(north).contains::<ChunkEdited>());
+        assert!(!world.entity(camera).contains::<ChunkEdited>());
 
         let blocks = world.entity(chunk).get::<ChunkBlocksComponent>().unwrap();
         let view = blocks.get_view();

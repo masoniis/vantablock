@@ -1,31 +1,23 @@
-use crate::{
-    prelude::*,
-    render::chunk::tasks::{CheckForMeshing, WantsMeshing},
-    world::chunk::ClientChunkManager,
-};
+use crate::{prelude::*, render::chunk::ChunkMesh, world::chunk::ChunkEdited};
 use bevy::ecs::prelude::*;
-use common::world::chunk::{ChunkCoord, ChunkMeshDirty};
+use common::world::chunk::ChunkCoord;
 
-/// A system that detects chunks marked as dirty and prepares them for re-meshing.
+/// Queues edited chunks for a remesh.
+///
+/// Only chunks that already have a mesh state are re-queued; any other chunk is meshed with its
+/// current data once the scheduler queues it.
 pub fn handle_dirty_chunks_system(
     // input
-    dirty_chunks_query: Query<(Entity, &ChunkCoord), With<ChunkMeshDirty>>,
+    mut dirty_chunks_query: Query<(Entity, &ChunkCoord, Option<&mut ChunkMesh>), With<ChunkEdited>>,
 
     // output
     mut commands: Commands,
-    mut chunk_manager: ResMut<ClientChunkManager>,
 ) {
-    for (entity, coord) in dirty_chunks_query.iter() {
-        trace!(
-            "Chunk {:?} at {} was marked as dirty, preparing for re-meshing.",
-            entity, coord.pos
-        );
-
-        chunk_manager.mark_as_needs_meshing(coord.pos, entity);
-
-        commands
-            .entity(entity)
-            .insert((WantsMeshing, CheckForMeshing))
-            .remove::<ChunkMeshDirty>();
+    for (entity, coord, mesh) in &mut dirty_chunks_query {
+        commands.entity(entity).remove::<ChunkEdited>();
+        if let Some(mut mesh) = mesh {
+            trace!("Chunk {} was edited, queueing a remesh", coord.pos);
+            *mesh = ChunkMesh::Queued;
+        }
     }
 }

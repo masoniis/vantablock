@@ -1,22 +1,24 @@
-//! The chunk meshing pipeline's systems, in the order a chunk passes through them. Chunks enter
-//! once `world::chunk` has received and decompressed their block data.
+//! Chunk meshing, run once per frame in this order:
 //!
-//! 1. `promote`: new chunks in range (and in-range chunks that were waiting) become `WantsMeshing`.
-//! 2. `dispatch`: once all neighbors have data, a meshing task is spawned on the compute pool.
-//! 3. `poll`: finished tasks are turned into mesh components for the render world.
+//! 1. `dirty`: block edits queue their chunks for a remesh.
+//! 2. `poll`: finished tasks become mesh components for the render world.
+//! 3. `schedule`: chunks entering render distance are queued, chunks leaving it are dropped
+//!    from the queue, and free task slots go to the nearest queued chunks whose neighbors all
+//!    have data. `task` builds and spawns that work.
 //!
-//! `dirty` feeds edited chunks back into step 2. Marker components live in `components`.
+//! Each chunk entity's meshing state is its `ChunkMesh` component (`Queued`, `Meshing`,
+//! `Meshed`); `world::chunk` only tracks whether its data arrived. The scheduler re-decides
+//! everything from that state every frame instead of reacting to "a neighbor arrived"
+//! signals, so a chunk can't be stranded by a missed signal: if it is queued and in range, it
+//! is meshed as soon as it can be. Because the state lives on the entity, unloading the chunk
+//! removes it too.
 
-pub mod components;
 pub mod dirty;
-pub mod dispatch;
 pub mod poll;
-pub mod promote;
+pub mod schedule;
+pub mod task;
 
-pub use components::{CheckForMeshing, ChunkMeshingTaskComponent, WantsMeshing};
 pub use dirty::handle_dirty_chunks_system;
-pub use dispatch::start_pending_meshing_tasks_system;
 pub use poll::poll_chunk_meshing_tasks;
-pub use promote::{
-    manage_distance_based_chunk_meshing_targets_system, promote_newly_generated_chunks_system,
-};
+pub use schedule::schedule_chunk_meshing_system;
+pub use task::ChunkMeshingTaskComponent;

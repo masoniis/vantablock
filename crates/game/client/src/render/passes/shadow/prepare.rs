@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use crate::render::data::ExtractedSun;
+use crate::render::environment::ExtractedSun;
 use crate::render::passes::opaque::queue::Opaque3dRenderPhase;
 use crate::render::passes::shadow::gpu_resources::SHADOW_MAP_RESOLUTION;
 use crate::render::passes::shadow::gpu_resources::{ShadowViewBuffer, ShadowViewData};

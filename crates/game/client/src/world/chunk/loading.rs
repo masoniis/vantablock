@@ -1,10 +1,10 @@
 use crate::{
     prelude::*,
     world::chunk::{
-        ClientChunkManager,
+        ClientChunkMap,
         range::{
-            ChunkCameraQuery, active_camera_chunk, chunks_in_horizontal_range,
-            is_within_horizontal_range,
+            StreamingAnchorQuery, chunks_in_horizontal_range, is_within_horizontal_range,
+            streaming_center,
         },
     },
 };
@@ -15,16 +15,16 @@ use common::{
 };
 use lightyear::prelude::{Client, MessageSender};
 
-/// A system that determines which chunks should be loaded based on camera position.
+/// A system that determines which chunks should be loaded around the streaming anchor.
 /// Unloads chunks that left the load distance and requests each newly awaited chunk from the
 /// server.
 #[instrument(skip_all)]
 pub fn manage_distance_based_chunk_loading_targets_system(
     // input
-    camera_query: ChunkCameraQuery,
+    anchor: StreamingAnchorQuery,
 
     // output
-    mut chunk_manager: ResMut<ClientChunkManager>,
+    mut chunk_map: ResMut<ClientChunkMap>,
     mut sender_query: Query<&mut MessageSender<ClientMessage>, With<Client>>,
     mut commands: Commands,
 ) {
@@ -33,13 +33,13 @@ pub fn manage_distance_based_chunk_loading_targets_system(
         return;
     };
 
-    let Some(camera_chunk_pos) = active_camera_chunk(&camera_query) else {
+    let Some(center) = streaming_center(&anchor) else {
         return;
     };
 
     // handle unloading
-    chunk_manager.chunk_states.retain(|coord, state| {
-        if is_within_horizontal_range(camera_chunk_pos, *coord, LOAD_DISTANCE) {
+    chunk_map.chunk_states.retain(|coord, state| {
+        if is_within_horizontal_range(center, *coord, LOAD_DISTANCE) {
             return true;
         }
         if let Some(entity) = state.entity() {
@@ -51,9 +51,9 @@ pub fn manage_distance_based_chunk_loading_targets_system(
 
     // identify new chunks to load
     let mut requested = Vec::new();
-    for coord in chunks_in_horizontal_range(camera_chunk_pos, LOAD_DISTANCE) {
-        if !chunk_manager.is_chunk_present_or_loading(coord) {
-            chunk_manager.mark_as_awaiting_data(coord);
+    for coord in chunks_in_horizontal_range(center, LOAD_DISTANCE) {
+        if !chunk_map.is_tracked(coord) {
+            chunk_map.mark_as_awaiting_data(coord);
             requested.push(ChunkCoord { pos: coord });
         }
     }
@@ -66,11 +66,8 @@ pub fn manage_distance_based_chunk_loading_targets_system(
 
 /// Despawns every client chunk and forgets its state when leaving the game, so a later
 /// session doesn't render or skip requesting chunks from the previous world.
-pub fn unload_all_chunks_system(
-    mut chunk_manager: ResMut<ClientChunkManager>,
-    mut commands: Commands,
-) {
-    for entity in chunk_manager
+pub fn unload_all_chunks_system(mut chunk_map: ResMut<ClientChunkMap>, mut commands: Commands) {
+    for entity in chunk_map
         .chunk_states
         .drain()
         .filter_map(|(_, s)| s.entity())

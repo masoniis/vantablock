@@ -1,6 +1,6 @@
 use crate::{
     network::InboundCompressedChunkMessage,
-    world::chunk::{ClientChunkManager, ClientChunkState},
+    world::chunk::{ClientChunkMap, ClientChunkState},
 };
 use bevy::{
     prelude::*,
@@ -60,14 +60,14 @@ pub fn poll_decompression_tasks_system(
 
 pub fn apply_decompressed_chunk_data_system(
     mut ev_chunk: MessageReader<DecompressedChunkMessage>,
-    mut chunk_manager: ResMut<ClientChunkManager>,
+    mut chunk_map: ResMut<ClientChunkMap>,
     mut commands: Commands,
 ) {
     for event in ev_chunk.read() {
         let coord = event.coord.pos;
         let data = &event.data;
 
-        let state = chunk_manager.get_state(coord);
+        let state = chunk_map.get_state(coord);
         match state {
             Some(ClientChunkState::AwaitingData) => {
                 trace!(target: "client_network", "Applying decompressed chunk data for {:?}", coord);
@@ -77,7 +77,7 @@ pub fn apply_decompressed_chunk_data_system(
                 // spawn the entity now that we have data
                 let entity = commands.spawn((ChunkCoord { pos: coord }, blocks)).id();
 
-                chunk_manager.mark_as_data_ready(coord, entity);
+                chunk_map.mark_as_loaded(coord, entity);
             }
             Some(_) => {
                 debug!(
