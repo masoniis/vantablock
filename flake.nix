@@ -103,11 +103,6 @@
         };
 
         packages.bevy-brp-mcp = bevy-brp-mcp;
-
-        packages.formatting = pkgs.buildEnv {
-          name = "gh action empty default profile";
-          paths = [ pkgs-unstable.wgsl-analyzer ];
-        };
       }
     )
     // (
