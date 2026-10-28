@@ -43,9 +43,9 @@ pub struct DebugMenuState {
     pub visible: bool,
 }
 
-pub struct DebugMenuPlugin;
+pub struct DebugOverlayPlugin;
 
-impl Plugin for DebugMenuPlugin {
+impl Plugin for DebugOverlayPlugin {
     fn build(&self, app: &mut App) {
         if !app.is_plugin_added::<FrameTimeDiagnosticsPlugin>() {
             app.add_plugins(FrameTimeDiagnosticsPlugin::default());

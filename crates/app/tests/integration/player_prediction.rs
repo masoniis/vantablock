@@ -1,11 +1,12 @@
 use bevy::prelude::*;
 use client::{
     HeadlessClientPlugins,
-    input::{local_actions::ClientAction, systems::toggle_chunk_borders::ChunkBoundsToggle},
+    debug::chunk_borders::ChunkBoundsToggle,
+    debug::showcase::{ApplyShowcase, SHOWCASES},
+    input::local_actions::ClientAction,
     lifecycle::ClientLifecycleState,
     network::connection::{ConnectType, InitiateConnection},
     player::{LocalPlayer, LocalPlayerLook},
-    showcase::{ApplyShowcase, SHOWCASES},
     world::chunk::ClientChunkMap,
 };
 use common::{

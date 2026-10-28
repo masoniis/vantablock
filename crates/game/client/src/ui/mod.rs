@@ -32,7 +32,7 @@ impl Plugin for VantablockUiPlugin {
             screens::connecting::ConnectingUiPlugin,
             screens::pause_menu::PauseMenuPlugin,
             screens::disconnected::DisconnectedUiPlugin,
-            screens::debug_menu::DebugMenuPlugin,
+            crate::debug::overlay::DebugOverlayPlugin,
         ));
 
         // the menu camera renders the connecting screen, then gives way to the player camera

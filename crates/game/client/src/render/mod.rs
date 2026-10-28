@@ -13,8 +13,8 @@ pub use data::*;
 //         render world interface
 // --------------------------------------
 
-use crate::input::systems::toggle_chunk_borders::ChunkBoundsToggle;
-use crate::input::systems::toggle_opaque_wireframe::OpaqueRenderMode;
+use crate::debug::chunk_borders::ChunkBoundsToggle;
+use crate::debug::wireframe::OpaqueRenderMode;
 use crate::player::TargetedBlock;
 use crate::prelude::*;
 use crate::render::{

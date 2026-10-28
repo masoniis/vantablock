@@ -1,11 +1,11 @@
 use crate::{
+    debug::showcase::{ApplyShowcase, SHOWCASES},
     input::{
         input_maps::{client_keys, player_keys},
         local_actions::ClientAction,
     },
     lifecycle::state::{ClientLifecycleState, InGameState},
     network::connection::SessionWorld,
-    showcase::{ApplyShowcase, SHOWCASES},
     ui::{
         theme::{Face, caption, palette, panel, text},
         widgets::{ButtonTone, button, keycap, keycaps},

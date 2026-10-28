@@ -1,5 +1,5 @@
 use crate::{
-    input::systems::toggle_opaque_wireframe::OpaqueRenderMode,
+    debug::wireframe::OpaqueRenderMode,
     prelude::*,
     render::{
         resources::{

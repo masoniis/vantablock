@@ -1,5 +1,6 @@
 //! # The Vantablock Client Library
 
+pub mod debug;
 pub mod input;
 pub mod lifecycle;
 pub mod network;
@@ -7,7 +8,6 @@ pub mod player;
 pub mod prelude;
 pub mod render;
 pub mod settings;
-pub mod showcase;
 pub mod ui;
 pub mod world;
 
@@ -46,7 +46,7 @@ impl PluginGroup for CoreClientLogicPlugins {
             .add_group(network::ClientNetworkPlugins)
             .add(world::ClientWorldPlugin)
             .add(player::PlayerPlugin)
-            .add(showcase::ShowcasePlugin)
+            .add(debug::DebugToolsPlugin)
     }
 }
 
