@@ -21,7 +21,7 @@ pub fn handle_client_block_requests(
     chunk_map: Res<ChunkMap>,
     mut blocks_query: Query<&mut ChunkBlocksComponent>,
     mut sender: ServerMultiMessageSender,
-    server: Option<Single<&Server>>,
+    server: Option<Single<&Endpoint, With<Server>>>,
     player_query: Query<&RemoteId>,
     mut commands: Commands,
 ) {

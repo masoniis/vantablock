@@ -12,7 +12,7 @@ use lightyear::prelude::*;
 use tracing::{error, info};
 
 pub fn on_client_connect(
-    trigger: On<Add, Connected>,
+    trigger: On<Add<Connected>>,
     mut commands: Commands,
     client_ids: Query<&RemoteId>,
 ) {
@@ -61,7 +61,7 @@ pub fn on_client_connect(
 }
 
 pub fn on_client_disconnect(
-    trigger: On<Remove, Connected>,
+    trigger: On<Remove<Connected>>,
     mut commands: Commands,
     player_query: Query<(Entity, &ClientConnection)>,
 ) {

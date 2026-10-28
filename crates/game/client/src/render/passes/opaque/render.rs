@@ -14,7 +14,7 @@ use bevy::{
             RenderPassDescriptor, StoreOp,
         },
         renderer::{RenderContext, ViewQuery},
-        view::{ViewDepthTexture, ViewTarget},
+        view::{ViewDepthStencilTexture, ViewTarget},
     },
 };
 
@@ -22,7 +22,7 @@ use bevy::{
 /// an opaque phase.
 #[instrument(skip_all, name = "opaque_render_pass")]
 pub fn opaque_pass(
-    view: ViewQuery<(&ViewTarget, &Opaque3dRenderPhase, &ViewDepthTexture)>,
+    view: ViewQuery<(&ViewTarget, &Opaque3dRenderPhase, &ViewDepthStencilTexture)>,
     mesh_storage: Option<Res<RenderMeshStorageResource>>,
     view_buffer: Option<Res<CentralCameraViewUniform>>,
     material_bind_group: Option<Res<TextureArrayUniforms>>,
@@ -78,7 +78,7 @@ pub fn opaque_pass(
                 label: Some("Opaque Pass"),
                 color_attachments: &[Some(view_target.get_color_attachment())],
                 depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
-                    view: depth_texture.view(),
+                    view: &depth_texture.attachment.texture.default_view,
                     depth_ops: Some(Operations {
                         load: LoadOp::Clear(0.0),
                         store: StoreOp::Store,

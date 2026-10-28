@@ -25,7 +25,7 @@ pub fn button(label: &str, tone: ButtonTone) -> impl Scene + use<> {
     let label = label.to_owned();
     bsn! {
         ui_widgets::Button
-        template_value(tone)
+        tone
         Hovered
         TabIndex(0)
         Node {
@@ -39,7 +39,7 @@ pub fn button(label: &str, tone: ButtonTone) -> impl Scene + use<> {
         }
         BackgroundColor(palette::SURFACE)
         BorderColor::all(Color::NONE)
-        Children [ text(&label, Face::Strong, 15.0, palette::TEXT) ]
+        Children [ @text(&label, Face::Strong, 15.0, palette::TEXT) ]
     }
 }
 

@@ -68,14 +68,18 @@ impl Plugin for VantablockRenderPlugin {
 
         // register observers to mark mesh entities for synchronization to the render world
         app.add_observer(
-            |add: On<Add, OpaqueMeshComponent>, mut commands: Commands| {
-                commands.entity(add.entity).insert(SyncToRenderWorld);
+            |add: On<Add<OpaqueMeshComponent>>, mut commands: Commands| {
+                commands
+                    .entity(add.entity)
+                    .insert(SyncToRenderWorld::default());
             },
         );
 
         app.add_observer(
-            |add: On<Add, TransparentMeshComponent>, mut commands: Commands| {
-                commands.entity(add.entity).insert(SyncToRenderWorld);
+            |add: On<Add<TransparentMeshComponent>>, mut commands: Commands| {
+                commands
+                    .entity(add.entity)
+                    .insert(SyncToRenderWorld::default());
             },
         );
 

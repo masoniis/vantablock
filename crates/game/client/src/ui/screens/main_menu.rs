@@ -71,29 +71,27 @@ fn show_page(commands: &mut Commands, open: Option<Entity>, content: Box<dyn Sce
 fn menu_layout(content: Box<dyn Scene>) -> impl Scene {
     bsn! {
         MainMenuUiRoot
-        backdrop()
+        @backdrop()
         Node { align_items: AlignItems::FlexStart, padding: UiRect::left(px(56)) }
         TabGroup
         Children [
             // a rail behind the column, separating it from the rest of the screen
-            (
-                Node {
-                    position_type: PositionType::Absolute,
-                    left: px(0),
-                    top: px(0),
-                    width: px(392),
-                    height: percent(100),
-                    border: UiRect::right(px(1)),
-                }
-                BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.52))
-                BorderColor::all(palette::PANEL_BORDER)
-                Pickable::IGNORE
-            ),
-            (
-                Node { width: px(280), flex_direction: FlexDirection::Column, row_gap: px(10) }
-                Children [ ({content}) ]
-            ),
-            footer(),
+            Node {
+                position_type: PositionType::Absolute,
+                left: px(0),
+                top: px(0),
+                width: px(392),
+                height: percent(100),
+                border: UiRect::right(px(1)),
+            }
+            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.52))
+            BorderColor::all(palette::PANEL_BORDER)
+            Pickable::IGNORE
+            --
+            Node { width: px(280), flex_direction: FlexDirection::Column, row_gap: px(10) }
+            Children [ @content ]
+            --
+            @footer()
         ]
     }
 }
@@ -102,32 +100,29 @@ fn home_page() -> Box<dyn Scene> {
     Box::new(bsn! {
         Node { flex_direction: FlexDirection::Column, row_gap: px(10) }
         Children [
-            title(),
-            (
-                button("Singleplayer", ButtonTone::Primary)
-                Node { margin: UiRect::top(px(28)) }
-                on(|_: On<Activate>, mut commands: Commands, page: Single<Entity, With<MainMenuUiRoot>>| {
-                    show_page(&mut commands, Some(*page), new_world_page());
+            @title()
+            --
+            @button("Singleplayer", ButtonTone::Primary)
+            Node { margin: UiRect::top(px(28)) }
+            on(|_: On<Activate>, mut commands: Commands, page: Single<Entity, With<MainMenuUiRoot>>| {
+                show_page(&mut commands, Some(*page), new_world_page());
+            })
+            --
+            @caption("Server address")
+            Node { margin: UiRect::top(px(22)) }
+            --
+            Node { column_gap: px(8), align_items: AlignItems::Center }
+            Children [
+                @text_field(DEFAULT_LOCAL_SERVER_ADDR, 64)
+                ServerAddrInput
+                Node { flex_grow: 1.0, min_width: px(0) }
+                on(join_on_enter)
+                --
+                @button("Join", ButtonTone::Normal)
+                on(|_: On<Activate>, addr: Single<&EditableText, With<ServerAddrInput>>, mut commands: Commands| {
+                    join(&mut commands, &addr);
                 })
-            ),
-            (caption("Server address") Node { margin: UiRect::top(px(22)) }),
-            (
-                Node { column_gap: px(8), align_items: AlignItems::Center }
-                Children [
-                    (
-                        text_field(DEFAULT_LOCAL_SERVER_ADDR, 64)
-                        ServerAddrInput
-                        Node { flex_grow: 1.0, min_width: px(0) }
-                        on(join_on_enter)
-                    ),
-                    (
-                        button("Join", ButtonTone::Normal)
-                        on(|_: On<Activate>, addr: Single<&EditableText, With<ServerAddrInput>>, mut commands: Commands| {
-                            join(&mut commands, &addr);
-                        })
-                    ),
-                ]
-            ),
+            ]
         ]
     })
 }
@@ -138,8 +133,8 @@ fn new_world_page() -> Box<dyn Scene> {
         .into_iter()
         .map(|shaper| -> Box<dyn Scene> {
             Box::new(bsn! {
-                button(shaper.display_name(), ButtonTone::Quiet)
-                template_value(ShaperOption(shaper))
+                @button(shaper.display_name(), ButtonTone::Quiet)
+                ShaperOption(shaper)
                 on(move |_: On<Activate>, mut settings: ResMut<NewWorldSettings>| {
                     settings.0.shaper = shaper;
                 })
@@ -150,29 +145,28 @@ fn new_world_page() -> Box<dyn Scene> {
     Box::new(bsn! {
         Node { flex_direction: FlexDirection::Column, row_gap: px(10) }
         Children [
-            text("New world", Face::Strong, 24.0, palette::TEXT),
-            (caption("Terrain") Node { margin: UiRect::top(px(14)) }),
-            (
-                Node { flex_direction: FlexDirection::Column, row_gap: px(4) }
-                Children [ {options} ]
-            ),
-            (
-                button("Create world", ButtonTone::Primary)
-                Node { margin: UiRect::top(px(18)) }
-                // singleplayer always runs its own background server
-                on(|_: On<Activate>, mut commands: Commands, settings: Res<NewWorldSettings>| {
-                    commands.trigger(InitiateConnection {
-                        connect_type: ConnectType::Singleplayer(settings.0),
-                        server_addr: DEFAULT_LOCAL_SERVER_ADDR.to_owned(),
-                    });
-                })
-            ),
-            (
-                button("Back", ButtonTone::Quiet)
-                on(|_: On<Activate>, mut commands: Commands, page: Single<Entity, With<MainMenuUiRoot>>| {
-                    show_page(&mut commands, Some(*page), home_page());
-                })
-            ),
+            @text("New world", Face::Strong, 24.0, palette::TEXT)
+            --
+            @caption("Terrain")
+            Node { margin: UiRect::top(px(14)) }
+            --
+            Node { flex_direction: FlexDirection::Column, row_gap: px(4) }
+            Children [ {options} ]
+            --
+            @button("Create world", ButtonTone::Primary)
+            Node { margin: UiRect::top(px(18)) }
+            // singleplayer always runs its own background server
+            on(|_: On<Activate>, mut commands: Commands, settings: Res<NewWorldSettings>| {
+                commands.trigger(InitiateConnection {
+                    connect_type: ConnectType::Singleplayer(settings.0),
+                    server_addr: DEFAULT_LOCAL_SERVER_ADDR.to_owned(),
+                });
+            })
+            --
+            @button("Back", ButtonTone::Quiet)
+            on(|_: On<Activate>, mut commands: Commands, page: Single<Entity, With<MainMenuUiRoot>>| {
+                show_page(&mut commands, Some(*page), home_page());
+            })
         ]
     })
 }
@@ -195,8 +189,8 @@ fn mark_selected_shaper(
 /// The wordmark: a heavy title, small and left-aligned.
 fn title() -> impl Scene {
     bsn! {
-        text("VANTABLOCK", Face::Display, 34.0, palette::TEXT)
-        template_value(LetterSpacing::Px(4.0))
+        @text("VANTABLOCK", Face::Display, 34.0, palette::TEXT)
+        LetterSpacing::Px(4.0)
         TextShadow { offset: Vec2 { x: 0.0, y: 3.0 }, color: {palette::ACCENT_DEEP} }
     }
 }
@@ -210,7 +204,7 @@ fn footer() -> impl Scene {
             bottom: px(12),
         }
         Children [
-            text(concat!("v", env!("CARGO_PKG_VERSION")), Face::Mono, 12.0, palette::TEXT_FAINT),
+            @text(concat!("v", env!("CARGO_PKG_VERSION")), Face::Mono, 12.0, palette::TEXT_FAINT)
         ]
     }
 }

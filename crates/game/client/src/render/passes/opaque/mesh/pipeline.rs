@@ -4,15 +4,17 @@ use crate::{
     render::{
         chunk::ChunkStorageBindGroupLayout,
         environment::EnvironmentBindGroupLayout,
-        shaders::{OPAQUE_FRAG_SHADER_HANDLE, OPAQUE_VERT_SHADER_HANDLE},
+        shaders::{WorldShader, WorldShaders},
         texture::TextureArrayBindGroupLayout,
         view::CentralCameraViewBindGroupLayout,
     },
 };
 use bevy::{
+    asset::Handle,
     core_pipeline::core_3d::{self},
     ecs::prelude::*,
     render::render_resource::*,
+    shader::Shader,
 };
 
 /// A key that uniquely identifies a specialized world opaque pipeline.
@@ -30,6 +32,8 @@ pub struct Opaque3dPipeline {
     pub environment_layout: BindGroupLayoutDescriptor,
     pub texture_layout: BindGroupLayoutDescriptor,
     pub chunk_storage_layout: BindGroupLayoutDescriptor,
+    pub vertex_shader: Handle<Shader>,
+    pub fragment_shader: Handle<Shader>,
 }
 
 impl FromWorld for Opaque3dPipeline {
@@ -39,12 +43,15 @@ impl FromWorld for Opaque3dPipeline {
         let environment_layout = world.resource::<EnvironmentBindGroupLayout>();
         let texture_layout = world.resource::<TextureArrayBindGroupLayout>();
         let chunk_storage_layout = world.resource::<ChunkStorageBindGroupLayout>();
+        let shaders = world.resource::<WorldShaders>();
 
         Self {
             view_layout: view_layout.descriptor.clone(),
             environment_layout: environment_layout.descriptor.clone(),
             texture_layout: texture_layout.descriptor.clone(),
             chunk_storage_layout: chunk_storage_layout.descriptor.clone(),
+            vertex_shader: shaders.get(WorldShader::OpaqueVert),
+            fragment_shader: shaders.get(WorldShader::OpaqueFrag),
         }
     }
 }
@@ -93,14 +100,16 @@ impl SpecializedRenderPipeline for Opaque3dPipeline {
             ],
             immediate_size: 0,
             vertex: VertexState {
-                shader: OPAQUE_VERT_SHADER_HANDLE,
+                shader: self.vertex_shader.clone(),
                 shader_defs: vec![],
+                constants: vec![],
                 entry_point: Some("vs_main".into()),
                 buffers: vec![],
             },
             fragment: Some(FragmentState {
-                shader: OPAQUE_FRAG_SHADER_HANDLE,
+                shader: self.fragment_shader.clone(),
                 shader_defs: vec![],
+                constants: vec![],
                 entry_point: Some("fs_main".into()),
                 targets: fragment_target.to_vec(),
             }),

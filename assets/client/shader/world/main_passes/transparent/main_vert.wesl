@@ -1,8 +1,8 @@
-import package::world::main_passes::{
+import super::super::{
   lib::camera_uniform::{camera},
   lib::geometry_bindings::{faces, chunks, environment},
 };
-import package::world::lib::{
+import super::super::super::lib::{
   vertex_pulling::{
     pull_global_vertex_position,
     get_block_uv,

@@ -39,26 +39,25 @@ fn disconnected(reason: &str) -> impl Scene + use<> {
     let reason = reason.to_owned();
     bsn! {
         DisconnectedUiRoot
-        backdrop()
+        @backdrop()
         TabGroup
-        Children [(
-            panel()
+        Children [
+            @panel()
             Node { width: px(460) }
             Children [
-                text("Disconnected", Face::Strong, 22.0, palette::DANGER),
-                caption("Reason"),
-                (
-                    text(&reason, Face::Mono, 14.0, palette::TEXT)
-                    Node { margin: UiRect::bottom(px(8)) }
-                ),
-                (
-                    button("Back to menu", ButtonTone::Normal)
-                    AutoFocus
-                    on(|_: On<Activate>, mut next: ResMut<NextState<ClientLifecycleState>>| {
-                        next.set(ClientLifecycleState::MainMenu);
-                    })
-                ),
+                @text("Disconnected", Face::Strong, 22.0, palette::DANGER)
+                --
+                @caption("Reason")
+                --
+                @text(&reason, Face::Mono, 14.0, palette::TEXT)
+                Node { margin: UiRect::bottom(px(8)) }
+                --
+                @button("Back to menu", ButtonTone::Normal)
+                AutoFocus
+                on(|_: On<Activate>, mut next: ResMut<NextState<ClientLifecycleState>>| {
+                    next.set(ClientLifecycleState::MainMenu);
+                })
             ]
-        )]
+        ]
     }
 }

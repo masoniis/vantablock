@@ -1,11 +1,12 @@
 use crate::prelude::*;
 use bevy::{
     ecs::{resource::Resource, system::ResMut},
-    render::extract_resource::ExtractResource,
+    render::{RenderApp, extract_resource::ExtractResource},
 };
 
 /// A resource that defines the current opaque rendering polygon mode
 #[derive(Resource, ExtractResource, Default, Debug, PartialEq, Eq, Hash, Clone, Copy)]
+#[extract_app(RenderApp)]
 pub enum OpaqueRenderMode {
     #[default]
     Fill,

@@ -110,7 +110,7 @@ pub fn text(content: &str, face: Face, size: f32, color: Color) -> impl Scene + 
     let content = content.to_owned();
     bsn! {
         Text(content)
-        font(face, size)
+        @font(face, size)
         TextColor(color)
     }
 }
@@ -119,8 +119,8 @@ pub fn text(content: &str, face: Face, size: f32, color: Color) -> impl Scene + 
 pub fn caption(content: &str) -> impl Scene + use<> {
     let content = content.to_uppercase();
     bsn! {
-        text(&content, Face::Strong, 12.0, palette::TEXT_DIM)
-        template_value(LetterSpacing::Px(1.6))
+        @text(&content, Face::Strong, 12.0, palette::TEXT_DIM)
+        LetterSpacing::Px(1.6)
     }
 }
 
@@ -144,15 +144,15 @@ pub fn backdrop() -> impl Scene {
         palette::BACKDROP_BOTTOM.into(),
     ]));
     bsn! {
-        fill()
-        template_value(gradient)
+        @fill()
+        gradient
     }
 }
 
 /// A full-window screen dimming the game behind it.
 pub fn scrim() -> impl Scene {
     bsn! {
-        fill()
+        @fill()
         BackgroundColor(palette::SCRIM)
     }
 }

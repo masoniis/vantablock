@@ -1,6 +1,6 @@
 // geometry bindings is bindings for the main passes (opaque/transparent geometry)
 
-import package::world::shadow::lib::sun_camera_uniform::{SunCameraUniform};
+import super::super::super::shadow::lib::sun_camera_uniform::{SunCameraUniform};
 import super::environment_uniform::{EnvironmentUniform};
 import super::camera_uniform::{CameraUniform};
 

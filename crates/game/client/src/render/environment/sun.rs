@@ -1,6 +1,6 @@
 use crate::prelude::*;
 use bevy::ecs::prelude::Resource;
-use bevy::render::extract_resource::ExtractResource;
+use bevy::render::{RenderApp, extract_resource::ExtractResource};
 use common::time::WorldClockResource;
 
 /// Controls where the sun/sky starts LERPing to the horizon
@@ -58,7 +58,7 @@ pub struct ExtractedSun {
     pub horizon: [f32; 3],
 }
 
-impl ExtractResource for ExtractedSun {
+impl ExtractResource<RenderApp> for ExtractedSun {
     type Source = WorldClockResource;
 
     fn extract_resource(source: &Self::Source) -> Self {

@@ -14,7 +14,7 @@ pub fn send_sync_time(
     time: Res<Time>,
     world_clock: Res<WorldClockResource>,
     mut sender: ServerMultiMessageSender,
-    server: Option<Single<&Server>>,
+    server: Option<Single<&Endpoint, With<Server>>>,
 ) {
     timer.0.tick(time.delta());
     let changed = adjusted.read().count() > 0;

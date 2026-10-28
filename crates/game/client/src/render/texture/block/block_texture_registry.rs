@@ -5,7 +5,7 @@ use bevy::ecs::prelude::*;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::world::CommandQueue;
 use bevy::prelude::Image;
-use bevy::render::extract_resource::ExtractResource;
+use bevy::render::{RenderApp, extract_resource::ExtractResource};
 use bevy::tasks::AsyncComputeTaskPool;
 use common::lifecycle::PersistentPathsResource;
 use common::lifecycle::load::{LoadingTaskComponent, NodeCompleted, StartNode};
@@ -22,6 +22,7 @@ pub type TextureLoadError = String;
 
 /// A resource holding the handle to the stitched block texture array.
 #[derive(Resource, Clone, Debug, ExtractResource)]
+#[extract_app(RenderApp)]
 pub struct BlockTextureArray {
     pub handle: Handle<Image>,
 }

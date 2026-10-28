@@ -1,14 +1,16 @@
 use crate::render::{
     chunk::ChunkStorageBindGroupLayout,
     environment::EnvironmentBindGroupLayout,
-    shaders::{TRANSPARENT_FRAG_SHADER_HANDLE, TRANSPARENT_VERT_SHADER_HANDLE},
+    shaders::{WorldShader, WorldShaders},
     texture::TextureArrayBindGroupLayout,
     view::CentralCameraViewBindGroupLayout,
 };
 use bevy::render::render_resource::*;
 use bevy::{
+    asset::Handle,
     core_pipeline::core_3d,
     prelude::{FromWorld, Resource, World},
+    shader::Shader,
 };
 
 // INFO: -------------------
@@ -27,6 +29,8 @@ pub struct TransparentPipeline {
     pub environment_layout_descriptor: BindGroupLayoutDescriptor,
     pub texture_layout_descriptor: BindGroupLayoutDescriptor,
     pub chunk_storage_layout_descriptor: BindGroupLayoutDescriptor,
+    pub vertex_shader: Handle<Shader>,
+    pub fragment_shader: Handle<Shader>,
 }
 
 impl FromWorld for TransparentPipeline {
@@ -36,12 +40,15 @@ impl FromWorld for TransparentPipeline {
         let environment_layout = world.resource::<EnvironmentBindGroupLayout>();
         let texture_layout = world.resource::<TextureArrayBindGroupLayout>();
         let chunk_storage_layout = world.resource::<ChunkStorageBindGroupLayout>();
+        let shaders = world.resource::<WorldShaders>();
 
         Self {
             view_layout_descriptor: view_layout.descriptor.clone(),
             environment_layout_descriptor: environment_layout.descriptor.clone(),
             texture_layout_descriptor: texture_layout.descriptor.clone(),
             chunk_storage_layout_descriptor: chunk_storage_layout.descriptor.clone(),
+            vertex_shader: shaders.get(WorldShader::TransparentVert),
+            fragment_shader: shaders.get(WorldShader::TransparentFrag),
         }
     }
 }
@@ -66,14 +73,16 @@ impl SpecializedRenderPipeline for TransparentPipeline {
             ],
             immediate_size: 0,
             vertex: VertexState {
-                shader: TRANSPARENT_VERT_SHADER_HANDLE,
+                shader: self.vertex_shader.clone(),
                 shader_defs: vec![],
+                constants: vec![],
                 entry_point: Some("vs_main".into()),
                 buffers: vec![],
             },
             fragment: Some(FragmentState {
-                shader: TRANSPARENT_FRAG_SHADER_HANDLE,
+                shader: self.fragment_shader.clone(),
                 shader_defs: vec![],
+                constants: vec![],
                 entry_point: Some("fs_main".into()),
                 targets: vec![Some(ColorTargetState {
                     format,

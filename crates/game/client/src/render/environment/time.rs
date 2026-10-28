@@ -1,5 +1,5 @@
 use bevy::ecs::prelude::Resource;
-use bevy::render::extract_resource::ExtractResource;
+use bevy::render::{RenderApp, extract_resource::ExtractResource};
 use common::time::FrameClock;
 
 #[derive(Resource, Debug, Default, Clone)]
@@ -7,7 +7,7 @@ pub struct RenderTimeResource {
     pub total_elapsed_seconds: f32,
 }
 
-impl ExtractResource for RenderTimeResource {
+impl ExtractResource<RenderApp> for RenderTimeResource {
     type Source = FrameClock;
 
     fn extract_resource(source: &Self::Source) -> Self {

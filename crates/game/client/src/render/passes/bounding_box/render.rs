@@ -11,13 +11,13 @@ use bevy::render::render_resource::{
     StoreOp,
 };
 use bevy::render::renderer::{RenderContext, ViewQuery};
-use bevy::render::view::{ViewDepthTexture, ViewTarget};
+use bevy::render::view::{ViewDepthStencilTexture, ViewTarget};
 
 /// Draws the block bounding boxes. Runs in the `Core3d` schedule of every view that has a
 /// bounding box phase.
 #[instrument(skip_all, name = "wireframe_render_pass")]
 pub fn bounding_box_pass(
-    view: ViewQuery<(&ViewTarget, &ViewDepthTexture, &BoundingBoxPhase)>,
+    view: ViewQuery<(&ViewTarget, &ViewDepthStencilTexture, &BoundingBoxPhase)>,
     wireframe_buffer: Option<Res<WireframeObjectBuffer>>,
     wireframe_mesh: Option<Res<UnitCubeMesh>>,
     view_bind_group: Option<Res<CentralCameraViewUniform>>,
@@ -63,7 +63,7 @@ pub fn bounding_box_pass(
                 label: Some("Wireframe Render Pass"),
                 color_attachments: &[Some(view_target.get_color_attachment())],
                 depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
-                    view: depth_texture.view(),
+                    view: &depth_texture.attachment.texture.default_view,
                     depth_ops: Some(Operations {
                         load: LoadOp::Load,
                         store: StoreOp::Store,

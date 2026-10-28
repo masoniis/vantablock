@@ -26,11 +26,9 @@ brp = [
   "bevy/png",
 ] # exposes brp on localhost:15702 for inspection/automation
 
-[build-dependencies]
-wesl = { workspace = true } # shader compliation from WESL to WGSL
-
 [dev-dependencies]
 criterion = { workspace = true }
+naga = { version = "30", features = ["wgsl-in"] } # the version bevy uses, to validate the composed shaders
 
 # INFO: --------------------------
 #         util bin scripts
@@ -58,10 +56,10 @@ tracing-tracy = { workspace = true, optional = true }
 #         graphics
 # ------------------------
 
-wesl-core = { workspace = true }        # include_wesl! for the compiled shaders
 image = { workspace = true }
 bytemuck = { workspace = true }         # gpu friendly data
 offset-allocator = { workspace = true } # gpu buffer allocation
+glam = { workspace = true }             # glam's camera functions (bevy re-exports only the projections)
 
 # INFO: --------------------------
 #         simulation logic
