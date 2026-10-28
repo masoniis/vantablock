@@ -12,6 +12,7 @@ use common::{
     lifecycle::state::AppState,
     network::DEFAULT_LOCAL_SERVER_ADDR,
     player::components::{LogicalPosition, NetworkPlayer, PlayerLook},
+    time::WorldClockResource,
 };
 use leafwing_input_manager::prelude::ActionState;
 use lightyear::prelude::{Client, Predicted, PredictionManager};
@@ -177,6 +178,27 @@ fn local_player_inputs_are_predicted_and_authoritative() {
         client_pos.distance(server_pos) < 0.01,
         "client prediction {client_pos} diverged from server {server_pos}"
     );
+
+    // the pause-time key reaches the server through the player's inputs, and the server's
+    // clock is synced back to the client
+    client
+        .world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .press(KeyCode::Space);
+    step_until(
+        &mut server,
+        &mut client,
+        Duration::from_secs(5),
+        "world clock paused on server and client",
+        |server, client| {
+            server.world().resource::<WorldClockResource>().paused
+                && client.world().resource::<WorldClockResource>().paused
+        },
+    );
+    client
+        .world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .release(KeyCode::Space);
 
     // a showcase moves the player on the server, and prediction follows it
     client.world_mut().trigger(ApplyShowcase(0));

@@ -1,4 +1,6 @@
-use crate::network::{InboundBlockUpdateMessage, InboundCompressedChunkMessage};
+use crate::network::{
+    InboundBlockUpdateMessage, InboundCompressedChunkMessage, InboundSyncTimeMessage,
+};
 use bevy::{ecs::message::MessageWriter, prelude::*};
 use common::network::protocol::ServerMessage;
 use lightyear::prelude::MessageReceiver;
@@ -15,6 +17,7 @@ pub fn translate_server_network_messages(
     // outgoing ECS messages
     mut ev_chunk: MessageWriter<InboundCompressedChunkMessage>,
     mut ev_block_update: MessageWriter<InboundBlockUpdateMessage>,
+    mut ev_sync_time: MessageWriter<InboundSyncTimeMessage>,
 ) {
     for mut receiver in query.iter_mut() {
         for message in receiver.receive() {
@@ -25,8 +28,16 @@ pub fn translate_server_network_messages(
                 ServerMessage::BlockUpdate { position, block_id } => {
                     ev_block_update.write(InboundBlockUpdateMessage { position, block_id });
                 }
-                ServerMessage::SyncTime { game_time, tick } => {
-                    debug!("SyncTime received: game_time={}, tick={}", game_time, tick);
+                ServerMessage::SyncTime {
+                    total_days,
+                    time_of_day,
+                    paused,
+                } => {
+                    ev_sync_time.write(InboundSyncTimeMessage {
+                        total_days,
+                        time_of_day,
+                        paused,
+                    });
                 }
             }
         }

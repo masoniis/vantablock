@@ -19,7 +19,8 @@ impl Plugin for ServerIngressPlugin {
         app.add_message::<InboundRequestChunkMessage>()
             .add_message::<InboundBreakBlockMessage>()
             .add_message::<InboundPlaceBlockMessage>()
-            .add_message::<InboundTeleportMessage>();
+            .add_message::<InboundTeleportMessage>()
+            .add_message::<InboundSetTimeOfDayMessage>();
 
         app.add_systems(
             Update,

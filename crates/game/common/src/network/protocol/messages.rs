@@ -15,8 +15,9 @@ pub enum ClientMessage {
     BreakBlock { position: IVec3 },
     /// Intent to place a block at the specified position.
     PlaceBlock { position: IVec3, block_id: u8 },
-    /// Request the server to jump the game time by a specific amount.
-    RequestTimeJump { amount: f32 },
+    /// Request the server to set the time of day, as a fraction from 0.0 (midnight) to 1.0
+    /// (the showcase menu).
+    SetTimeOfDay { fraction: f32 },
     /// Request the server to move the sender's player to `position` (the showcase menu).
     Teleport { position: Vec3 },
 }
@@ -33,8 +34,14 @@ pub enum ServerMessage {
         coord: ChunkCoord,
         data: Vec<u8>, // u8 matches BlockId
     },
-    /// Synchronizes the authoritative game time across all clients.
-    SyncTime { game_time: f32, tick: u64 },
+    /// The server's authoritative world clock. Sent every second and right after it is changed;
+    /// clients snap their own clock to it.
+    SyncTime {
+        total_days: u64,
+        /// Seconds into the current day.
+        time_of_day: f32,
+        paused: bool,
+    },
 }
 
 // INFO: ---------------------------

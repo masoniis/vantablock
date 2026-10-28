@@ -23,3 +23,9 @@ pub struct OutboundPlaceBlockMessage {
 pub struct OutboundTeleportMessage {
     pub position: Vec3,
 }
+
+/// The local player wants the server to set the time of day (a fraction of the day).
+#[derive(Message)]
+pub struct OutboundSetTimeOfDayMessage {
+    pub fraction: f32,
+}

@@ -18,3 +18,11 @@ pub struct InboundBlockUpdateMessage {
     pub position: IVec3,
     pub block_id: u8,
 }
+
+/// The server's authoritative world clock.
+#[derive(Message)]
+pub struct InboundSyncTimeMessage {
+    pub total_days: u64,
+    pub time_of_day: f32,
+    pub paused: bool,
+}
