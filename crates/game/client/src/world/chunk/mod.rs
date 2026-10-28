@@ -7,10 +7,12 @@
 
 pub mod chunk_map;
 pub mod decompression;
+pub mod edits;
 pub mod loading;
 pub mod range;
 
 pub use chunk_map::{ClientChunkMap, ClientChunkState};
+pub use edits::ChunkEdited;
 
 // INFO: ---------------------------
 //         plugin definition

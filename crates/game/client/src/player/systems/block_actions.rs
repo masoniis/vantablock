@@ -1,7 +1,7 @@
 use crate::{
     network::{InboundBlockUpdateMessage, OutboundBreakBlockMessage, OutboundPlaceBlockMessage},
     player::{BreakBlockEvent, PlaceBlockEvent, TargetedBlock},
-    world::chunk::ClientChunkMap,
+    world::chunk::{ChunkEdited, ClientChunkMap},
 };
 use bevy::ecs::prelude::*;
 use common::{
@@ -9,7 +9,7 @@ use common::{
     world::block::block_registry::{AIR_BLOCK_ID, BlockId},
     world::chunk::{
         CHUNK_SIDE_LENGTH,
-        components::{ChunkBlocksComponent, ChunkCoord, ChunkMeshDirty},
+        components::{ChunkBlocksComponent, ChunkCoord},
     },
 };
 
@@ -152,7 +152,7 @@ fn apply_block_edit(
         block_id,
     );
 
-    commands.entity(entity).insert(ChunkMeshDirty);
+    commands.entity(entity).insert(ChunkEdited);
 
     // blocks on a chunk border change the neighbor's visible faces and ambient occlusion too
     let max_idx = (CHUNK_SIDE_LENGTH - 1) as i32;
@@ -167,7 +167,7 @@ fn apply_block_edit(
         };
 
         if let Some(neighbor_entity) = chunk_map.get_entity(chunk_pos + neighbor_offset) {
-            commands.entity(neighbor_entity).insert(ChunkMeshDirty);
+            commands.entity(neighbor_entity).insert(ChunkEdited);
         }
     }
 }
@@ -224,10 +224,10 @@ mod tests {
         app.update();
 
         let world = app.world();
-        assert!(world.entity(chunk).contains::<ChunkMeshDirty>());
-        assert!(world.entity(east).contains::<ChunkMeshDirty>());
-        assert!(!world.entity(north).contains::<ChunkMeshDirty>());
-        assert!(!world.entity(camera).contains::<ChunkMeshDirty>());
+        assert!(world.entity(chunk).contains::<ChunkEdited>());
+        assert!(world.entity(east).contains::<ChunkEdited>());
+        assert!(!world.entity(north).contains::<ChunkEdited>());
+        assert!(!world.entity(camera).contains::<ChunkEdited>());
 
         let blocks = world.entity(chunk).get::<ChunkBlocksComponent>().unwrap();
         let view = blocks.get_view();

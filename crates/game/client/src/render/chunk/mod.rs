@@ -4,7 +4,6 @@ pub mod meshing;
 pub mod tasks;
 
 pub use asset::BlockMeshAsset;
-pub use common::world::chunk::ChunkMeshDirty;
 pub use components::{ChunkMesh, OpaqueMeshComponent, TransparentMeshComponent};
 
 // INFO: ---------------------------
