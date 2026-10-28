@@ -1,7 +1,6 @@
 use crate::prelude::*;
-use crate::render::resources::world_uniforms::ChunkGpuStorage;
 use crate::render::{
-    data::RenderMeshStorageResource,
+    chunk::{ChunkGpuStorage, RenderMeshStorageResource},
     passes::opaque::{extract::OpaqueRenderMeshComponent, queue::Opaque3dRenderPhase},
     passes::shadow::gpu_resources::{
         ShadowDepthTextureResource, ShadowPassPipeline, ShadowViewBuffer,

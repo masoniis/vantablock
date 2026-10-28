@@ -1,10 +1,14 @@
 pub mod asset;
 pub mod components;
+pub mod gpu_storage;
 pub mod meshing;
 pub mod tasks;
+pub mod upload;
 
 pub use asset::BlockMeshAsset;
 pub use components::{ChunkMesh, OpaqueMeshComponent, TransparentMeshComponent};
+pub use gpu_storage::{ChunkGpuStorage, ChunkStorageBindGroupLayout};
+pub use upload::{MeshesToUploadQueue, RenderMeshStorageResource};
 
 // INFO: ---------------------------
 //         plugin definition

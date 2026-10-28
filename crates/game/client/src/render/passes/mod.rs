@@ -8,15 +8,18 @@ pub mod transparent;
 // ---------------------------------
 
 use crate::render::{
+    chunk::{ChunkGpuStorage, ChunkStorageBindGroupLayout},
+    environment::{
+        EnvironmentBindGroupLayout, EnvironmentUniforms, update_environment_uniform_buffer_system,
+    },
     passes::{
         bounding_box::WireframeRenderPassPlugin, opaque::OpaqueRenderPassPlugin,
         shadow::ShadowRenderPassPlugin, transparent::TransparentRenderPassPlugin,
     },
-    resources::{
-        CentralCameraViewBindGroupLayout, CentralCameraViewUniform, EnvironmentBindGroupLayout,
-        EnvironmentUniforms, TextureArrayBindGroupLayout, prepare_texture_array_system,
-        update_camera_view_buffer_system, update_environment_uniform_buffer_system,
-        world_uniforms::{ChunkGpuStorage, ChunkStorageBindGroupLayout},
+    texture::{TextureArrayBindGroupLayout, prepare_texture_array_system},
+    view::{
+        CentralCameraViewBindGroupLayout, CentralCameraViewUniform,
+        update_camera_view_buffer_system,
     },
 };
 use bevy::prelude::IntoScheduleConfigs;

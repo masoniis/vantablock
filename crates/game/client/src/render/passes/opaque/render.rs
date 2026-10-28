@@ -1,11 +1,10 @@
 use crate::prelude::*;
 use crate::render::{
-    data::RenderMeshStorageResource,
+    chunk::{ChunkGpuStorage, RenderMeshStorageResource},
+    environment::EnvironmentUniforms,
     passes::opaque::{extract::OpaqueRenderMeshComponent, queue::Opaque3dRenderPhase},
-    resources::{
-        CentralCameraViewUniform, EnvironmentUniforms, TextureArrayUniforms,
-        world_uniforms::ChunkGpuStorage,
-    },
+    texture::TextureArrayUniforms,
+    view::CentralCameraViewUniform,
 };
 use bevy::{
     ecs::prelude::*,

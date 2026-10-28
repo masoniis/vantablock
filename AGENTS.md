@@ -102,7 +102,7 @@ Unit and integration tests can't catch everything (UI flows, rendering, session 
 - `assets/`: Split into `client/` (fonts, shaders, textures), `server/` (config), and `shared/` (blocks, biomes).
 - `crates/`:
   - `game/client/src/world/`: Client chunk state (`ClientChunkMap`), distance-based chunk streaming, and decompression. No rendering.
-  - `game/client/src/render/`: Custom render passes, chunk meshing, and GPU resource management.
+  - `game/client/src/render/`: Grouped by feature: `chunk/` (meshing through GPU storage), `view/` (camera uniform and phases), `environment/` (sun, time, environment uniform), `texture/`, `block/`, and `passes/` (opaque, transparent, shadow, bounding box). Avoid kind-based folders like `systems/`, `resources/`, or `types/`.
   - `game/client/src/network/`, `game/server/src/network/`: Connection handling, message demultiplexing, and sending.
   - `game/server/src/world/`: Terrain generation and chunk loading.
   - `game/common/src/network/protocol/`: Channels, messages, and replicated components.

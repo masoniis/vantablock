@@ -1,4 +1,4 @@
-use crate::render::types::WireframeVertex;
+use crate::render::passes::bounding_box::gpu_resources::WireframeVertex;
 use bevy::ecs::prelude::*;
 use bevy::render::render_resource::{Buffer, BufferInitDescriptor, BufferUsages};
 use bevy::render::renderer::RenderDevice;

@@ -1,13 +1,10 @@
 pub mod block;
 pub mod chunk;
-pub mod data;
+pub mod environment;
 pub mod passes;
-pub mod resources;
 pub mod shaders;
 pub mod texture;
-pub mod types;
-
-pub use data::*;
+pub mod view;
 
 // INFO: --------------------------------
 //         render world interface
@@ -18,12 +15,17 @@ use crate::debug::wireframe::OpaqueRenderMode;
 use crate::player::TargetedBlock;
 use crate::prelude::*;
 use crate::render::{
-    chunk::{OpaqueMeshComponent, TransparentMeshComponent},
+    chunk::{
+        MeshesToUploadQueue, OpaqueMeshComponent, RenderMeshStorageResource,
+        TransparentMeshComponent, upload::extract_modified_block_meshes,
+    },
+    environment::{ExtractedSun, RenderTimeResource},
     passes::{
         WorldRenderPassesPlugin, opaque::extract::extract_opaque_meshes,
         transparent::extract::extract_transparent_meshes,
     },
     texture::BlockTextureArray,
+    view::camera_phases::extract_custom_camera_phases_system,
 };
 use bevy::{
     app::{App, Plugin, SubApp},
@@ -102,5 +104,14 @@ pub fn pre_setup_render_sub_app(sub_app: &mut SubApp) {
         .init_resource::<MeshesToUploadQueue>();
 
     // specifically implemented plugins (these run strictly in the Render World)
-    sub_app.add_plugins((WorldRenderPassesPlugin, SimulationExtractionPlugin));
+    sub_app.add_plugins(WorldRenderPassesPlugin);
+
+    // pull new chunk meshes and per-camera render phases out of the main world
+    sub_app.add_systems(
+        ExtractSchedule,
+        (
+            extract_modified_block_meshes,
+            extract_custom_camera_phases_system,
+        ),
+    );
 }

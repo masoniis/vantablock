@@ -1,7 +1,7 @@
-use crate::render::resources::world_uniforms::{ChunkGpuStorage, ChunkStorageBindGroupLayout};
+use crate::render::chunk::gpu_storage::{ChunkGpuStorage, ChunkStorageBindGroupLayout};
 use crate::{
     prelude::*,
-    render::data::{MeshesToUploadQueue, RenderMeshStorageResource},
+    render::chunk::{MeshesToUploadQueue, RenderMeshStorageResource},
 };
 use bevy::ecs::prelude::*;
 use bevy::render::renderer::{RenderDevice, RenderQueue};

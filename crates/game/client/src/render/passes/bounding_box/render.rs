@@ -1,8 +1,8 @@
 use super::gpu_resources::{UnitCubeMesh, WireframeObjectBuffer};
 use crate::prelude::*;
 use crate::render::{
-    passes::bounding_box::queue::BoundingBoxPhase,
-    resources::{CentralCameraViewUniform, EnvironmentUniforms},
+    environment::EnvironmentUniforms, passes::bounding_box::queue::BoundingBoxPhase,
+    view::CentralCameraViewUniform,
 };
 use bevy::ecs::prelude::*;
 use bevy::render::render_resource::PipelineCache;

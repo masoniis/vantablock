@@ -1,9 +1,9 @@
 use crate::render::{
-    resources::world_uniforms::ChunkStorageBindGroupLayout,
-    resources::{
-        CentralCameraViewBindGroupLayout, EnvironmentBindGroupLayout, TextureArrayBindGroupLayout,
-    },
+    chunk::ChunkStorageBindGroupLayout,
+    environment::EnvironmentBindGroupLayout,
     shaders::{TRANSPARENT_FRAG_SHADER_HANDLE, TRANSPARENT_VERT_SHADER_HANDLE},
+    texture::TextureArrayBindGroupLayout,
+    view::CentralCameraViewBindGroupLayout,
 };
 use bevy::render::render_resource::*;
 use bevy::{

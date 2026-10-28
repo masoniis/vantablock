@@ -1,7 +1,7 @@
 use crate::{
     prelude::*,
+    render::chunk::gpu_storage::BlockMesh,
     render::chunk::{BlockMeshAsset, OpaqueMeshComponent, TransparentMeshComponent},
-    render::resources::world_uniforms::BlockMesh,
 };
 use bevy::{
     asset::{AssetEvent, AssetId, Assets},

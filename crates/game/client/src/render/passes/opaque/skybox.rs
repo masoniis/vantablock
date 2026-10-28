@@ -1,5 +1,7 @@
-use crate::render::resources::{CentralCameraViewBindGroupLayout, EnvironmentBindGroupLayout};
 use crate::render::shaders::{SKYBOX_FRAG_SHADER_HANDLE, SKYBOX_VERT_SHADER_HANDLE};
+use crate::render::{
+    environment::EnvironmentBindGroupLayout, view::CentralCameraViewBindGroupLayout,
+};
 use bevy::{core_pipeline::core_3d, ecs::prelude::*, render::render_resource::*};
 use tracing::instrument;
 
