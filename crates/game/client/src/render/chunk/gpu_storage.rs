@@ -22,11 +22,18 @@ const MAX_CHUNKS: u64 = 10_000;
 //         data types
 // --------------------------
 
-/// A representation of raw chunk data used in the chunk metadata storage buffer.
+/// One chunk's entry in the metadata storage buffer. A chunk is drawn with its slot in this
+/// buffer as the instance index, which is how the vertex shader finds this entry.
+///
+/// Matches the WGSL struct layout: a `vec3<f32>` followed by a `u32` packs into 16 bytes.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct ChunkRenderData {
+    /// World-space position of the chunk's origin (its minimum corner), in blocks. Faces store
+    /// only their 0–31 position inside the chunk, and the shader adds this to place them.
     pub world_pos: [f32; 3],
+    /// Where the chunk's faces begin in the shared face buffer, counted in faces (one `u32`
+    /// each), not bytes. The shader reads vertex `v` from face `start_index + v / 6`.
     pub start_index: u32,
 }
 
