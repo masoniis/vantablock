@@ -81,9 +81,9 @@ impl SlotAllocator {
     }
 }
 
-// INFO: ---------------------
-//         the manager
-// ---------------------------
+// INFO: ---------------------------
+//         chunk gpu storage
+// ---------------------------------
 
 /// The view bind group layout resource shared by all camera-centric render passes.
 #[derive(Resource, Clone)]
@@ -130,8 +130,10 @@ impl FromWorld for ChunkStorageBindGroupLayout {
     }
 }
 
+/// Every chunk mesh on the GPU: one shared face buffer (ranges handed out by an offset
+/// allocator) and one metadata buffer of `ChunkRenderData` slots.
 #[derive(Resource)]
-pub struct ChunkStorageManager {
+pub struct ChunkGpuStorage {
     pub bind_group: BindGroup,
     pub layout: ChunkStorageBindGroupLayout,
 
@@ -144,7 +146,7 @@ pub struct ChunkStorageManager {
     slot_allocator: SlotAllocator,
 }
 
-impl FromWorld for ChunkStorageManager {
+impl FromWorld for ChunkGpuStorage {
     fn from_world(world: &mut World) -> Self {
         let device = world.resource::<RenderDevice>();
         let layout = world.resource::<ChunkStorageBindGroupLayout>();
@@ -189,7 +191,7 @@ impl FromWorld for ChunkStorageManager {
     }
 }
 
-impl ChunkStorageManager {
+impl ChunkGpuStorage {
     pub fn meta_buffer_binding(&self) -> BindingResource<'_> {
         self.meta_buffer.as_entire_binding()
     }

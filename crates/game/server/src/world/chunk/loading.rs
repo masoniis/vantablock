@@ -58,7 +58,7 @@ pub fn manage_player_chunk_loading_system(
     player_query: Query<(&LogicalPosition, Entity), With<ClientConnection>>,
 
     // output
-    mut chunk_manager: ResMut<ChunkMap>,
+    mut chunk_map: ResMut<ChunkMap>,
     mut commands: Commands,
 ) {
     const MAX_CHUNKS_SPURRED_PER_FRAME: usize = 32;
@@ -81,12 +81,12 @@ pub fn manage_player_chunk_loading_system(
                     player_chunk_pos.z + offset.y,
                 );
 
-                if !chunk_manager.is_chunk_present(coord) {
+                if !chunk_map.is_chunk_present(coord) {
                     trace!(target:"server_chunk_loading","Server: Marking chunk needs-generation at {:?}", coord);
                     let ent = commands
                         .spawn((NeedsGenerating, ChunkLod(0), ChunkCoord { pos: coord }))
                         .id();
-                    chunk_manager.register_chunk(coord, ent);
+                    chunk_map.register_chunk(coord, ent);
                     chunks_spurred_this_frame += 1;
                 }
             }
@@ -102,7 +102,7 @@ pub fn unload_distant_chunks_system(
     modified_query: Query<(), With<ModifiedChunk>>,
 
     // output
-    mut chunk_manager: ResMut<ChunkMap>,
+    mut chunk_map: ResMut<ChunkMap>,
     mut commands: Commands,
 ) {
     let player_chunks: Vec<IVec3> = player_query
@@ -110,7 +110,7 @@ pub fn unload_distant_chunks_system(
         .map(|position| ChunkCoord::world_to_chunk_pos(position.0))
         .collect();
 
-    chunk_manager.chunks.retain(|coord, entity| {
+    chunk_map.chunks.retain(|coord, entity| {
         let near_a_player = player_chunks
             .iter()
             .any(|player_chunk| horizontal_distance(*player_chunk, *coord) <= UNLOAD_DISTANCE);
@@ -138,7 +138,7 @@ pub fn queue_client_chunk_requests_system(
 
     // output
     mut player_query: Query<(&LogicalPosition, &ClientConnection, &mut ClientChunkTracker)>,
-    mut chunk_manager: ResMut<ChunkMap>,
+    mut chunk_map: ResMut<ChunkMap>,
     mut commands: Commands,
 ) {
     if requests.is_empty() {
@@ -163,11 +163,11 @@ pub fn queue_client_chunk_requests_system(
         for coord in coords {
             if is_within_request_range(player_chunk_pos, coord) {
                 tracker.pending.insert(coord);
-                if !chunk_manager.is_chunk_present(coord) {
+                if !chunk_map.is_chunk_present(coord) {
                     let entity = commands
                         .spawn((NeedsGenerating, ChunkLod(0), ChunkCoord { pos: coord }))
                         .id();
-                    chunk_manager.register_chunk(coord, entity);
+                    chunk_map.register_chunk(coord, entity);
                 }
             } else {
                 debug!(target:"server_chunk_loading", "Ignoring out of range chunk request {:?} from {:?}", coord, connection.client_entity);
@@ -181,7 +181,7 @@ pub fn sync_chunk_data_to_clients_system(
     // input
     mut client_query: Query<(&LogicalPosition, &ClientConnection, &mut ClientChunkTracker)>,
     chunk_query: Query<&ChunkBlocksComponent, With<ActiveChunk>>,
-    chunk_manager: Res<ChunkMap>,
+    chunk_map: Res<ChunkMap>,
     mut sender_query: Query<&mut MessageSender<ServerMessage>>,
 ) {
     const MAX_CHUNKS_SENT_PER_FRAME: usize = 32;
@@ -204,7 +204,7 @@ pub fn sync_chunk_data_to_clients_system(
             .pending
             .iter()
             .filter_map(|&coord| {
-                let entity = chunk_manager.get_chunk(coord)?;
+                let entity = chunk_map.get_chunk(coord)?;
                 chunk_query
                     .contains(entity)
                     .then(|| (horizontal_distance(player_chunk_pos, coord), coord, entity))
@@ -304,18 +304,18 @@ mod tests {
         }
 
         // check if chunks were requested
-        let chunk_manager = app.world().resource::<ChunkMap>();
+        let chunk_map = app.world().resource::<ChunkMap>();
         assert!(
-            !chunk_manager.chunks.is_empty(),
+            !chunk_map.chunks.is_empty(),
             "Chunk map should not be empty after player spawn"
         );
 
         // verify we have a chunk at (0, 1, 0) - player is at Y=32 which is chunk Y=1
         let player_chunk_coord = IVec3::new(0, 1, 0);
-        assert!(chunk_manager.is_chunk_present(player_chunk_coord));
+        assert!(chunk_map.is_chunk_present(player_chunk_coord));
 
         // verify the entity has NeedsGenerating
-        let entity = chunk_manager.get_chunk(player_chunk_coord).unwrap();
+        let entity = chunk_map.get_chunk(player_chunk_coord).unwrap();
         assert!(app.world().get::<NeedsGenerating>(entity).is_some());
         assert!(app.world().get::<ChunkCoord>(entity).is_some());
     }

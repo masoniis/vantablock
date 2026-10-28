@@ -4,7 +4,7 @@ use crate::render::{
     passes::opaque::{extract::OpaqueRenderMeshComponent, queue::Opaque3dRenderPhase},
     resources::{
         CentralCameraViewUniform, EnvironmentUniforms, TextureArrayUniforms,
-        world_uniforms::ChunkStorageManager,
+        world_uniforms::ChunkGpuStorage,
     },
 };
 use bevy::{
@@ -28,7 +28,7 @@ pub fn opaque_pass(
     view_buffer: Option<Res<CentralCameraViewUniform>>,
     material_bind_group: Option<Res<TextureArrayUniforms>>,
     skybox_params: Option<Res<EnvironmentUniforms>>,
-    chunk_memory_manager: Option<Res<ChunkStorageManager>>,
+    gpu_storage: Option<Res<ChunkGpuStorage>>,
     pipeline_cache: Res<PipelineCache>,
     render_meshes: Query<&OpaqueRenderMeshComponent>,
     mut render_context: RenderContext,
@@ -43,13 +43,13 @@ pub fn opaque_pass(
         Some(view_buffer),
         Some(material_bind_group),
         Some(skybox_params),
-        Some(chunk_memory_manager),
+        Some(gpu_storage),
     ) = (
         mesh_storage,
         view_buffer,
         material_bind_group,
         skybox_params,
-        chunk_memory_manager,
+        gpu_storage,
     )
     else {
         return;
@@ -98,7 +98,7 @@ pub fn opaque_pass(
     render_pass.set_bind_group(0, &view_buffer.bind_group, &[]);
     render_pass.set_bind_group(1, &skybox_params.bind_group, &[]);
     render_pass.set_bind_group(2, &material_bind_group.bind_group, &[]);
-    render_pass.set_bind_group(3, &chunk_memory_manager.bind_group, &[]);
+    render_pass.set_bind_group(3, &gpu_storage.bind_group, &[]);
 
     for item in phase.items.iter() {
         if let Ok(render_mesh_comp) = render_meshes.get(item.entity)

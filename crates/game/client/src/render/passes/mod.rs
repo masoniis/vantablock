@@ -16,7 +16,7 @@ use crate::render::{
         CentralCameraViewBindGroupLayout, CentralCameraViewUniform, EnvironmentBindGroupLayout,
         EnvironmentUniforms, TextureArrayBindGroupLayout, prepare_texture_array_system,
         update_camera_view_buffer_system, update_environment_uniform_buffer_system,
-        world_uniforms::{ChunkStorageBindGroupLayout, ChunkStorageManager},
+        world_uniforms::{ChunkGpuStorage, ChunkStorageBindGroupLayout},
     },
 };
 use bevy::prelude::IntoScheduleConfigs;
@@ -38,7 +38,7 @@ impl Plugin for WorldRenderPassesPlugin {
     fn finish(&self, app: &mut App) {
         // shared world uniform resources
         app.init_resource::<ChunkStorageBindGroupLayout>();
-        app.init_resource::<ChunkStorageManager>();
+        app.init_resource::<ChunkGpuStorage>();
     }
 }
 
